@@ -1,0 +1,124 @@
+{
+  "entities": {
+    "Student": {
+      "title": "Student",
+      "description": "Represents a student registered by a teacher.",
+      "type": "object",
+      "properties": {
+        "nombre": {
+          "type": "string",
+          "description": "Full name of the student"
+        },
+        "gradoSeccion": {
+          "type": "string",
+          "description": "Grade and section of the student"
+        },
+        "fechaNacimiento": {
+          "type": "string",
+          "format": "date",
+          "description": "Birth date in YYYY-MM-DD format"
+        },
+        "sexo": {
+          "type": "string",
+          "enum": ["V", "H"],
+          "description": "Sex of the student (V for Varón, H for Hembra)"
+        },
+        "docenteId": {
+          "type": "string",
+          "description": "UID of the teacher who registered the student"
+        },
+        "createdAt": {
+          "type": "timestamp",
+          "description": "When the student was registered"
+        }
+      },
+      "required": ["nombre", "gradoSeccion", "fechaNacimiento", "sexo", "docenteId", "createdAt"]
+    },
+    "Attendance": {
+      "title": "Attendance",
+      "description": "Daily attendance record for a student.",
+      "type": "object",
+      "properties": {
+        "docenteId": {
+          "type": "string"
+        },
+        "estudianteId": {
+          "type": "string"
+        },
+        "fecha": {
+          "type": "string",
+          "format": "date",
+          "description": "Date of attendance in YYYY-MM-DD format"
+        },
+        "asistio": {
+          "type": "boolean"
+        }
+      },
+      "required": ["docenteId", "estudianteId", "fecha", "asistio"]
+    },
+    "PPAProject": {
+      "title": "PPA Project",
+      "description": "A generated pedagogical project.",
+      "type": "object",
+      "properties": {
+        "docenteId": { "type": "string" },
+        "gradoSeccion": { "type": "string" },
+        "tema": { "type": "string" },
+        "duracion": { "type": "string" },
+        "diagnostico": { "type": "string" },
+        "contenido": { "type": "string" },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["docenteId", "gradoSeccion", "tema", "duracion", "diagnostico", "contenido", "createdAt"]
+    },
+    "DailyPlan": {
+      "title": "Daily Plan",
+      "description": "A generated daily lesson plan based on a PPA.",
+      "type": "object",
+      "properties": {
+        "docenteId": { "type": "string" },
+        "ppaId": { "type": "string" },
+        "fecha": { "type": "string", "format": "date" },
+        "temaDia": { "type": "string" },
+        "contenido": { "type": "string" },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["docenteId", "ppaId", "fecha", "temaDia", "contenido", "createdAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "A student report card.",
+      "type": "object",
+      "properties": {
+        "docenteId": { "type": "string" },
+        "estudianteId": { "type": "string" },
+        "calificacion": { "type": "string" },
+        "observacion": { "type": "string" },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["docenteId", "estudianteId", "calificacion", "observacion", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/estudiantes/{estudianteId}": {
+      "schema": { "$ref": "#/entities/Student" },
+      "description": "Collection of students."
+    },
+    "/asistencias/{asistenciaId}": {
+      "schema": { "$ref": "#/entities/Attendance" },
+      "description": "Collection of daily attendance records."
+    },
+    "/proyectos_ppa/{proyectoId}": {
+      "schema": { "$ref": "#/entities/PPAProject" },
+      "description": "Collection of generated PPA projects."
+    },
+    "/planificaciones_diarias/{planId}": {
+      "schema": { "$ref": "#/entities/DailyPlan" },
+      "description": "Collection of generated daily lesson plans."
+    },
+    "/boletines/{boletinId}": {
+      "schema": { "$ref": "#/entities/Report" },
+      "description": "Collection of student report cards."
+    }
+  }
+}

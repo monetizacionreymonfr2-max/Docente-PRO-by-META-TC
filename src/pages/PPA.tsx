@@ -1,0 +1,336 @@
+import { useState, useEffect } from 'react';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { GoogleGenAI } from '@google/genai';
+import { Sparkles, Loader2, FileText, Copy, Printer, X, History } from 'lucide-react';
+import Markdown from 'react-markdown';
+
+// Initialize Gemini API
+// Using the key provided by the user in previous prompts
+const ai = new GoogleGenAI({ apiKey: 'AIzaSyApq3e0pSpfnnJVv5pKDBSDhIhlE5bUXz4' });
+
+interface PPAProject {
+  id: string;
+  gradoSeccion: string;
+  tema: string;
+  duracion: string;
+  diagnostico: string;
+  contenido: string;
+  createdAt: any;
+}
+
+export default function PPA() {
+  const [activeTab, setActiveTab] = useState<'generate' | 'history'>('generate');
+  
+  // Form State
+  const [gradoSeccion, setGradoSeccion] = useState('');
+  const [tema, setTema] = useState('');
+  const [duracion, setDuracion] = useState('');
+  const [diagnostico, setDiagnostico] = useState('');
+  
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [projects, setProjects] = useState<PPAProject[]>([]);
+  const [selectedProject, setSelectedProject] = useState<PPAProject | null>(null);
+
+  const currentUserId = auth.currentUser?.uid;
+
+  // Fetch History
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const q = query(
+      collection(db, 'proyectos_ppa'),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const projectsData: PPAProject[] = [];
+      snapshot.forEach((doc) => {
+        projectsData.push({ id: doc.id, ...doc.data() } as PPAProject);
+      });
+      setProjects(projectsData.filter(p => (p as any).docenteId === currentUserId));
+    }, (error) => {
+      console.error("Error fetching PPA projects:", error);
+    });
+
+    return () => unsubscribe();
+  }, [currentUserId]);
+
+  const handleGenerate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!gradoSeccion.trim() || !tema.trim() || !duracion.trim() || !diagnostico.trim() || !currentUserId) return;
+
+    setIsGenerating(true);
+    try {
+      const prompt = `Eres un especialista en educación de Venezuela. Redacta un Proyecto Pedagógico estructurado estrictamente en: 
+1. Título del Proyecto (creativo)
+2. Justificación
+3. Propósito General
+4. Áreas de Aprendizaje (Lenguaje, Matemáticas, Ciencias Naturales, Ciencias Sociales)
+5. Estrategias de Evaluación.
+
+Datos de entrada:
+- Grado/Sección: ${gradoSeccion}
+- Tema Central: ${tema}
+- Duración Estimada: ${duracion}
+- Diagnóstico o Necesidad: ${diagnostico}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+
+      const generatedText = response.text || '';
+
+      // Save to Firestore
+      const docRef = await addDoc(collection(db, 'proyectos_ppa'), {
+        docenteId: currentUserId,
+        gradoSeccion: gradoSeccion.trim(),
+        tema: tema.trim(),
+        duracion: duracion.trim(),
+        diagnostico: diagnostico.trim(),
+        contenido: generatedText,
+        createdAt: serverTimestamp()
+      });
+
+      // Clear form and show the generated project
+      setGradoSeccion('');
+      setTema('');
+      setDuracion('');
+      setDiagnostico('');
+      
+      // Switch to history tab and select the new project
+      // We simulate the object since we don't have the server timestamp yet
+      setSelectedProject({
+        id: docRef.id,
+        gradoSeccion,
+        tema,
+        duracion,
+        diagnostico,
+        contenido: generatedText,
+        createdAt: new Date()
+      });
+      setActiveTab('history');
+
+    } catch (error) {
+      console.error("Error generating PPA:", error);
+      alert("Hubo un error al generar el proyecto. Verifica tu conexión o intenta más tarde.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleCopy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    alert('¡Copiado al portapapeles!');
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto">
+      <div className="mb-8 no-print">
+        <h1 className="text-2xl font-bold text-gray-900">Gestor de PPA con IA</h1>
+        <p className="text-gray-600 mt-1">Genera Proyectos Pedagógicos de Aula estructurados automáticamente.</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 border-b border-gray-200 overflow-x-auto no-print">
+        <button
+          onClick={() => { setActiveTab('generate'); setSelectedProject(null); }}
+          className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
+            activeTab === 'generate' 
+              ? 'border-blue-600 text-blue-600' 
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          <Sparkles className="w-4 h-4" />
+          Generar Nuevo PPA
+        </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
+            activeTab === 'history' 
+              ? 'border-blue-600 text-blue-600' 
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          Historial de Proyectos
+        </button>
+      </div>
+
+      {/* Generate Tab */}
+      {activeTab === 'generate' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8 max-w-3xl mx-auto">
+          <form onSubmit={handleGenerate} className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div>
+                <label htmlFor="gradoSeccion" className="block text-sm font-medium text-gray-700 mb-1">
+                  Grado y Sección
+                </label>
+                <input
+                  type="text"
+                  id="gradoSeccion"
+                  required
+                  placeholder="Ej: 4to Grado A"
+                  value={gradoSeccion}
+                  onChange={(e) => setGradoSeccion(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="duracion" className="block text-sm font-medium text-gray-700 mb-1">
+                  Duración Estimada
+                </label>
+                <input
+                  type="text"
+                  id="duracion"
+                  required
+                  placeholder="Ej: 4 semanas"
+                  value={duracion}
+                  onChange={(e) => setDuracion(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="tema" className="block text-sm font-medium text-gray-700 mb-1">
+                Tema Central
+              </label>
+              <input
+                type="text"
+                id="tema"
+                required
+                placeholder="Ej: Conociendo la historia de mi comunidad"
+                value={tema}
+                onChange={(e) => setTema(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="diagnostico" className="block text-sm font-medium text-gray-700 mb-1">
+                Diagnóstico o Necesidad
+              </label>
+              <textarea
+                id="diagnostico"
+                required
+                rows={4}
+                placeholder="Ej: Los alumnos muestran interés por las leyendas locales pero tienen dificultades en la comprensión lectora..."
+                value={diagnostico}
+                onChange={(e) => setDiagnostico(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors resize-none"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={isGenerating}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium py-3 px-4 rounded-xl transition-all transform hover:scale-[1.01] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none shadow-md"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Generando Proyecto con IA...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-5 h-5" />
+                  Generar PPA
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* History Tab */}
+      {activeTab === 'history' && !selectedProject && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {projects.length === 0 ? (
+            <div className="col-span-full bg-white rounded-xl p-8 text-center border border-gray-200">
+              <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">No tienes proyectos generados aún.</p>
+            </div>
+          ) : (
+            projects.map((project) => {
+              const date = project.createdAt?.toDate ? project.createdAt.toDate().toLocaleDateString() : 'Reciente';
+              return (
+                <div 
+                  key={project.id} 
+                  onClick={() => setSelectedProject(project)}
+                  className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <span className="bg-blue-50 text-blue-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                      {project.gradoSeccion}
+                    </span>
+                    <span className="text-xs text-gray-400">{date}</span>
+                  </div>
+                  <h3 className="font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                    {project.tema}
+                  </h3>
+                  <p className="text-sm text-gray-500 line-clamp-3">
+                    {project.diagnostico}
+                  </p>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* Selected Project View (Modal-like but inline for better mobile UX) */}
+      {activeTab === 'history' && selectedProject && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print-document">
+          {/* Header Actions */}
+          <div className="bg-gray-50 border-b border-gray-200 p-4 flex flex-wrap justify-between items-center gap-4 no-print">
+            <button 
+              onClick={() => setSelectedProject(null)}
+              className="text-gray-500 hover:text-gray-700 flex items-center gap-1 font-medium text-sm"
+            >
+              <X className="w-4 h-4" />
+              Cerrar Vista
+            </button>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => handleCopy(selectedProject.contenido)}
+                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Copy className="w-4 h-4" />
+                Copiar
+              </button>
+              <button 
+                onClick={handlePrint}
+                className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
+                <Printer className="w-4 h-4" />
+                PDF / Imprimir
+              </button>
+            </div>
+          </div>
+
+          {/* Project Content */}
+          <div className="p-8 sm:p-12">
+            <div className="mb-8 pb-6 border-b border-gray-200">
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">{selectedProject.tema}</h2>
+              <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                <p><strong>Grado/Sección:</strong> {selectedProject.gradoSeccion}</p>
+                <p><strong>Duración:</strong> {selectedProject.duracion}</p>
+              </div>
+            </div>
+            
+            <div className="prose prose-blue max-w-none prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg">
+              <Markdown>{selectedProject.contenido}</Markdown>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

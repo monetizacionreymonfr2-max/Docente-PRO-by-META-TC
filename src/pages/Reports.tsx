@@ -1,0 +1,499 @@
+import { useState, useEffect } from 'react';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { GoogleGenAI } from '@google/genai';
+import { FileBadge, Loader2, Sparkles, Printer, History, X, Save } from 'lucide-react';
+
+// Initialize Gemini API
+const ai = new GoogleGenAI({ apiKey: 'AIzaSyApq3e0pSpfnnJVv5pKDBSDhIhlE5bUXz4' });
+
+interface Student {
+  id: string;
+  nombre: string;
+  gradoSeccion: string;
+  fechaNacimiento: string;
+  sexo: string;
+}
+
+interface Report {
+  id: string;
+  estudianteId: string;
+  calificacion: string;
+  observacion: string;
+  createdAt: any;
+}
+
+const calculateAge = (birthDateString: string) => {
+  if (!birthDateString) return 0;
+  const birthDate = new Date(birthDateString);
+  const ageDifMs = Date.now() - birthDate.getTime();
+  const ageDate = new Date(ageDifMs);
+  return Math.abs(ageDate.getUTCFullYear() - 1970);
+};
+
+export default function Reports() {
+  const [activeTab, setActiveTab] = useState<'generate' | 'history'>('generate');
+  
+  // Form State
+  const [students, setStudents] = useState<Student[]>([]);
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [calificacion, setCalificacion] = useState('');
+  const [palabrasClave, setPalabrasClave] = useState('');
+  const [observacion, setObservacion] = useState('');
+  
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const [reports, setReports] = useState<Report[]>([]);
+  const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+
+  const currentUserId = auth.currentUser?.uid;
+
+  // Fetch Students
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const q = query(
+      collection(db, 'estudiantes'),
+      orderBy('nombre', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const studentsData: Student[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.docenteId === currentUserId) {
+          studentsData.push({ id: doc.id, ...data } as Student);
+        }
+      });
+      setStudents(studentsData);
+    }, (error) => {
+      console.error("Error fetching students:", error);
+    });
+
+    return () => unsubscribe();
+  }, [currentUserId]);
+
+  // Fetch Reports History
+  useEffect(() => {
+    if (!currentUserId) return;
+
+    const q = query(
+      collection(db, 'boletines'),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const reportsData: Report[] = [];
+      snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.docenteId === currentUserId) {
+          reportsData.push({ id: doc.id, ...data } as Report);
+        }
+      });
+      setReports(reportsData);
+    }, (error) => {
+      console.error("Error fetching reports:", error);
+    });
+
+    return () => unsubscribe();
+  }, [currentUserId]);
+
+  const handleGenerateObservation = async () => {
+    if (!palabrasClave.trim()) {
+      alert("Por favor, ingresa algunas palabras clave sobre el rendimiento del estudiante.");
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const prompt = `Eres un docente venezolano redactando la observación final para el boletín de un estudiante. Convierte estas palabras clave en un párrafo formal, pedagógico, motivador y respetuoso (máximo 4 líneas). Inicia resaltando los logros y termina con una sugerencia de mejora constructiva.
+
+Palabras clave: ${palabrasClave}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+
+      setObservacion(response.text || '');
+    } catch (error) {
+      console.error("Error generating observation:", error);
+      alert("Hubo un error al generar la observación. Verifica tu conexión o intenta más tarde.");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleSaveReport = async () => {
+    if (!selectedStudentId || !calificacion.trim() || !observacion.trim() || !currentUserId) {
+      alert("Por favor, completa todos los campos (Estudiante, Calificación y Observación).");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const docRef = await addDoc(collection(db, 'boletines'), {
+        docenteId: currentUserId,
+        estudianteId: selectedStudentId,
+        calificacion: calificacion.trim(),
+        observacion: observacion.trim(),
+        createdAt: serverTimestamp()
+      });
+
+      // Clear form
+      setSelectedStudentId('');
+      setCalificacion('');
+      setPalabrasClave('');
+      setObservacion('');
+      
+      // Switch to history tab and select the new report
+      setSelectedReport({
+        id: docRef.id,
+        estudianteId: selectedStudentId,
+        calificacion: calificacion.trim(),
+        observacion: observacion.trim(),
+        createdAt: new Date()
+      });
+      setActiveTab('history');
+      alert("Boletín guardado exitosamente.");
+
+    } catch (error) {
+      console.error("Error saving report:", error);
+      handleFirestoreError(error, OperationType.CREATE, 'boletines');
+      alert("Hubo un error al guardar el boletín.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const selectedStudentData = students.find(s => s.id === selectedStudentId);
+  
+  // Helper to get student data for the print view
+  const getStudentForPrint = (studentId: string) => {
+    return students.find(s => s.id === studentId);
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto">
+      <div className="mb-8 no-print">
+        <h1 className="text-2xl font-bold text-gray-900">Generador de Boletines</h1>
+        <p className="text-gray-600 mt-1">Crea boletines informativos profesionales con observaciones redactadas por IA.</p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 border-b border-gray-200 overflow-x-auto no-print">
+        <button
+          onClick={() => { setActiveTab('generate'); setSelectedReport(null); }}
+          className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
+            activeTab === 'generate' 
+              ? 'border-indigo-600 text-indigo-600' 
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          <FileBadge className="w-4 h-4" />
+          Generar Boletín
+        </button>
+        <button
+          onClick={() => setActiveTab('history')}
+          className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
+            activeTab === 'history' 
+              ? 'border-indigo-600 text-indigo-600' 
+              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+          }`}
+        >
+          <History className="w-4 h-4" />
+          Historial de Boletines
+        </button>
+      </div>
+
+      {/* Generate Tab */}
+      {activeTab === 'generate' && (
+        <div className="space-y-8 no-print">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8 max-w-3xl mx-auto">
+            {students.length === 0 ? (
+              <div className="text-center py-8">
+                <FileBadge className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No hay Estudiantes Registrados</h3>
+                <p className="text-gray-500 mb-6">Debes registrar al menos un estudiante antes de poder generar un boletín.</p>
+                <a href="/students" className="inline-flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
+                  Ir a Registro de Estudiantes
+                </a>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <div>
+                  <label htmlFor="student" className="block text-sm font-medium text-gray-700 mb-1">
+                    Seleccionar Estudiante
+                  </label>
+                  <select
+                    id="student"
+                    value={selectedStudentId}
+                    onChange={(e) => setSelectedStudentId(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors bg-white"
+                  >
+                    <option value="" disabled>Selecciona un alumno...</option>
+                    {students.map(student => (
+                      <option key={student.id} value={student.id}>{student.nombre}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedStudentData && (
+                  <div className="bg-indigo-50 rounded-lg p-4 flex flex-wrap gap-4 text-sm text-indigo-900 border border-indigo-100">
+                    <p><strong>Nombre:</strong> {selectedStudentData.nombre}</p>
+                    <p><strong>Grado:</strong> {selectedStudentData.gradoSeccion}</p>
+                    <p><strong>Edad:</strong> {calculateAge(selectedStudentData.fechaNacimiento)} años</p>
+                  </div>
+                )}
+
+                <div>
+                  <label htmlFor="calificacion" className="block text-sm font-medium text-gray-700 mb-1">
+                    Literal o Calificación Final
+                  </label>
+                  <input
+                    type="text"
+                    id="calificacion"
+                    placeholder="Ej: A, B, C, D, E o nota numérica"
+                    value={calificacion}
+                    onChange={(e) => setCalificacion(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="palabrasClave" className="block text-sm font-medium text-gray-700 mb-1">
+                    Palabras clave sobre el rendimiento
+                  </label>
+                  <input
+                    type="text"
+                    id="palabrasClave"
+                    placeholder="Ej: Excelente en lectura, le cuesta un poco la suma, muy participativo"
+                    value={palabrasClave}
+                    onChange={(e) => setPalabrasClave(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors mb-3"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleGenerateObservation}
+                    disabled={isGenerating || !palabrasClave.trim()}
+                    className="w-full bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    {isGenerating ? (
+                      <><Loader2 className="w-4 h-4 animate-spin" /> Generando...</>
+                    ) : (
+                      <><Sparkles className="w-4 h-4" /> Generar Observación con IA</>
+                    )}
+                  </button>
+                </div>
+
+                <div>
+                  <label htmlFor="observacion" className="block text-sm font-medium text-gray-700 mb-1">
+                    Observación Final (Editable)
+                  </label>
+                  <textarea
+                    id="observacion"
+                    rows={4}
+                    placeholder="La observación generada por IA aparecerá aquí y podrás editarla..."
+                    value={observacion}
+                    onChange={(e) => setObservacion(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors resize-none"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleSaveReport}
+                  disabled={isSaving || !selectedStudentId || !calificacion.trim() || !observacion.trim()}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-md"
+                >
+                  {isSaving ? (
+                    <><Loader2 className="w-5 h-5 animate-spin" /> Guardando...</>
+                  ) : (
+                    <><Save className="w-5 h-5" /> Guardar Boletín</>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Live Preview for Print */}
+          {selectedStudentData && calificacion && observacion && (
+            <div className="max-w-3xl mx-auto mt-12">
+              <h3 className="text-lg font-medium text-gray-500 mb-4 text-center">Vista Previa del Boletín</h3>
+              <div className="bg-white border-2 border-gray-200 p-10 shadow-lg">
+                {/* Header */}
+                <div className="text-center mb-8 border-b-2 border-gray-800 pb-4">
+                  <h2 className="font-bold text-lg uppercase">Ministerio del Poder Popular para la Educación</h2>
+                  <h3 className="font-semibold text-md uppercase mt-1">Boletín Informativo de Rendimiento Estudiantil</h3>
+                </div>
+
+                {/* Student Info */}
+                <div className="grid grid-cols-2 gap-x-8 gap-y-4 mb-8 text-sm">
+                  <div className="col-span-2 sm:col-span-1">
+                    <span className="font-bold">Nombres y Apellidos:</span>
+                    <div className="border-b border-gray-400 mt-1 pb-1">{selectedStudentData.nombre}</div>
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <span className="font-bold">Grado y Sección:</span>
+                    <div className="border-b border-gray-400 mt-1 pb-1">{selectedStudentData.gradoSeccion}</div>
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <span className="font-bold">Edad:</span>
+                    <div className="border-b border-gray-400 mt-1 pb-1">{calculateAge(selectedStudentData.fechaNacimiento)} años</div>
+                  </div>
+                  <div className="col-span-2 sm:col-span-1">
+                    <span className="font-bold">Calificación / Literal:</span>
+                    <div className="border-b border-gray-400 mt-1 pb-1 font-bold text-lg">{calificacion}</div>
+                  </div>
+                </div>
+
+                {/* Observation */}
+                <div className="mb-16">
+                  <span className="font-bold text-sm block mb-2">Observación del Docente:</span>
+                  <div className="border border-gray-300 rounded-lg p-4 min-h-[120px] text-justify text-sm leading-relaxed bg-gray-50">
+                    {observacion}
+                  </div>
+                </div>
+
+                {/* Signatures */}
+                <div className="grid grid-cols-3 gap-8 text-center text-xs mt-24">
+                  <div>
+                    <div className="border-t-2 border-gray-800 pt-2">Firma del Docente</div>
+                  </div>
+                  <div>
+                    <div className="border-t-2 border-gray-800 pt-2">Sello de la Institución</div>
+                  </div>
+                  <div>
+                    <div className="border-t-2 border-gray-800 pt-2">Firma del Representante</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* History Tab */}
+      {activeTab === 'history' && !selectedReport && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 no-print">
+          {reports.length === 0 ? (
+            <div className="col-span-full bg-white rounded-xl p-8 text-center border border-gray-200">
+              <FileBadge className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500">No tienes boletines guardados aún.</p>
+            </div>
+          ) : (
+            reports.map((report) => {
+              const student = getStudentForPrint(report.estudianteId);
+              const date = report.createdAt?.toDate ? report.createdAt.toDate().toLocaleDateString() : 'Reciente';
+              return (
+                <div 
+                  key={report.id} 
+                  onClick={() => setSelectedReport(report)}
+                  className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md hover:border-indigo-300 transition-all group"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <span className="bg-indigo-50 text-indigo-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                      Literal: {report.calificacion}
+                    </span>
+                    <span className="text-xs text-gray-400">{date}</span>
+                  </div>
+                  <h3 className="font-bold text-gray-900 mb-2 line-clamp-1 group-hover:text-indigo-600 transition-colors">
+                    {student?.nombre || 'Estudiante Desconocido'}
+                  </h3>
+                  <p className="text-sm text-gray-500 line-clamp-2">
+                    {report.observacion}
+                  </p>
+                </div>
+              );
+            })
+          )}
+        </div>
+      )}
+
+      {/* Selected Report View (Print Ready) */}
+      {activeTab === 'history' && selectedReport && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          {/* Header Actions */}
+          <div className="bg-gray-50 border-b border-gray-200 p-4 flex flex-wrap justify-between items-center gap-4 no-print">
+            <button 
+              onClick={() => setSelectedReport(null)}
+              className="text-gray-500 hover:text-gray-700 flex items-center gap-1 font-medium text-sm"
+            >
+              <X className="w-4 h-4" />
+              Cerrar Vista
+            </button>
+            <button 
+              onClick={handlePrint}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+            >
+              <Printer className="w-4 h-4" />
+              Imprimir Boletín
+            </button>
+          </div>
+
+          {/* Report Content (Printable) */}
+          <div className="p-8 sm:p-12 print:p-0 print:m-0">
+            {(() => {
+              const student = getStudentForPrint(selectedReport.estudianteId);
+              return (
+                <div className="bg-white border-2 border-gray-200 p-10 print:border-none print:p-0">
+                  {/* Header */}
+                  <div className="text-center mb-8 border-b-2 border-gray-800 pb-4">
+                    <h2 className="font-bold text-lg uppercase">Ministerio del Poder Popular para la Educación</h2>
+                    <h3 className="font-semibold text-md uppercase mt-1">Boletín Informativo de Rendimiento Estudiantil</h3>
+                  </div>
+
+                  {/* Student Info */}
+                  <div className="grid grid-cols-2 gap-x-8 gap-y-4 mb-8 text-sm">
+                    <div className="col-span-2 sm:col-span-1">
+                      <span className="font-bold">Nombres y Apellidos:</span>
+                      <div className="border-b border-gray-400 mt-1 pb-1">{student?.nombre || 'N/A'}</div>
+                    </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <span className="font-bold">Grado y Sección:</span>
+                      <div className="border-b border-gray-400 mt-1 pb-1">{student?.gradoSeccion || 'N/A'}</div>
+                    </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <span className="font-bold">Edad:</span>
+                      <div className="border-b border-gray-400 mt-1 pb-1">{student ? calculateAge(student.fechaNacimiento) : 'N/A'} años</div>
+                    </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <span className="font-bold">Calificación / Literal:</span>
+                      <div className="border-b border-gray-400 mt-1 pb-1 font-bold text-lg">{selectedReport.calificacion}</div>
+                    </div>
+                  </div>
+
+                  {/* Observation */}
+                  <div className="mb-16">
+                    <span className="font-bold text-sm block mb-2">Observación del Docente:</span>
+                    <div className="border border-gray-300 rounded-lg p-4 min-h-[120px] text-justify text-sm leading-relaxed bg-gray-50 print:bg-transparent print:border-gray-800">
+                      {selectedReport.observacion}
+                    </div>
+                  </div>
+
+                  {/* Signatures */}
+                  <div className="grid grid-cols-3 gap-8 text-center text-xs mt-24">
+                    <div>
+                      <div className="border-t-2 border-gray-800 pt-2">Firma del Docente</div>
+                    </div>
+                    <div>
+                      <div className="border-t-2 border-gray-800 pt-2">Sello de la Institución</div>
+                    </div>
+                    <div>
+                      <div className="border-t-2 border-gray-800 pt-2">Firma del Representante</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
