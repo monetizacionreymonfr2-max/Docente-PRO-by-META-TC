@@ -132,6 +132,7 @@
         "email": { "type": "string" },
         "isActive": { "type": "boolean" },
         "role": { "type": "string", "enum": ["admin", "teacher"] },
+        "expiresAt": { "type": "timestamp", "description": "Subscription expiration date" },
         "createdAt": { "type": "timestamp" }
       },
       "required": ["email", "isActive", "createdAt"]
@@ -144,6 +145,8 @@
         "code": { "type": "string" },
         "status": { "type": "string", "enum": ["disponible", "usado"] },
         "usedBy": { "type": "string" },
+        "usedByEmail": { "type": "string" },
+        "expiresAt": { "type": "timestamp" },
         "createdAt": { "type": "timestamp" },
         "usedAt": { "type": "timestamp" }
       },

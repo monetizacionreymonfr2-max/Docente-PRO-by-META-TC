@@ -37,16 +37,23 @@ export default function ActivationModal({ userId, email }: ActivationModalProps)
           throw new Error('Este código ya ha sido utilizado.');
         }
 
+        // Calculate expiration: 30 days from now
+        const now = new Date();
+        const expirationDate = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
+
         // 1. Update code status
         transaction.update(codeRef, {
           status: 'usado',
           usedBy: userId,
-          usedAt: serverTimestamp()
+          usedByEmail: email,
+          usedAt: serverTimestamp(),
+          expiresAt: expirationDate
         });
 
         // 2. Update user status
         transaction.update(userRef, {
           isActive: true,
+          expiresAt: expirationDate,
           activatedAt: serverTimestamp(),
           activationCode: codeId
         });

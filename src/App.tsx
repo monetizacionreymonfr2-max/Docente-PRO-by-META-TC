@@ -71,7 +71,19 @@ export default function App() {
   }
 
   const isAdmin = profile?.role === 'admin' || user?.email === ADMIN_EMAIL;
-  const isActive = profile?.isActive || isAdmin;
+  
+  // Subscription check: Must be active AND not expired (if teacher)
+  const isSubscriptionValid = () => {
+    if (isAdmin) return true;
+    if (!profile?.isActive) return false;
+    if (!profile?.expiresAt) return false; // Legacy or manual active
+    
+    // Check if expired
+    const expirationDate = profile.expiresAt.toDate();
+    return new Date() < expirationDate;
+  };
+
+  const isActive = isSubscriptionValid();
 
   return (
     <BrowserRouter>

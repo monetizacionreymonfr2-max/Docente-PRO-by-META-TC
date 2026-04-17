@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
-import { collection, setDoc, doc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, setDoc, doc, onSnapshot, query, orderBy, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { PlusCircle, Ticket, CheckCircle2, Copy, History, Loader2, Wand2 } from 'lucide-react';
+import { Ticket, CheckCircle2, Copy, History, Loader2, Wand2, CalendarDays, RefreshCw } from 'lucide-react';
 
 interface Code {
   id: string;
   status: 'disponible' | 'usado';
   usedBy?: string;
+  usedByEmail?: string;
+  expiresAt?: any;
   createdAt: any;
   usedAt?: any;
 }
@@ -49,8 +51,43 @@ export default function AdminPanel() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    // Simple feedback
     alert(`Código ${text} copiado!`);
+  };
+
+  const handleRenew = async (code: Code) => {
+    if (!code.usedBy || !code.expiresAt) return;
+    
+    const confirmRenewal = window.confirm(`¿Seguro que deseas sumar 30 días a la suscripción de ${code.usedByEmail}?`);
+    if (!confirmRenewal) return;
+
+    try {
+      const currentExpiration = code.expiresAt.toDate();
+      const newExpiration = new Date(currentExpiration.getTime() + (30 * 24 * 60 * 60 * 1000));
+
+      // Update code document
+      await updateDoc(doc(db, 'activation_codes', code.id), {
+        expiresAt: newExpiration
+      });
+
+      // Update user profile document
+      await updateDoc(doc(db, 'users', code.usedBy), {
+        expiresAt: newExpiration,
+        isActive: true // Re-activate just in case it was expired
+      });
+
+      alert('¡Suscripción renovada por 30 días más!');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'activation_codes');
+    }
+  };
+
+  const calculateDaysLeft = (expiresAt: any) => {
+    if (!expiresAt) return null;
+    const now = new Date();
+    const expiration = expiresAt.toDate();
+    const diffTime = expiration.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
   };
 
   return (
@@ -138,18 +175,41 @@ export default function AdminPanel() {
                       </span>
                     </td>
                     <td className="px-8 py-4 text-xs font-medium text-gray-500 truncate max-w-[150px]">
-                      {code.usedBy || '---'}
+                      {code.usedByEmail || code.usedBy || '---'}
                     </td>
                     <td className="px-8 py-4 text-right">
-                      {code.status === 'disponible' && (
-                        <button 
-                          onClick={() => copyToClipboard(code.id)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
-                          title="Copiar Código"
-                        >
-                          <Copy size={18} />
-                        </button>
-                      )}
+                      <div className="flex items-center justify-end gap-3">
+                        {code.status === 'usado' && code.expiresAt && (
+                          <div className="flex items-center gap-4">
+                            <div className="flex flex-col items-end">
+                              <span className={`text-[10px] font-black uppercase tracking-widest ${
+                                calculateDaysLeft(code.expiresAt)! > 0 ? 'text-blue-600' : 'text-red-600'
+                              }`}>
+                                {calculateDaysLeft(code.expiresAt)! > 0 ? 'Quedan' : 'Expiró hace'}
+                              </span>
+                              <span className="text-xs font-bold text-gray-900">
+                                {Math.abs(calculateDaysLeft(code.expiresAt)!)} días
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => handleRenew(code)}
+                              className="p-2 text-green-600 hover:bg-green-50 rounded-xl transition-colors"
+                              title="Renovar 30 días"
+                            >
+                              <RefreshCw size={18} />
+                            </button>
+                          </div>
+                        )}
+                        {code.status === 'disponible' && (
+                          <button 
+                            onClick={() => copyToClipboard(code.id)}
+                            className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                            title="Copiar Código"
+                          >
+                            <Copy size={18} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
