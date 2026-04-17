@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { collection, setDoc, doc, onSnapshot, query, orderBy, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { collection, setDoc, doc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Ticket, CheckCircle2, Copy, History, Loader2, Wand2, CalendarDays, RefreshCw } from 'lucide-react';
+import { Ticket, CheckCircle2, Copy, History, Loader2, Wand2, CalendarDays, RefreshCw, Trash2, Plus, Minus } from 'lucide-react';
 
 interface Code {
   id: string;
@@ -55,29 +55,66 @@ export default function AdminPanel() {
   };
 
   const handleRenew = async (code: Code) => {
+    await handleAdjustDays(code, 30);
+  };
+
+  const handleAdjustDays = async (code: Code, days: number) => {
     if (!code.usedBy || !code.expiresAt) return;
     
-    const confirmRenewal = window.confirm(`¿Seguro que deseas sumar 30 días a la suscripción de ${code.usedByEmail}?`);
-    if (!confirmRenewal) return;
+    const action = days > 0 ? 'sumar' : 'quitar';
+    const confirmAction = window.confirm(`¿Seguro que deseas ${action} ${Math.abs(days)} días a la suscripción de ${code.usedByEmail}?`);
+    if (!confirmAction) return;
 
     try {
       const currentExpiration = code.expiresAt.toDate();
-      const newExpiration = new Date(currentExpiration.getTime() + (30 * 24 * 60 * 60 * 1000));
+      const newExpiration = new Date(currentExpiration.getTime() + (days * 24 * 60 * 60 * 1000));
 
+      const batch = writeBatch(db);
+      
       // Update code document
-      await updateDoc(doc(db, 'activation_codes', code.id), {
+      batch.update(doc(db, 'activation_codes', code.id), {
         expiresAt: newExpiration
       });
 
       // Update user profile document
-      await updateDoc(doc(db, 'users', code.usedBy), {
+      batch.update(doc(db, 'users', code.usedBy), {
         expiresAt: newExpiration,
-        isActive: true // Re-activate just in case it was expired
+        isActive: newExpiration > new Date() // Check if still active after modification
       });
 
-      alert('¡Suscripción renovada por 30 días más!');
+      await batch.commit();
+      alert(`¡Suscripción actualizada! Se han ${days > 0 ? 'sumado' : 'quitado'} ${Math.abs(days)} días.`);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'activation_codes');
+    }
+  };
+
+  const handleDeleteCode = async (code: Code) => {
+    const message = code.status === 'usado' 
+      ? `¿Seguro que deseas eliminar este código? El usuario ${code.usedByEmail} perderá el acceso premium inmediatamente.`
+      : `¿Seguro que deseas eliminar este código disponible?`;
+    
+    if (!window.confirm(message)) return;
+
+    try {
+      const batch = writeBatch(db);
+
+      // If it was used, deactivate the user
+      if (code.status === 'usado' && code.usedBy) {
+        batch.update(doc(db, 'users', code.usedBy), {
+          isActive: false,
+          expiresAt: null,
+          activationCode: null
+        });
+      }
+
+      // Delete the code document
+      batch.delete(doc(db, 'activation_codes', code.id));
+
+      await batch.commit();
+      alert('Código eliminado exitosamente.');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'activation_codes');
     }
   };
 
@@ -191,13 +228,31 @@ export default function AdminPanel() {
                                 {Math.abs(calculateDaysLeft(code.expiresAt)!)} días
                               </span>
                             </div>
-                            <button
-                              onClick={() => handleRenew(code)}
-                              className="p-2 text-green-600 hover:bg-green-50 rounded-xl transition-colors"
-                              title="Renovar 30 días"
-                            >
-                              <RefreshCw size={18} />
-                            </button>
+                            <div className="flex items-center bg-gray-50 rounded-xl p-1 border border-gray-100">
+                              <button
+                                onClick={() => handleAdjustDays(code, -1)}
+                                className="p-1.5 text-red-500 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+                                title="Quitar 1 día"
+                              >
+                                <Minus size={14} />
+                              </button>
+                              <div className="w-px h-4 bg-gray-200 mx-1" />
+                              <button
+                                onClick={() => handleAdjustDays(code, 1)}
+                                className="p-1.5 text-green-600 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+                                title="Sumar 1 día"
+                              >
+                                <Plus size={14} />
+                              </button>
+                              <div className="w-px h-4 bg-gray-200 mx-1" />
+                              <button
+                                onClick={() => handleRenew(code)}
+                                className="p-1.5 text-blue-600 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+                                title="Plan Mensual (+30 días)"
+                              >
+                                <RefreshCw size={14} />
+                              </button>
+                            </div>
                           </div>
                         )}
                         {code.status === 'disponible' && (
@@ -209,6 +264,13 @@ export default function AdminPanel() {
                             <Copy size={18} />
                           </button>
                         )}
+                        <button 
+                          onClick={() => handleDeleteCode(code)}
+                          className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                          title="Eliminar Código"
+                        >
+                          <Trash2 size={18} />
+                        </button>
                       </div>
                     </td>
                   </tr>

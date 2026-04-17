@@ -208,12 +208,14 @@ service cloud.firestore {
       allow get: if isAuthenticated();
       allow list: if isAdmin();
       allow create: if isAdmin();
-      // Allow user to mark a code as used
-      allow update: if isAuthenticated() && 
+      // Allow user to mark a code as used OR Admin to manage it
+      allow update: if isAdmin() || (
+                      isAuthenticated() && 
                       resource.data.status == 'disponible' && 
                       request.resource.data.status == 'usado' &&
                       request.resource.data.usedBy == request.auth.uid &&
-                      areImmutableFieldsUnchanged(['code', 'createdAt']);
+                      areImmutableFieldsUnchanged(['code', 'createdAt'])
+                    );
       allow delete: if isAdmin();
     }
   }
