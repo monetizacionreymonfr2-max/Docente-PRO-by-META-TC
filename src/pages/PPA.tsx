@@ -6,12 +6,12 @@ import { Sparkles, Loader2, FileText, Copy, Printer, X, History, Trash2 } from '
 import Markdown from 'react-markdown';
 
 // Initialize Gemini API
-const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 interface PPAProject {
   id: string;
   gradoSeccion: string;
-  nivel: 'Primaria' | 'Maternal';
+  nivel: 'Primaria' | 'Maternal' | 'Preescolar' | 'Media';
   tema: string;
   duracion: string;
   diagnostico: string;
@@ -24,7 +24,7 @@ export default function PPA() {
   
   // Form State
   const [gradoSeccion, setGradoSeccion] = useState('');
-  const [nivel, setNivel] = useState<'Primaria' | 'Maternal'>('Primaria');
+  const [nivel, setNivel] = useState<'Primaria' | 'Maternal' | 'Preescolar' | 'Media'>('Primaria');
   const [tema, setTema] = useState('');
   const [duracion, setDuracion] = useState('');
   const [diagnostico, setDiagnostico] = useState('');
@@ -60,29 +60,35 @@ export default function PPA() {
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!gradoSeccion.trim() || !tema.trim() || !duracion.trim() || !diagnostico.trim() || !currentUserId) return;
+    
+    if (!gradoSeccion.trim() || !tema.trim() || !duracion.trim() || !diagnostico.trim() || !currentUserId) {
+      alert("Por favor completa todos los campos requeridos.");
+      return;
+    }
 
     setIsGenerating(true);
     try {
       let prompt = '';
-      
-      if (nivel === 'Maternal') {
-        prompt = `Actúa como un experto en Educación Inicial y Estimulación Temprana de Venezuela. Genera un Proyecto de Aprendizaje para niños de la etapa maternal. 
+      const systemInstruction = "Eres un especialista en planificación educativa adaptado al sistema escolar de Venezuela. Tu objetivo es redactar Proyectos Pedagógicos de Aula (PPA) completos, profesionales y listos para imprimir. Usa un tono formal, pedagógico y enfocado en el aprendizaje significativo.";
+
+      if (nivel === 'Maternal' || nivel === 'Preescolar') {
+        prompt = `Genera un Proyecto de Aprendizaje para niños de la etapa ${nivel}. 
 El tema de interés de los niños es: ${tema}.
 
-Devuelve la respuesta estructurada estrictamente en:
+Estructura requerida:
 1. Título del Proyecto (creativo y corto)
-2. Objetivo general (enfocado en el desarrollo psicomotor)
-3. Áreas de desarrollo a estimular (Motriz fina/gruesa, Lenguaje, Cognitiva y Socio-emocional)
-4. Lista de materiales recomendados (seguros, no tóxicos, sensoriales)
-5. Hitos de evaluación cualitativa (3 indicadores clave para observar)
+2. Objetivo general (enfocado en el desarrollo ${nivel === 'Maternal' ? 'psicomotor' : 'integral'})
+3. Áreas de desarrollo a estimular (${nivel === 'Maternal' ? 'Motriz fina/gruesa, Lenguaje, Cognitiva y Socio-emocional' : 'Formación Personal, Social y Comunicación, Relación con otros componentes del Ambiente'})
+4. Lista de materiales recomendados
+5. Hitos de evaluación cualitativa
 
 Datos adicionales:
-- Sala/Edad: ${gradoSeccion}
+- Sala/Edad/Sección: ${gradoSeccion}
 - Duración: ${duracion}
 - Diagnóstico: ${diagnostico}`;
       } else {
-        prompt = `Eres un especialista en educación de Venezuela. Redacta un Proyecto Pedagógico estructurado estrictamente en: 
+        prompt = `Redacta un Proyecto Pedagógico estructurado para educación por grados (${nivel}). 
+Estructura requerida:
 1. Título del Proyecto (creativo)
 2. Justificación
 3. Propósito General
@@ -90,18 +96,24 @@ Datos adicionales:
 5. Estrategias de Evaluación.
 
 Datos de entrada:
-- Grado/Sección: ${gradoSeccion}
+- Grado/Año y Sección: ${gradoSeccion}
 - Tema Central: ${tema}
 - Duración Estimada: ${duracion}
 - Diagnóstico o Necesidad: ${diagnostico}`;
       }
 
+      console.log("Generando PPA con prompt:", prompt);
+
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: prompt,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+        }
       });
 
-      const generatedText = String(response.text || '');
+      const generatedText = response.text;
       
       if (!generatedText) {
         throw new Error("La IA no devolvió ningún contenido. Por favor intenta de nuevo.");
@@ -139,9 +151,9 @@ Datos de entrada:
       setActiveTab('history');
       alert("¡PPA generado y guardado exitosamente!");
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating PPA:", error);
-      alert("Hubo un error al generar el proyecto. Verifica tu conexión o intenta más tarde.");
+      alert(`Hubo un error al generar el proyecto: ${error.message || 'Error desconocido'}`);
     } finally {
       setIsGenerating(false);
     }
@@ -216,17 +228,19 @@ Datos de entrada:
                   id="nivel"
                   required
                   value={nivel}
-                  onChange={(e) => setNivel(e.target.value as 'Primaria' | 'Maternal')}
+                  onChange={(e) => setNivel(e.target.value as any)}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                 >
-                  <option value="Primaria">Primaria / General</option>
                   <option value="Maternal">Maternal (1-3 años)</option>
+                  <option value="Preescolar">Preescolar / Inicial</option>
+                  <option value="Primaria">Primaria (1ro a 6to)</option>
+                  <option value="Media">Media (1er a 5to año)</option>
                 </select>
               </div>
 
               <div>
                 <label htmlFor="gradoSeccion" className="block text-sm font-medium text-gray-700 mb-1">
-                  {nivel === 'Maternal' ? 'Sala / Edad' : 'Grado y Sección'}
+                  {nivel === 'Maternal' || nivel === 'Preescolar' ? 'Sala / Edad / Sección' : nivel === 'Media' ? 'Año y Sección' : 'Grado y Sección'}
                 </label>
                 <input
                   type="text"

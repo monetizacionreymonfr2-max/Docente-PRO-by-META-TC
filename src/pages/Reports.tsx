@@ -12,7 +12,7 @@ interface Student {
   nombre: string;
   apellidos?: string;
   gradoSeccion: string;
-  nivel?: 'Primaria' | 'Maternal';
+  nivel?: 'Primaria' | 'Maternal' | 'Preescolar' | 'Media';
   fechaNacimiento: string;
   sexo: string;
 }
@@ -115,28 +115,34 @@ export default function Reports() {
     setIsGenerating(true);
     try {
       let prompt = '';
-      const isMaternal = selectedStudentData?.nivel === 'Maternal';
+      const isMaternalOrPre = selectedStudentData?.nivel === 'Maternal' || selectedStudentData?.nivel === 'Preescolar';
+      const systemInstruction = "Eres un docente venezolano experto en redacción de boletines y reportes escolares. Tu objetivo es redactar observaciones pedagógicas, profesionales y motivadoras.";
       
-      if (isMaternal) {
-        prompt = `Eres un docente experto en maternal redactando un reporte de desarrollo para un niño pequeño (1-3 años). Convierte estas palabras clave en un párrafo formal, pedagógico y amoroso (máximo 4 líneas). 
-Enfócate en hilos de desarrollo (motriz, lenguaje, social). Inicia con los avances y termina con una recomendación de estimulación suave.
+      if (isMaternalOrPre) {
+        prompt = `Genera un reporte de desarrollo para un niño de etapa ${selectedStudentData?.nivel} (nivel inicial) basado en las siguientes palabras clave.
+Estructura: Un párrafo formal y amoroso (máximo 4 líneas) enfocado en hitos de desarrollo y áreas socio-emocionales.
 
 Palabras clave: ${palabrasClave}`;
       } else {
-        prompt = `Eres un docente venezolano redactando la observación final para el boletín de un estudiante. Convierte estas palabras clave en un párrafo formal, pedagógico, motivador y respetuoso (máximo 4 líneas). Inicia resaltando los logros y termina con una sugerencia de mejora constructiva.
+        prompt = `Redacta la observación final para el boletín de un estudiante basado en las siguientes palabras clave.
+Estructura: Un párrafo formal, pedagógico y motivador (máximo 4 líneas). Resalta logros y termina con una sugerencia constructiva.
 
 Palabras clave: ${palabrasClave}`;
       }
 
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: prompt,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+        }
       });
 
-      setObservacion(String(response.text || ''));
-    } catch (error) {
+      setObservacion(response.text || '');
+    } catch (error: any) {
       console.error("Error generating observation:", error);
-      alert("Hubo un error al generar la observación. Verifica tu conexión o intenta más tarde.");
+      alert(`Hubo un error al generar la observación: ${error.message || 'Error desconocido'}`);
     } finally {
       setIsGenerating(false);
     }

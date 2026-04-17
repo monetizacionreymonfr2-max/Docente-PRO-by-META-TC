@@ -95,7 +95,10 @@ export default function Planner() {
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedPpaId || !fecha || !temaDia.trim() || !currentUserId) return;
+    if (!selectedPpaId || !fecha || !temaDia.trim() || !currentUserId) {
+      alert("Por favor completa todos los campos.");
+      return;
+    }
 
     const selectedPpa = ppas.find(p => p.id === selectedPpaId);
     if (!selectedPpa) return;
@@ -103,50 +106,50 @@ export default function Planner() {
     setIsGenerating(true);
     try {
       let prompt = '';
+      const systemInstruction = "Eres un docente venezolano experto en planificación diaria. Tu objetivo es crear planes de clase prácticos, creativos y efectivos basados en Proyectos Pedagógicos de Aula (PPA).";
       
       if (selectedPpa.nivel === 'Maternal') {
-        prompt = `Actúa como un docente experto en educación inicial (Maternal). Basado en el Proyecto Pedagógico proporcionado, genera una planificación diaria para el tema indicado, adaptada para niños pequeños con niveles de atención cortos.
+        prompt = `Genera una planificación diaria para el tema indicado, adaptada para niños de etapa maternal (1-3 años).
 
-Organiza el plan estrictamente de la siguiente manera:
+Estructura requerida:
 1. Recibimiento (10 min): Actividad de apego y bienvenida.
 2. Ronda / Asamblea (10 min): Introducción visual o musical.
 3. Actividad Central Sensorial (15-20 min): Actividad de exploración o juego guiado. Detalla los materiales.
-4. Rutina de Higiene/Alimentación: Cómo integrar el aprendizaje en estos momentos.
+4. Rutina de Higiene/Alimentación: Cómo integrar el aprendizaje.
 5. Despedida / Relajación (10 min): Vuelta a la calma.
 
-Tono: Práctico, directo, seguro y centrado 100% en el juego y la estimulación.
-
----
-DATOS DE LA CLASE:
+DATOS:
 - Fecha: ${fecha}
 - Tema del Día: ${temaDia}
-
 ---
-PROYECTO PEDAGÓGICO BASE:
+PROYECTO BASE:
 ${selectedPpa.contenido}`;
       } else {
-        prompt = `Eres un docente venezolano experto. Basándote en el Proyecto Pedagógico proporcionado, redacta una planificación de clase diaria para el tema indicado. Utiliza estrictamente esta estructura: 
-1. Inicio (Actividad motivacional o rompehielo)
-2. Desarrollo (Explicación del contenido central)
-3. Cierre (Actividad de evaluación o tarea para la casa)
-Sé práctico y directo.
+        prompt = `Redacta una planificación de clase diaria estructurada.
 
----
-DATOS DE LA CLASE:
+Estructura requerida:
+1. Inicio (Actividad motivacional o rompehielo)
+2. Desarrollo (Explicación del contenido central con ejemplos)
+3. Cierre (Actividad de evaluación rápida o reflexión)
+
+DATOS:
 - Fecha: ${fecha}
 - Tema del Día: ${temaDia}
-
 ---
-PROYECTO PEDAGÓGICO BASE:
+PROYECTO BASE:
 ${selectedPpa.contenido}`;
       }
 
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: prompt,
+        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        config: {
+          systemInstruction,
+          temperature: 0.7,
+        }
       });
 
-      const generatedText = String(response.text || '');
+      const generatedText = response.text;
 
       if (!generatedText) {
         throw new Error("La IA no devolvió ningún contenido. Por favor intenta de nuevo.");
@@ -178,9 +181,9 @@ ${selectedPpa.contenido}`;
       setActiveTab('history');
       alert("¡Planificación diaria generada y guardada exitosamente!");
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error generating Daily Plan:", error);
-      alert("Hubo un error al generar la planificación. Verifica tu conexión o intenta más tarde.");
+      alert(`Hubo un error al generar la planificación: ${error.message || 'Error desconocido'}`);
     } finally {
       setIsGenerating(false);
     }
