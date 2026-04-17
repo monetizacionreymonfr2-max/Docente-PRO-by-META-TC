@@ -6,8 +6,7 @@ import { Sparkles, Loader2, FileText, Copy, Printer, X, History, Trash2 } from '
 import Markdown from 'react-markdown';
 
 // Initialize Gemini API
-// Using the key provided by the user in previous prompts
-const ai = new GoogleGenAI({ apiKey: 'AIzaSyApq3e0pSpfnnJVv5pKDBSDhIhlE5bUXz4' });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 interface PPAProject {
   id: string;
@@ -98,7 +97,7 @@ Datos de entrada:
       }
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3-flash-preview',
         contents: prompt,
       });
 
@@ -118,7 +117,6 @@ Datos de entrada:
 
       // Clear form and show the generated project
       setGradoSeccion('');
-      setNivel('Primaria');
       setTema('');
       setDuracion('');
       setDiagnostico('');

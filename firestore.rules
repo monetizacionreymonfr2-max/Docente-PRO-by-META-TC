@@ -79,7 +79,7 @@ service cloud.firestore {
     // ===============================================================
 
     function isValidStudent(data) {
-      return hasOnlyAllowedFields(['nombre', 'apellidos', 'gradoSeccion', 'nivel', 'fechaNacimiento', 'sexo', 'docenteId', 'createdAt']) &&
+      return hasOnlyAllowedFields(['nombre', 'apellidos', 'gradoSeccion', 'nivel', 'fechaNacimiento', 'sexo', 'docenteId', 'createdAt', 'updatedAt']) &&
              data.nombre is string && data.nombre.size() > 0 && data.nombre.size() < 100 &&
              (!('apellidos' in data) || (data.apellidos is string && data.apellidos.size() < 100)) &&
              data.gradoSeccion is string && data.gradoSeccion.size() > 0 && data.gradoSeccion.size() < 50 &&
@@ -87,45 +87,51 @@ service cloud.firestore {
              (!('fechaNacimiento' in data) || (data.fechaNacimiento is string && data.fechaNacimiento.matches("^\\d{4}-\\d{2}-\\d{2}$"))) &&
              (!('sexo' in data) || (data.sexo in ['V', 'H'])) &&
              data.docenteId is string && data.docenteId == request.auth.uid &&
-             data.createdAt is timestamp;
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
     }
 
     function isValidAttendance(data) {
-      return hasOnlyAllowedFields(['docenteId', 'estudianteId', 'fecha', 'asistio']) &&
+      return hasOnlyAllowedFields(['docenteId', 'estudianteId', 'fecha', 'asistio', 'updatedAt']) &&
              data.docenteId is string && data.docenteId == request.auth.uid &&
              data.estudianteId is string && data.estudianteId.size() > 0 &&
              data.fecha is string && data.fecha.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
-             data.asistio is bool;
+             data.asistio is bool &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
     }
 
     function isValidPPA(data) {
-      return hasOnlyAllowedFields(['docenteId', 'gradoSeccion', 'tema', 'duracion', 'diagnostico', 'contenido', 'createdAt']) &&
+      return hasOnlyAllowedFields(['docenteId', 'gradoSeccion', 'nivel', 'tema', 'duracion', 'diagnostico', 'contenido', 'createdAt', 'updatedAt']) &&
              data.docenteId is string && data.docenteId == request.auth.uid &&
              data.gradoSeccion is string && data.gradoSeccion.size() > 0 && data.gradoSeccion.size() < 100 &&
+             (!('nivel' in data) || (data.nivel in ['Primaria', 'Maternal'])) &&
              data.tema is string && data.tema.size() > 0 && data.tema.size() < 200 &&
              data.duracion is string && data.duracion.size() > 0 && data.duracion.size() < 100 &&
              data.diagnostico is string && data.diagnostico.size() > 0 && data.diagnostico.size() < 2000 &&
              data.contenido is string && data.contenido.size() > 0 && data.contenido.size() < 50000 &&
-             data.createdAt is timestamp;
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
     }
 
     function isValidDailyPlan(data) {
-      return hasOnlyAllowedFields(['docenteId', 'ppaId', 'fecha', 'temaDia', 'contenido', 'createdAt']) &&
+      return hasOnlyAllowedFields(['docenteId', 'ppaId', 'fecha', 'temaDia', 'contenido', 'createdAt', 'updatedAt']) &&
              data.docenteId is string && data.docenteId == request.auth.uid &&
              data.ppaId is string && data.ppaId.size() > 0 &&
              data.fecha is string && data.fecha.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
              data.temaDia is string && data.temaDia.size() > 0 && data.temaDia.size() < 200 &&
              data.contenido is string && data.contenido.size() > 0 && data.contenido.size() < 50000 &&
-             data.createdAt is timestamp;
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
     }
 
     function isValidReport(data) {
-      return hasOnlyAllowedFields(['docenteId', 'estudianteId', 'calificacion', 'observacion', 'createdAt']) &&
+      return hasOnlyAllowedFields(['docenteId', 'estudianteId', 'calificacion', 'observacion', 'createdAt', 'updatedAt']) &&
              data.docenteId is string && data.docenteId == request.auth.uid &&
              data.estudianteId is string && data.estudianteId.size() > 0 &&
              data.calificacion is string && data.calificacion.size() > 0 && data.calificacion.size() < 20 &&
              data.observacion is string && data.observacion.size() > 0 && data.observacion.size() < 2000 &&
-             data.createdAt is timestamp;
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
     }
 
     // ===============================================================

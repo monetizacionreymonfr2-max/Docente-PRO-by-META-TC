@@ -95,10 +95,10 @@ export default function Students() {
         });
       }
       
+      // Keep the current level after submission if it was set
       setNombre('');
       setApellidos('');
       setGradoSeccion('');
-      setNivel('Primaria');
       setFechaNacimiento('');
       setSexo('V');
     } catch (error) {
@@ -109,11 +109,13 @@ export default function Students() {
   };
 
   const handleDelete = async (id: string) => {
-    // In a production app we'd use a custom modal, for now we just delete as requested fast
+    if (!window.confirm('¿Estás seguro de que deseas eliminar a este estudiante? Esta acción no se puede deshacer.')) return;
     try {
       await deleteDoc(doc(db, 'estudiantes', id));
     } catch (error) {
+      console.error("Error al eliminar estudiante:", error);
       handleFirestoreError(error, OperationType.DELETE, 'estudiantes');
+      alert("Error al eliminar el estudiante. Verifica tus permisos.");
     }
   };
 

@@ -6,7 +6,7 @@ import { BookOpen, Loader2, FileText, Copy, Printer, X, History, Calendar, Trash
 import Markdown from 'react-markdown';
 
 // Initialize Gemini API
-const ai = new GoogleGenAI({ apiKey: 'AIzaSyApq3e0pSpfnnJVv5pKDBSDhIhlE5bUXz4' });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 interface PPAProject {
   id: string;
@@ -142,7 +142,7 @@ ${selectedPpa.contenido}`;
       }
 
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-3-flash-preview',
         contents: prompt,
       });
 
