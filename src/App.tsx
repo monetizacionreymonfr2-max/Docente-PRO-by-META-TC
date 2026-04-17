@@ -76,11 +76,27 @@ export default function App() {
   const isSubscriptionValid = () => {
     if (isAdmin) return true;
     if (!profile?.isActive) return false;
-    if (!profile?.expiresAt) return false; // Legacy or manual active
+    if (!profile?.expiresAt) return true; // Legacy or manual active without specific expiration
     
-    // Check if expired
-    const expirationDate = profile.expiresAt.toDate();
-    return new Date() < expirationDate;
+    try {
+      // Check if expired - handle both Timestamp and Date
+      let expirationDate: Date;
+      if (profile.expiresAt?.toDate) {
+        expirationDate = profile.expiresAt.toDate();
+      } else if (profile.expiresAt instanceof Date) {
+        expirationDate = profile.expiresAt;
+      } else if (profile.expiresAt?.seconds) {
+        expirationDate = new Date(profile.expiresAt.seconds * 1000);
+      } else {
+        expirationDate = new Date(profile.expiresAt);
+      }
+
+      if (isNaN(expirationDate.getTime())) return true;
+      return new Date() < expirationDate;
+    } catch (e) {
+      console.error("Error checking subscription validity:", e);
+      return true; // Default to active if error in parsing
+    }
   };
 
   const isActive = isSubscriptionValid();

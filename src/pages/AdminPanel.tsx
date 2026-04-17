@@ -27,6 +27,9 @@ export default function AdminPanel() {
       });
       setCodes(codesData);
       setIsLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.LIST, 'activation_codes');
+      setIsLoading(false);
     });
     return () => unsubscribe();
   }, []);
@@ -66,7 +69,22 @@ export default function AdminPanel() {
     if (!confirmAction) return;
 
     try {
-      const currentExpiration = code.expiresAt.toDate();
+      // Robust conversion: support Timestamp, Date, or object with seconds
+      let currentExpiration: Date;
+      if (code.expiresAt?.toDate) {
+        currentExpiration = code.expiresAt.toDate();
+      } else if (code.expiresAt instanceof Date) {
+        currentExpiration = code.expiresAt;
+      } else if (code.expiresAt?.seconds) {
+        currentExpiration = new Date(code.expiresAt.seconds * 1000);
+      } else {
+        currentExpiration = new Date(code.expiresAt);
+      }
+
+      if (isNaN(currentExpiration.getTime())) {
+        throw new Error("Fecha de expiración inválida");
+      }
+
       const newExpiration = new Date(currentExpiration.getTime() + (days * 24 * 60 * 60 * 1000));
 
       const batch = writeBatch(db);
@@ -119,13 +137,29 @@ export default function AdminPanel() {
   };
 
   const calculateDaysLeft = (expiresAt: any) => {
-    if (!expiresAt) return null;
-    const now = new Date();
-    // Support both Firestore Timestamp and JS Date
-    const expiration = expiresAt.toDate ? expiresAt.toDate() : new Date(expiresAt);
-    const diffTime = expiration.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
+    if (!expiresAt) return 0;
+    try {
+      const now = new Date();
+      let expiration: Date;
+      
+      if (expiresAt?.toDate) {
+        expiration = expiresAt.toDate();
+      } else if (expiresAt instanceof Date) {
+        expiration = expiresAt;
+      } else if (expiresAt?.seconds) {
+        expiration = new Date(expiresAt.seconds * 1000);
+      } else {
+        expiration = new Date(expiresAt);
+      }
+
+      if (isNaN(expiration.getTime())) return 0;
+
+      const diffTime = expiration.getTime() - now.getTime();
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    } catch (e) {
+      console.error("Error calculating days left:", e);
+      return 0;
+    }
   };
 
   return (
@@ -213,7 +247,8 @@ export default function AdminPanel() {
                       </span>
                     </td>
                     <td className="px-8 py-4 text-xs font-medium text-gray-500 truncate max-w-[150px]">
-                      {code.usedByEmail || code.usedBy || '---'}
+                      {typeof code.usedByEmail === 'string' ? code.usedByEmail : 
+                       typeof code.usedBy === 'string' ? code.usedBy : '---'}
                     </td>
                     <td className="px-8 py-4 text-right">
                       <div className="flex items-center justify-end gap-3">
@@ -221,12 +256,12 @@ export default function AdminPanel() {
                           <div className="flex items-center gap-4">
                             <div className="flex flex-col items-end">
                               <span className={`text-[10px] font-black uppercase tracking-widest ${
-                                calculateDaysLeft(code.expiresAt)! > 0 ? 'text-blue-600' : 'text-red-600'
+                                (calculateDaysLeft(code.expiresAt) || 0) > 0 ? 'text-blue-600' : 'text-red-600'
                               }`}>
-                                {calculateDaysLeft(code.expiresAt)! > 0 ? 'Quedan' : 'Expiró hace'}
+                                {(calculateDaysLeft(code.expiresAt) || 0) > 0 ? 'Quedan' : 'Expiró hace'}
                               </span>
                               <span className="text-xs font-bold text-gray-900">
-                                {Math.abs(calculateDaysLeft(code.expiresAt)!)} días
+                                {Math.abs(calculateDaysLeft(code.expiresAt) || 0)} días
                               </span>
                             </div>
                             <div className="flex items-center bg-gray-50 rounded-xl p-1 border border-gray-100">
