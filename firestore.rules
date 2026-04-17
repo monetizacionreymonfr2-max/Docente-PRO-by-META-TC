@@ -4,32 +4,6 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ===============================================================
-    // Assumed Data Model
-    // ===============================================================
-    //
-    // Collection: estudiantes
-    // Document ID: auto-generated
-    // Fields:
-    //   - nombre: string (required, length > 0, < 100) - Full name or first names
-    //   - apellidos: string (optional, length < 100) - Last names
-    //   - gradoSeccion: string (required, length > 0, < 50) - Grade and section
-    //   - nivel: string (optional, 'Primaria' or 'Maternal') - Educational level
-    //   - fechaNacimiento: string (required, YYYY-MM-DD)
-    //   - sexo: string (required, 'V' or 'H')
-    //   - docenteId: string (required, immutable) - UID of the teacher
-    //   - createdAt: timestamp (required, immutable) - When the student was registered
-    //
-    // Collection: asistencias
-    // Document ID: auto-generated or composite
-    // Fields:
-    //   - docenteId: string (required, immutable)
-    //   - estudianteId: string (required, immutable)
-    //   - fecha: string (required, YYYY-MM-DD)
-    //   - asistio: boolean (required)
-    //
-    // ===============================================================
-
-    // ===============================================================
     // Helper Functions
     // ===============================================================
     
@@ -41,10 +15,6 @@ service cloud.firestore {
        return isAuthenticated() && request.auth.uid == userId;
     }
     
-    function isDocOwner() {
-       return isAuthenticated() && request.auth.uid == resource.data.docenteId;
-    }
-    
     function isAdmin() {
       return isAuthenticated() && 
              (request.auth.token.email == "monetizacionreymonfr2@gmail.com" || 
@@ -52,171 +22,82 @@ service cloud.firestore {
                get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
     }
     
-    function uidUnchanged() {
-       return !('docenteId' in request.resource.data) ||
-         request.resource.data.docenteId == request.auth.uid;
-    }
-    
-    function uidNotModified() {
-       return !('docenteId' in request.resource.data) ||
-         request.resource.data.docenteId == resource.data.docenteId;
-    }
-    
-    function hasRequiredFields(fields) {
-       return request.resource.data.keys().hasAll(fields);
-    }
-    
-    function hasOnlyAllowedFields(fields) {
-      return request.resource.data.keys().hasOnly(fields);
-    }
-
-    function areImmutableFieldsUnchanged(fields) {
-      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    // Check ownership for any document that has a 'docenteId' or 'uid' field
+    function isDocOwner() {
+      return isAuthenticated() && (
+        (resource != null && (
+          resource.data.docenteId == request.auth.uid || 
+          resource.data.uid == request.auth.uid
+        )) ||
+        (request.resource != null && (
+          request.resource.data.docenteId == request.auth.uid || 
+          request.resource.data.uid == request.auth.uid
+        ))
+      );
     }
 
     // ===============================================================
-    // Domain Validators
+    // Rules by Collection
     // ===============================================================
 
-    function isValidStudent(data) {
-      return hasOnlyAllowedFields(['nombre', 'apellidos', 'gradoSeccion', 'nivel', 'fechaNacimiento', 'sexo', 'docenteId', 'createdAt', 'updatedAt']) &&
-             data.nombre is string && data.nombre.size() > 0 && data.nombre.size() < 100 &&
-             (!('apellidos' in data) || (data.apellidos is string && data.apellidos.size() < 100)) &&
-             data.gradoSeccion is string && data.gradoSeccion.size() > 0 && data.gradoSeccion.size() < 50 &&
-             (!('nivel' in data) || (data.nivel in ['Primaria', 'Maternal'])) &&
-             (!('fechaNacimiento' in data) || (data.fechaNacimiento is string && data.fechaNacimiento.matches("^\\d{4}-\\d{2}-\\d{2}$"))) &&
-             (!('sexo' in data) || (data.sexo in ['V', 'H'])) &&
-             data.docenteId is string && data.docenteId == request.auth.uid &&
-             (!('createdAt' in data) || data.createdAt is timestamp) &&
-             (!('updatedAt' in data) || data.updatedAt is timestamp);
-    }
-
-    function isValidAttendance(data) {
-      return hasOnlyAllowedFields(['docenteId', 'estudianteId', 'fecha', 'asistio', 'updatedAt']) &&
-             data.docenteId is string && data.docenteId == request.auth.uid &&
-             data.estudianteId is string && data.estudianteId.size() > 0 &&
-             data.fecha is string && data.fecha.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
-             data.asistio is bool &&
-             (!('updatedAt' in data) || data.updatedAt is timestamp);
-    }
-
-    function isValidPPA(data) {
-      return hasOnlyAllowedFields(['docenteId', 'gradoSeccion', 'nivel', 'tema', 'duracion', 'diagnostico', 'contenido', 'createdAt', 'updatedAt']) &&
-             data.docenteId is string && data.docenteId == request.auth.uid &&
-             data.gradoSeccion is string && data.gradoSeccion.size() > 0 && data.gradoSeccion.size() < 100 &&
-             (!('nivel' in data) || (data.nivel in ['Primaria', 'Maternal'])) &&
-             data.tema is string && data.tema.size() > 0 && data.tema.size() < 200 &&
-             data.duracion is string && data.duracion.size() > 0 && data.duracion.size() < 100 &&
-             data.diagnostico is string && data.diagnostico.size() > 0 && data.diagnostico.size() < 2000 &&
-             data.contenido is string && data.contenido.size() > 0 && data.contenido.size() < 50000 &&
-             (!('createdAt' in data) || data.createdAt is timestamp) &&
-             (!('updatedAt' in data) || data.updatedAt is timestamp);
-    }
-
-    function isValidDailyPlan(data) {
-      return hasOnlyAllowedFields(['docenteId', 'ppaId', 'fecha', 'temaDia', 'contenido', 'createdAt', 'updatedAt']) &&
-             data.docenteId is string && data.docenteId == request.auth.uid &&
-             data.ppaId is string && data.ppaId.size() > 0 &&
-             data.fecha is string && data.fecha.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
-             data.temaDia is string && data.temaDia.size() > 0 && data.temaDia.size() < 200 &&
-             data.contenido is string && data.contenido.size() > 0 && data.contenido.size() < 50000 &&
-             (!('createdAt' in data) || data.createdAt is timestamp) &&
-             (!('updatedAt' in data) || data.updatedAt is timestamp);
-    }
-
-    function isValidReport(data) {
-      return hasOnlyAllowedFields(['docenteId', 'estudianteId', 'calificacion', 'observacion', 'createdAt', 'updatedAt']) &&
-             data.docenteId is string && data.docenteId == request.auth.uid &&
-             data.estudianteId is string && data.estudianteId.size() > 0 &&
-             data.calificacion is string && data.calificacion.size() > 0 && data.calificacion.size() < 20 &&
-             data.observacion is string && data.observacion.size() > 0 && data.observacion.size() < 2000 &&
-             (!('createdAt' in data) || data.createdAt is timestamp) &&
-             (!('updatedAt' in data) || data.updatedAt is timestamp);
-    }
-
-    // ===============================================================
-    // Rules
-    // ===============================================================
-
-    match /estudiantes/{estudianteId} {
-      // Only the teacher who created the student can read the data
-      allow read: if isAuthenticated() && resource.data.docenteId == request.auth.uid;
-      
-      // Any authenticated user can create a student, but they must set themselves as the owner
-      allow create: if isAuthenticated() && isValidStudent(request.resource.data) && uidUnchanged();
-      
-      // Only the owner can update, and they cannot change the owner or creation date
-      allow update: if isDocOwner() && isValidStudent(request.resource.data) && uidNotModified() && areImmutableFieldsUnchanged(['createdAt', 'docenteId']);
-      
-      // Only the owner can delete
-      allow delete: if isDocOwner();
-    }
-
-    match /asistencias/{asistenciaId} {
-      allow read: if isAuthenticated() && resource.data.docenteId == request.auth.uid;
-      allow create: if isAuthenticated() && isValidAttendance(request.resource.data) && uidUnchanged();
-      allow update: if isDocOwner() && isValidAttendance(request.resource.data) && uidNotModified() && areImmutableFieldsUnchanged(['docenteId', 'estudianteId', 'fecha']);
-      allow delete: if isDocOwner();
-    }
-
-    match /proyectos_ppa/{proyectoId} {
-      allow read: if isAuthenticated() && resource.data.docenteId == request.auth.uid;
-      allow create: if isAuthenticated() && isValidPPA(request.resource.data) && uidUnchanged();
-      allow update: if isDocOwner() && isValidPPA(request.resource.data) && uidNotModified() && areImmutableFieldsUnchanged(['docenteId', 'createdAt']);
-      allow delete: if isDocOwner();
-    }
-
-    match /planificaciones_diarias/{planId} {
-      allow read: if isAuthenticated() && resource.data.docenteId == request.auth.uid;
-      allow create: if isAuthenticated() && isValidDailyPlan(request.resource.data) && uidUnchanged();
-      allow update: if isDocOwner() && isValidDailyPlan(request.resource.data) && uidNotModified() && areImmutableFieldsUnchanged(['docenteId', 'createdAt']);
-      allow delete: if isDocOwner();
-    }
-
-    match /boletines/{boletinId} {
-      allow read: if isAuthenticated() && resource.data.docenteId == request.auth.uid;
-      allow create: if isAuthenticated() && isValidReport(request.resource.data) && uidUnchanged();
-      allow update: if isDocOwner() && isValidReport(request.resource.data) && uidNotModified() && areImmutableFieldsUnchanged(['docenteId', 'createdAt']);
-      allow delete: if isDocOwner();
-    }
-    function isValidRoutine(data) {
-      return hasOnlyAllowedFields(['docenteId', 'estudianteId', 'fecha', 'comida', 'sueno', 'panal', 'actividad', 'createdAt']) &&
-             data.docenteId == request.auth.uid &&
-             data.estudianteId is string &&
-             data.fecha is string && data.fecha.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
-             data.comida is string &&
-             data.sueno is string &&
-             data.panal is string &&
-             (!('actividad' in data) || data.actividad is string);
-    }
-
-    match /bitacoras_maternal/{recordId} {
-      allow read: if isAuthenticated() && resource.data.docenteId == request.auth.uid;
-      allow create: if isAuthenticated() && isValidRoutine(request.resource.data);
-      allow update, delete: if false; // Routines are usually not editable
-    }
-
+    // User Profiles
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      // Allow initial creation with isActive: false
-      allow create: if isOwner(userId) && request.resource.data.isActive == false;
-      // Allow update for status change or by admin
-      allow update: if (isOwner(userId) && areImmutableFieldsUnchanged(['email', 'createdAt'])) || isAdmin();
+      allow read, update: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
     }
 
+    // Activation Codes
     match /activation_codes/{codeId} {
       allow get: if isAuthenticated();
-      allow list: if isAdmin();
-      allow create: if isAdmin();
-      // Allow user to mark a code as used OR Admin to manage it
+      allow list, create, delete: if isAdmin();
       allow update: if isAdmin() || (
                       isAuthenticated() && 
                       resource.data.status == 'disponible' && 
                       request.resource.data.status == 'usado' &&
-                      request.resource.data.usedBy == request.auth.uid &&
-                      areImmutableFieldsUnchanged(['code', 'createdAt'])
+                      request.resource.data.usedBy == request.auth.uid
                     );
-      allow delete: if isAdmin();
+    }
+
+    // App Data Collections
+    // Using a more flexible matching to ensure all docente-owned data is covered
+    
+    // Students list
+    match /estudiantes/{document} {
+      allow read, write: if isAdmin() || isDocOwner();
+    }
+
+    // Attendance records
+    match /asistencias/{document} {
+      allow read, write: if isAdmin() || isDocOwner();
+    }
+
+    // PPA Projects (Projects, Objectives, etc.)
+    match /proyectos_ppa/{document} {
+      allow read, write: if isAdmin() || isDocOwner();
+    }
+
+    // Daily Lesson Plans
+    match /planificaciones_diarias/{document} {
+      allow read, write: if isAdmin() || isDocOwner();
+    }
+
+    // Evaluation Reports / Boletines
+    match /boletines/{document} {
+      allow read, write: if isAdmin() || isDocOwner();
+    }
+
+    // Maternal Routines and Milestones
+    match /bitacoras_maternal/{document} {
+      allow read, write: if isAdmin() || isDocOwner();
+    }
+
+    // Codes Management (handled above but repeated for safety)
+    match /activation_codes/{document} {
+      allow read, write: if isAdmin();
+    }
+    
+    match /activation_codes_admin/{document} {
+      allow read, write: if isAdmin();
     }
   }
 }

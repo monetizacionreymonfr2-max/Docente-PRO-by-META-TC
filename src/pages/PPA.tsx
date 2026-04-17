@@ -52,7 +52,7 @@ export default function PPA() {
       });
       setProjects(projectsData);
     }, (error) => {
-      console.error("Error fetching PPA projects:", error);
+      handleFirestoreError(error, OperationType.LIST, 'proyectos_ppa');
     });
 
     return () => unsubscribe();
@@ -101,39 +101,43 @@ Datos de entrada:
         contents: prompt,
       });
 
-      const generatedText = response.text || '';
+      const generatedText = String(response.text || '');
+      
+      if (!generatedText) {
+        throw new Error("La IA no devolvió ningún contenido. Por favor intenta de nuevo.");
+      }
 
-      // Save to Firestore
-      const docRef = await addDoc(collection(db, 'proyectos_ppa'), {
-        docenteId: currentUserId,
+      // Capture values for the state before clearing them
+      const projectData = {
         gradoSeccion: gradoSeccion.trim(),
         nivel,
         tema: tema.trim(),
         duracion: duracion.trim(),
         diagnostico: diagnostico.trim(),
         contenido: generatedText,
+      };
+
+      // Save to Firestore
+      const docRef = await addDoc(collection(db, 'proyectos_ppa'), {
+        docenteId: currentUserId,
+        ...projectData,
         createdAt: serverTimestamp()
       });
 
-      // Clear form and show the generated project
+      // Clear form
       setGradoSeccion('');
       setTema('');
       setDuracion('');
       setDiagnostico('');
       
-      // Switch to history tab and select the new project
-      // We simulate the object since we don't have the server timestamp yet
+      // Show the generated project in history
       setSelectedProject({
         id: docRef.id,
-        gradoSeccion,
-        nivel,
-        tema,
-        duracion,
-        diagnostico,
-        contenido: generatedText,
+        ...projectData,
         createdAt: new Date()
       });
       setActiveTab('history');
+      alert("¡PPA generado y guardado exitosamente!");
 
     } catch (error) {
       console.error("Error generating PPA:", error);

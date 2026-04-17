@@ -77,7 +77,7 @@ export default function Reports() {
       
       setStudents(sorted);
     }, (error) => {
-      console.error("Error fetching students:", error);
+      handleFirestoreError(error, OperationType.LIST, 'estudiantes');
     });
 
     return () => unsubscribe();
@@ -100,7 +100,7 @@ export default function Reports() {
       });
       setReports(reportsData);
     }, (error) => {
-      console.error("Error fetching reports:", error);
+      handleFirestoreError(error, OperationType.LIST, 'boletines');
     });
 
     return () => unsubscribe();
@@ -133,7 +133,7 @@ Palabras clave: ${palabrasClave}`;
         contents: prompt,
       });
 
-      setObservacion(response.text || '');
+      setObservacion(String(response.text || ''));
     } catch (error) {
       console.error("Error generating observation:", error);
       alert("Hubo un error al generar la observación. Verifica tu conexión o intenta más tarde.");
@@ -148,13 +148,17 @@ Palabras clave: ${palabrasClave}`;
       return;
     }
 
+    const reportData = {
+      estudianteId: selectedStudentId,
+      calificacion: calificacion.trim(),
+      observacion: observacion.trim(),
+    };
+
     setIsSaving(true);
     try {
       const docRef = await addDoc(collection(db, 'boletines'), {
         docenteId: currentUserId,
-        estudianteId: selectedStudentId,
-        calificacion: calificacion.trim(),
-        observacion: observacion.trim(),
+        ...reportData,
         createdAt: serverTimestamp()
       });
 
@@ -167,9 +171,7 @@ Palabras clave: ${palabrasClave}`;
       // Switch to history tab and select the new report
       setSelectedReport({
         id: docRef.id,
-        estudianteId: selectedStudentId,
-        calificacion: calificacion.trim(),
-        observacion: observacion.trim(),
+        ...reportData,
         createdAt: new Date()
       });
       setActiveTab('history');

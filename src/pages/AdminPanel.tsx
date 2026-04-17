@@ -121,7 +121,8 @@ export default function AdminPanel() {
   const calculateDaysLeft = (expiresAt: any) => {
     if (!expiresAt) return null;
     const now = new Date();
-    const expiration = expiresAt.toDate();
+    // Support both Firestore Timestamp and JS Date
+    const expiration = expiresAt.toDate ? expiresAt.toDate() : new Date(expiresAt);
     const diffTime = expiration.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return diffDays;

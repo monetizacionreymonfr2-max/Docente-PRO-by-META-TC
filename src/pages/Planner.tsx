@@ -64,7 +64,7 @@ export default function Planner() {
         setSelectedPpaId(ppaData[0].id);
       }
     }, (error) => {
-      console.error("Error fetching PPAs:", error);
+      handleFirestoreError(error, OperationType.LIST, 'proyectos_ppa');
     });
 
     return () => unsubscribe();
@@ -87,7 +87,7 @@ export default function Planner() {
       });
       setDailyPlans(plansData);
     }, (error) => {
-      console.error("Error fetching daily plans:", error);
+      handleFirestoreError(error, OperationType.LIST, 'planificaciones_diarias');
     });
 
     return () => unsubscribe();
@@ -146,31 +146,37 @@ ${selectedPpa.contenido}`;
         contents: prompt,
       });
 
-      const generatedText = response.text || '';
+      const generatedText = String(response.text || '');
 
-      // Save to Firestore
-      const docRef = await addDoc(collection(db, 'planificaciones_diarias'), {
-        docenteId: currentUserId,
+      if (!generatedText) {
+        throw new Error("La IA no devolvió ningún contenido. Por favor intenta de nuevo.");
+      }
+
+      const planData = {
         ppaId: selectedPpaId,
         fecha,
         temaDia: temaDia.trim(),
         contenido: generatedText,
+      };
+
+      // Save to Firestore
+      const docRef = await addDoc(collection(db, 'planificaciones_diarias'), {
+        docenteId: currentUserId,
+        ...planData,
         createdAt: serverTimestamp()
       });
 
-      // Clear form and show the generated plan
+      // Clear form
       setTemaDia('');
       
-      // Switch to history tab and select the new plan
+      // Show the generated plan
       setSelectedPlan({
         id: docRef.id,
-        ppaId: selectedPpaId,
-        fecha,
-        temaDia,
-        contenido: generatedText,
+        ...planData,
         createdAt: new Date()
       });
       setActiveTab('history');
+      alert("¡Planificación diaria generada y guardada exitosamente!");
 
     } catch (error) {
       console.error("Error generating Daily Plan:", error);
