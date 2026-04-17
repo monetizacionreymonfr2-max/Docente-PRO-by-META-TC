@@ -71,14 +71,53 @@ export default function PPA() {
       let prompt = '';
       const systemInstruction = "Eres un especialista en planificación educativa adaptado al sistema escolar de Venezuela. Tu objetivo es redactar Proyectos Pedagógicos de Aula (PPA) completos, profesionales y listos para imprimir. Usa un tono formal, pedagógico y enfocado en el aprendizaje significativo.";
 
-      if (nivel === 'Maternal' || nivel === 'Preescolar') {
-        prompt = `Genera un Proyecto de Aprendizaje para niños de la etapa ${nivel}. 
+      if (nivel === 'Maternal') {
+        prompt = `Actúa como un docente experto en Educación Inicial, etapa Maternal (0-3 años) en Venezuela. 
+Genera un Proyecto Pedagógico de Aula (PPA) completo siguiendo estrictamente las orientaciones del Ministerio del Poder Popular para la Educación (MPPE) de Venezuela.
+
+DATOS DEL PROYECTO:
+- Tema Central: ${tema}
+- Grupo Etáreo/Sala: ${gradoSeccion}
+- Duración: ${duracion}
+- Diagnóstico inicial: ${diagnostico}
+
+ESTRUCTURA REQUERIDA (Formato Markdown):
+
+1.  **MEMBRETE DEL PLANTEL**
+2.  **IDENTIFICACIÓN**:
+    - Docentes: (Nombre del docente)
+    - Matrícula: (Número de niños/as)
+    - Etapa: Maternal
+    - Grupo Etáreo: ${gradoSeccion}
+3.  **DIAGNÓSTICO PEDAGÓGICO**: (Un párrafo pedagógico y detallado que sea la base para las experiencias de aprendizaje).
+4.  **PLANIFICACIÓN DIDÁCTICA (TABLA TÉCNICA)**: Genera una tabla con:
+    - Área de Formación
+    - Componente
+    - Énfasis Prioritario
+    - Contenidos Esenciales
+    - Tejido Temático
+    - Referentes Teóricos y Prácticos
+    - Aprendizajes Esperados
+    (Incluye áreas: Formación Personal y Social, Relación con otros componentes del Ambiente, Comunicación y Representación).
+5.  **PLANIFICACIÓN DE LA JORNADA (LUNES A VIERNES)**:
+    Detalla actividades y estrategias para:
+    - **Bienvenida** (Identidad y Lenguaje)
+    - **Aseo Personal y Alimentación** (Higiene, autonomía)
+    - **Planificación del Niño/a** (Expresión de deseos)
+    - **Trabajo Libre en los Espacios** (Rincón de Lectura, Representar e Imitar, Armar y Construir, Experimentar y Descubrir, Expresar y Crear).
+    - **Intercambio y Recuento** (Círculo de conversación)
+    - **Pequeños Grupos** (Actividades dirigidas)
+    - **Despedida** (Cierre afectivo)
+
+Tono: Profesional, pedagógico y centrado en el aprendizaje a través del juego y la rutina. Usa lenguaje oficial de Venezuela.`;
+      } else if (nivel === 'Preescolar') {
+        prompt = `Genera un Proyecto de Aprendizaje para niños de la etapa Preescolar (3-6 años). 
 El tema de interés de los niños es: ${tema}.
 
 Estructura requerida:
 1. Título del Proyecto (creativo y corto)
-2. Objetivo general (enfocado en el desarrollo ${nivel === 'Maternal' ? 'psicomotor' : 'integral'})
-3. Áreas de desarrollo a estimular (${nivel === 'Maternal' ? 'Motriz fina/gruesa, Lenguaje, Cognitiva y Socio-emocional' : 'Formación Personal, Social y Comunicación, Relación con otros componentes del Ambiente'})
+2. Objetivo general (enfocado en el desarrollo integral)
+3. Áreas de desarrollo a estimular (Formación Personal, Social y Comunicación, Relación con otros componentes del Ambiente)
 4. Lista de materiales recomendados
 5. Hitos de evaluación cualitativa
 
