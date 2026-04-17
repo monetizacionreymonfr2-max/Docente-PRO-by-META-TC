@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, deleteDoc, doc, updateDoc, where } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { UserPlus, Loader2, Trash2, Edit2, Cake, Gift, Users, CalendarDays } from 'lucide-react';
+import { UserPlus, Loader2, Trash2, Edit2, Cake, Gift, Users, CalendarDays, X } from 'lucide-react';
 
 export interface Student {
   id: string;
@@ -32,6 +32,7 @@ export default function Students() {
   const [students, setStudents] = useState<Student[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const currentUserId = auth.currentUser?.uid;
   const currentDate = new Date();
@@ -43,6 +44,7 @@ export default function Students() {
 
     const q = query(
       collection(db, 'estudiantes'),
+      where('docenteId', '==', currentUserId),
       orderBy('createdAt', 'desc')
     );
 
@@ -51,7 +53,7 @@ export default function Students() {
       snapshot.forEach((doc) => {
         studentsData.push({ id: doc.id, ...doc.data() } as Student);
       });
-      setStudents(studentsData.filter(s => (s as any).docenteId === currentUserId));
+      setStudents(studentsData);
       setIsLoading(false);
     }, (error) => {
       console.error("Error fetching students:", error);
@@ -67,16 +69,31 @@ export default function Students() {
 
     setIsSubmitting(true);
     try {
-      await addDoc(collection(db, 'estudiantes'), {
-        nombre: nombre.trim(),
-        apellidos: apellidos.trim(),
-        gradoSeccion: gradoSeccion.trim(),
-        nivel,
-        fechaNacimiento,
-        sexo,
-        docenteId: currentUserId,
-        createdAt: serverTimestamp()
-      });
+      if (editingId) {
+        // Update existing student
+        await updateDoc(doc(db, 'estudiantes', editingId), {
+          nombre: nombre.trim(),
+          apellidos: apellidos.trim(),
+          gradoSeccion: gradoSeccion.trim(),
+          nivel,
+          fechaNacimiento,
+          sexo,
+          updatedAt: serverTimestamp()
+        });
+        setEditingId(null);
+      } else {
+        // Create new student
+        await addDoc(collection(db, 'estudiantes'), {
+          nombre: nombre.trim(),
+          apellidos: apellidos.trim(),
+          gradoSeccion: gradoSeccion.trim(),
+          nivel,
+          fechaNacimiento,
+          sexo,
+          docenteId: currentUserId,
+          createdAt: serverTimestamp()
+        });
+      }
       
       setNombre('');
       setApellidos('');
@@ -89,6 +106,38 @@ export default function Students() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleDelete = async (id: string) => {
+    // In a production app we'd use a custom modal, for now we just delete as requested fast
+    try {
+      await deleteDoc(doc(db, 'estudiantes', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'estudiantes');
+    }
+  };
+
+  const startEdit = (student: Student) => {
+    setEditingId(student.id);
+    setNombre(student.nombre);
+    setApellidos(student.apellidos || '');
+    setGradoSeccion(student.gradoSeccion);
+    setNivel(student.nivel);
+    setFechaNacimiento(student.fechaNacimiento);
+    setSexo(student.sexo);
+    setActiveTab('list');
+    // Scroll to form (top)
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setNombre('');
+    setApellidos('');
+    setGradoSeccion('');
+    setNivel('Primaria');
+    setFechaNacimiento('');
+    setSexo('V');
   };
 
   // Birthday Logic
@@ -142,9 +191,20 @@ export default function Students() {
           {/* Form Section */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sticky top-6">
-              <div className="flex items-center gap-2 mb-6">
-                <UserPlus className="w-5 h-5 text-blue-600" />
-                <h2 className="text-lg font-semibold text-gray-900">Registrar Alumno</h2>
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <UserPlus className="w-5 h-5 text-blue-600" />
+                  <h2 className="text-lg font-semibold text-gray-900">{editingId ? 'Editar Alumno' : 'Registrar Alumno'}</h2>
+                </div>
+                {editingId && (
+                  <button 
+                    onClick={cancelEdit}
+                    className="text-gray-400 hover:text-red-500 p-1 rounded-full hover:bg-red-50 transition-colors"
+                    title="Cancelar edición"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
               </div>
               
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -246,10 +306,10 @@ export default function Students() {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Guardando...
+                      {editingId ? 'Actualizando...' : 'Guardando...'}
                     </>
                   ) : (
-                    'Guardar Estudiante'
+                    editingId ? 'Actualizar Estudiante' : 'Guardar Estudiante'
                   )}
                 </button>
               </form>
@@ -347,10 +407,18 @@ export default function Students() {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-right">
                               <div className="flex items-center justify-end gap-2">
-                                <button className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" title="Editar">
+                                <button 
+                                  onClick={() => startEdit(student)}
+                                  className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors" 
+                                  title="Editar"
+                                >
                                   <Edit2 className="w-4 h-4" />
                                 </button>
-                                <button className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Eliminar">
+                                <button 
+                                  onClick={() => handleDelete(student.id)}
+                                  className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" 
+                                  title="Eliminar"
+                                >
                                   <Trash2 className="w-4 h-4" />
                                 </button>
                               </div>

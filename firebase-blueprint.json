@@ -123,6 +123,31 @@
         "createdAt": { "type": "timestamp" }
       },
       "required": ["docenteId", "estudianteId", "fecha", "comida", "sueno", "panal", "createdAt"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Premium status and profile info for teachers.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "role": { "type": "string", "enum": ["admin", "teacher"] },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["email", "isActive", "createdAt"]
+    },
+    "ActivationCode": {
+      "title": "Activation Code",
+      "description": "One-time use code to activate premium access.",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "status": { "type": "string", "enum": ["disponible", "usado"] },
+        "usedBy": { "type": "string" },
+        "createdAt": { "type": "timestamp" },
+        "usedAt": { "type": "timestamp" }
+      },
+      "required": ["code", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -149,6 +174,14 @@
     "/bitacoras_maternal/{recordId}": {
       "schema": { "$ref": "#/entities/MaternalRoutine" },
       "description": "Collection of maternal routine records."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile and activation status."
+    },
+    "/activation_codes/{codeId}": {
+      "schema": { "$ref": "#/entities/ActivationCode" },
+      "description": "Activation codes for SaaS monetization."
     }
   }
 }

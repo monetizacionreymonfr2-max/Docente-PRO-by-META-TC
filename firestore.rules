@@ -45,6 +45,13 @@ service cloud.firestore {
        return isAuthenticated() && request.auth.uid == resource.data.docenteId;
     }
     
+    function isAdmin() {
+      return isAuthenticated() && 
+             (request.auth.token.email == "monetizacionreymonfr2@gmail.com" || 
+              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+    }
+    
     function uidUnchanged() {
        return !('docenteId' in request.resource.data) ||
          request.resource.data.docenteId == request.auth.uid;
@@ -181,6 +188,27 @@ service cloud.firestore {
       allow read: if isAuthenticated() && resource.data.docenteId == request.auth.uid;
       allow create: if isAuthenticated() && isValidRoutine(request.resource.data);
       allow update, delete: if false; // Routines are usually not editable
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      // Allow initial creation with isActive: false
+      allow create: if isOwner(userId) && request.resource.data.isActive == false;
+      // Allow update for status change or by admin
+      allow update: if (isOwner(userId) && areImmutableFieldsUnchanged(['email', 'createdAt'])) || isAdmin();
+    }
+
+    match /activation_codes/{codeId} {
+      allow get: if isAuthenticated();
+      allow list: if isAdmin();
+      allow create: if isAdmin();
+      // Allow user to mark a code as used
+      allow update: if isAuthenticated() && 
+                      resource.data.status == 'disponible' && 
+                      request.resource.data.status == 'usado' &&
+                      request.resource.data.usedBy == request.auth.uid &&
+                      areImmutableFieldsUnchanged(['code', 'createdAt']);
+      allow delete: if isAdmin();
     }
   }
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Baby, Loader2, Utensils, Moon, ShieldCheck, CheckSquare, LineChart, Plus, History, X } from 'lucide-react';
+import { Baby, Loader2, Utensils, Moon, ShieldCheck, CheckSquare, LineChart, Plus, History, X, Trash2 } from 'lucide-react';
 import { Student } from './Students';
 
 interface RoutineRecord {
@@ -57,7 +57,11 @@ export default function Maternal() {
   // Fetch Routine History
   useEffect(() => {
     if (!currentUserId || activeTab !== 'routine') return;
-    const q = query(collection(db, 'bitacoras_maternal'), where('fecha', '==', selectedDate));
+    const q = query(
+      collection(db, 'bitacoras_maternal'), 
+      where('docenteId', '==', currentUserId),
+      where('fecha', '==', selectedDate)
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const routineData: RoutineRecord[] = [];
       snapshot.forEach((doc) => {
@@ -87,11 +91,20 @@ export default function Maternal() {
       
       setSelectedStudentId('');
       setActividad('');
-      alert('Bitácora guardada correctamente');
+      // No alert, use better UI if possible, but keep it simple for now as requested
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'bitacoras_maternal');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDeleteRoutine = async (id: string) => {
+    if (!window.confirm('¿Eliminar este registro?')) return;
+    try {
+      await deleteDoc(doc(db, 'bitacoras_maternal', id));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'bitacoras_maternal');
     }
   };
 
@@ -252,7 +265,16 @@ export default function Maternal() {
                       <div key={record.id} className="p-6 hover:bg-gray-50 transition-colors">
                         <div className="flex justify-between items-start mb-4">
                           <h4 className="font-bold text-gray-900">{student?.nombre} {student?.apellidos}</h4>
-                          <span className="text-xs text-gray-400">Ref: {record.id.slice(0, 5)}</span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-gray-400">Ref: {record.id.slice(0, 5)}</span>
+                            <button 
+                              onClick={() => handleDeleteRoutine(record.id)}
+                              className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
+                              title="Eliminar"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
                           <div className="flex flex-col gap-1">

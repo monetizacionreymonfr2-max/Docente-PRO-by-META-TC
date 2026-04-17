@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { GoogleGenAI } from '@google/genai';
-import { Sparkles, Loader2, FileText, Copy, Printer, X, History } from 'lucide-react';
+import { Sparkles, Loader2, FileText, Copy, Printer, X, History, Trash2 } from 'lucide-react';
 import Markdown from 'react-markdown';
 
 // Initialize Gemini API
@@ -42,6 +42,7 @@ export default function PPA() {
 
     const q = query(
       collection(db, 'proyectos_ppa'),
+      where('docenteId', '==', currentUserId),
       orderBy('createdAt', 'desc')
     );
 
@@ -50,7 +51,7 @@ export default function PPA() {
       snapshot.forEach((doc) => {
         projectsData.push({ id: doc.id, ...doc.data() } as PPAProject);
       });
-      setProjects(projectsData.filter(p => (p as any).docenteId === currentUserId));
+      setProjects(projectsData);
     }, (error) => {
       console.error("Error fetching PPA projects:", error);
     });
@@ -141,6 +142,20 @@ Datos de entrada:
       alert("Hubo un error al generar el proyecto. Verifica tu conexión o intenta más tarde.");
     } finally {
       setIsGenerating(false);
+    }
+  };
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Avoid selecting the project
+    if (!window.confirm('¿Estás seguro de que deseas eliminar este proyecto?')) return;
+    
+    try {
+      await deleteDoc(doc(db, 'proyectos_ppa', id));
+      if (selectedProject?.id === id) {
+        setSelectedProject(null);
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'proyectos_ppa');
     }
   };
 
@@ -315,7 +330,16 @@ Datos de entrada:
                         {project.gradoSeccion}
                       </span>
                     </div>
-                    <span className="text-xs text-gray-400">{date}</span>
+                    <div className="flex flex-col gap-2 items-end">
+                      <span className="text-xs text-gray-400">{date}</span>
+                      <button 
+                        onClick={(e) => handleDelete(project.id, e)}
+                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                   <h3 className="font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
                     {project.tema}

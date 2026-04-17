@@ -12,10 +12,15 @@ import {
   LogOut,
   GraduationCap,
   Menu,
-  X
+  X,
+  ShieldAlert
 } from 'lucide-react';
 
-export default function Layout() {
+interface LayoutProps {
+  isAdmin?: boolean;
+}
+
+export default function Layout({ isAdmin }: LayoutProps) {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -27,6 +32,10 @@ export default function Layout() {
     { path: '/planner', icon: <CalendarDays size={20} />, label: 'Planificador Diario' },
     { path: '/reports', icon: <FileText size={20} />, label: 'Generador de Boletines' },
   ];
+
+  if (isAdmin) {
+    navItems.push({ path: '/admin', icon: <ShieldAlert size={20} />, label: 'Panel SaaS Admin' });
+  }
 
   const closeMobileMenu = () => {
     setIsMobileMenuOpen(false);

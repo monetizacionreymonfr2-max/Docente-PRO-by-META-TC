@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { GoogleGenAI } from '@google/genai';
-import { FileBadge, Loader2, Sparkles, Printer, History, X, Save } from 'lucide-react';
+import { FileBadge, Loader2, Sparkles, Printer, History, X, Save, Trash2 } from 'lucide-react';
 
 // Initialize Gemini API
 const ai = new GoogleGenAI({ apiKey: 'AIzaSyApq3e0pSpfnnJVv5pKDBSDhIhlE5bUXz4' });
@@ -57,16 +57,14 @@ export default function Reports() {
 
     const q = query(
       collection(db, 'estudiantes'),
+      where('docenteId', '==', currentUserId),
       orderBy('nombre', 'asc')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const studentsData: Student[] = [];
       snapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.docenteId === currentUserId) {
-          studentsData.push({ id: doc.id, ...data } as Student);
-        }
+        studentsData.push({ id: doc.id, ...doc.data() } as Student);
       });
       
       const sorted = studentsData.sort((a, b) => {
@@ -91,16 +89,14 @@ export default function Reports() {
 
     const q = query(
       collection(db, 'boletines'),
+      where('docenteId', '==', currentUserId),
       orderBy('createdAt', 'desc')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const reportsData: Report[] = [];
       snapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.docenteId === currentUserId) {
-          reportsData.push({ id: doc.id, ...data } as Report);
-        }
+        reportsData.push({ id: doc.id, ...doc.data() } as Report);
       });
       setReports(reportsData);
     }, (error) => {
@@ -190,6 +186,19 @@ Palabras clave: ${palabrasClave}`;
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm('¿Deseas eliminar este boletín?')) return;
+    try {
+      await deleteDoc(doc(db, 'boletines', id));
+      if (selectedReport?.id === id) {
+        setSelectedReport(null);
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'boletines');
+    }
   };
 
   const selectedStudentData = students.find(s => s.id === selectedStudentId);
@@ -430,6 +439,12 @@ Palabras clave: ${palabrasClave}`;
                       Literal: {report.calificacion}
                     </span>
                     <span className="text-xs text-gray-400">{date}</span>
+                    <button 
+                      onClick={(e) => handleDelete(report.id, e)}
+                      className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                   <h3 className="font-bold text-gray-900 mb-2 line-clamp-1 group-hover:text-indigo-600 transition-colors">
                     {student ? (student.apellidos ? `${student.apellidos}, ${student.nombre}` : student.nombre) : 'Estudiante Desconocido'}

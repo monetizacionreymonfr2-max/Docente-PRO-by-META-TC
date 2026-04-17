@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { GoogleGenAI } from '@google/genai';
-import { BookOpen, Loader2, FileText, Copy, Printer, X, History, Calendar } from 'lucide-react';
+import { BookOpen, Loader2, FileText, Copy, Printer, X, History, Calendar, Trash2 } from 'lucide-react';
 import Markdown from 'react-markdown';
 
 // Initialize Gemini API
@@ -45,21 +45,19 @@ export default function Planner() {
 
     const q = query(
       collection(db, 'proyectos_ppa'),
+      where('docenteId', '==', currentUserId),
       orderBy('createdAt', 'desc')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const ppaData: PPAProject[] = [];
       snapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.docenteId === currentUserId) {
-          ppaData.push({ 
-            id: doc.id, 
-            tema: data.tema, 
-            nivel: data.nivel,
-            contenido: data.contenido 
-          });
-        }
+        ppaData.push({ 
+          id: doc.id, 
+          tema: doc.data().tema, 
+          nivel: doc.data().nivel,
+          contenido: doc.data().contenido 
+        });
       });
       setPpas(ppaData);
       if (ppaData.length > 0 && !selectedPpaId) {
@@ -78,16 +76,14 @@ export default function Planner() {
 
     const q = query(
       collection(db, 'planificaciones_diarias'),
+      where('docenteId', '==', currentUserId),
       orderBy('fecha', 'desc')
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const plansData: DailyPlan[] = [];
       snapshot.forEach((doc) => {
-        const data = doc.data();
-        if (data.docenteId === currentUserId) {
-          plansData.push({ id: doc.id, ...data } as DailyPlan);
-        }
+        plansData.push({ id: doc.id, ...doc.data() } as DailyPlan);
       });
       setDailyPlans(plansData);
     }, (error) => {
@@ -191,6 +187,19 @@ ${selectedPpa.contenido}`;
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!window.confirm('¿Deseas eliminar esta planificación?')) return;
+    try {
+      await deleteDoc(doc(db, 'planificaciones_diarias', id));
+      if (selectedPlan?.id === id) {
+        setSelectedPlan(null);
+      }
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, 'planificaciones_diarias');
+    }
   };
 
   return (
@@ -339,6 +348,12 @@ ${selectedPpa.contenido}`;
                     {isMaternal && (
                       <span className="bg-orange-100 text-orange-800 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded">Maternal</span>
                     )}
+                    <button 
+                      onClick={(e) => handleDelete(plan.id, e)}
+                      className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
                   <h3 className="font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-teal-600 transition-colors">
                     {plan.temaDia}
