@@ -6,7 +6,7 @@ import { Sparkles, Loader2, FileText, Copy, Printer, X, History, Trash2 } from '
 import Markdown from 'react-markdown';
 
 // Initialize Gemini API
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY || "");
 
 interface PPAProject {
   id: string;
