@@ -8,6 +8,7 @@ import {
   CalendarCheck, 
   CalendarDays, 
   FileText, 
+  Baby,
   LogOut,
   GraduationCap,
   Menu,
@@ -22,6 +23,7 @@ export default function Layout() {
     { path: '/students', icon: <Users size={20} />, label: 'Panel de Estudiantes' },
     { path: '/ppa', icon: <BookOpen size={20} />, label: 'Gestor de PPA' },
     { path: '/attendance', icon: <CalendarCheck size={20} />, label: 'Control de Asistencia' },
+    { path: '/maternal', icon: <Baby size={20} />, label: 'Sección Maternal' },
     { path: '/planner', icon: <CalendarDays size={20} />, label: 'Planificador Diario' },
     { path: '/reports', icon: <FileText size={20} />, label: 'Generador de Boletines' },
   ];

@@ -12,6 +12,7 @@ const ai = new GoogleGenAI({ apiKey: 'AIzaSyApq3e0pSpfnnJVv5pKDBSDhIhlE5bUXz4' }
 interface PPAProject {
   id: string;
   gradoSeccion: string;
+  nivel: 'Primaria' | 'Maternal';
   tema: string;
   duracion: string;
   diagnostico: string;
@@ -24,6 +25,7 @@ export default function PPA() {
   
   // Form State
   const [gradoSeccion, setGradoSeccion] = useState('');
+  const [nivel, setNivel] = useState<'Primaria' | 'Maternal'>('Primaria');
   const [tema, setTema] = useState('');
   const [duracion, setDuracion] = useState('');
   const [diagnostico, setDiagnostico] = useState('');
@@ -62,7 +64,25 @@ export default function PPA() {
 
     setIsGenerating(true);
     try {
-      const prompt = `Eres un especialista en educación de Venezuela. Redacta un Proyecto Pedagógico estructurado estrictamente en: 
+      let prompt = '';
+      
+      if (nivel === 'Maternal') {
+        prompt = `Actúa como un experto en Educación Inicial y Estimulación Temprana de Venezuela. Genera un Proyecto de Aprendizaje para niños de la etapa maternal. 
+El tema de interés de los niños es: ${tema}.
+
+Devuelve la respuesta estructurada estrictamente en:
+1. Título del Proyecto (creativo y corto)
+2. Objetivo general (enfocado en el desarrollo psicomotor)
+3. Áreas de desarrollo a estimular (Motriz fina/gruesa, Lenguaje, Cognitiva y Socio-emocional)
+4. Lista de materiales recomendados (seguros, no tóxicos, sensoriales)
+5. Hitos de evaluación cualitativa (3 indicadores clave para observar)
+
+Datos adicionales:
+- Sala/Edad: ${gradoSeccion}
+- Duración: ${duracion}
+- Diagnóstico: ${diagnostico}`;
+      } else {
+        prompt = `Eres un especialista en educación de Venezuela. Redacta un Proyecto Pedagógico estructurado estrictamente en: 
 1. Título del Proyecto (creativo)
 2. Justificación
 3. Propósito General
@@ -74,6 +94,7 @@ Datos de entrada:
 - Tema Central: ${tema}
 - Duración Estimada: ${duracion}
 - Diagnóstico o Necesidad: ${diagnostico}`;
+      }
 
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
@@ -86,6 +107,7 @@ Datos de entrada:
       const docRef = await addDoc(collection(db, 'proyectos_ppa'), {
         docenteId: currentUserId,
         gradoSeccion: gradoSeccion.trim(),
+        nivel,
         tema: tema.trim(),
         duracion: duracion.trim(),
         diagnostico: diagnostico.trim(),
@@ -95,6 +117,7 @@ Datos de entrada:
 
       // Clear form and show the generated project
       setGradoSeccion('');
+      setNivel('Primaria');
       setTema('');
       setDuracion('');
       setDiagnostico('');
@@ -104,6 +127,7 @@ Datos de entrada:
       setSelectedProject({
         id: docRef.id,
         gradoSeccion,
+        nivel,
         tema,
         duracion,
         diagnostico,
@@ -168,34 +192,50 @@ Datos de entrada:
           <form onSubmit={handleGenerate} className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
+                <label htmlFor="nivel" className="block text-sm font-medium text-gray-700 mb-1">
+                  Nivel Educativo
+                </label>
+                <select
+                  id="nivel"
+                  required
+                  value={nivel}
+                  onChange={(e) => setNivel(e.target.value as 'Primaria' | 'Maternal')}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                >
+                  <option value="Primaria">Primaria / General</option>
+                  <option value="Maternal">Maternal (1-3 años)</option>
+                </select>
+              </div>
+
+              <div>
                 <label htmlFor="gradoSeccion" className="block text-sm font-medium text-gray-700 mb-1">
-                  Grado y Sección
+                  {nivel === 'Maternal' ? 'Sala / Edad' : 'Grado y Sección'}
                 </label>
                 <input
                   type="text"
                   id="gradoSeccion"
                   required
-                  placeholder="Ej: 4to Grado A"
+                  placeholder={nivel === 'Maternal' ? 'Ej: Lactantes II' : 'Ej: 4to Grado A'}
                   value={gradoSeccion}
                   onChange={(e) => setGradoSeccion(e.target.value)}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                 />
               </div>
+            </div>
 
-              <div>
-                <label htmlFor="duracion" className="block text-sm font-medium text-gray-700 mb-1">
-                  Duración Estimada
-                </label>
-                <input
-                  type="text"
-                  id="duracion"
-                  required
-                  placeholder="Ej: 4 semanas"
-                  value={duracion}
-                  onChange={(e) => setDuracion(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-                />
-              </div>
+            <div>
+              <label htmlFor="duracion" className="block text-sm font-medium text-gray-700 mb-1">
+                Duración Estimada
+              </label>
+              <input
+                type="text"
+                id="duracion"
+                required
+                placeholder="Ej: 4 semanas"
+                value={duracion}
+                onChange={(e) => setDuracion(e.target.value)}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+              />
             </div>
 
             <div>
@@ -267,9 +307,14 @@ Datos de entrada:
                   className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group"
                 >
                   <div className="flex justify-between items-start mb-4">
-                    <span className="bg-blue-50 text-blue-700 text-xs font-semibold px-2.5 py-1 rounded-full">
-                      {project.gradoSeccion}
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full w-fit ${project.nivel === 'Maternal' ? 'bg-orange-50 text-orange-700' : 'bg-blue-50 text-blue-700'}`}>
+                        {project.nivel || 'Primaria'}
+                      </span>
+                      <span className="text-gray-500 text-xs font-semibold px-2 px-1">
+                        {project.gradoSeccion}
+                      </span>
+                    </div>
                     <span className="text-xs text-gray-400">{date}</span>
                   </div>
                   <h3 className="font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
@@ -320,7 +365,8 @@ Datos de entrada:
             <div className="mb-8 pb-6 border-b border-gray-200">
               <h2 className="text-3xl font-bold text-gray-900 mb-4">{selectedProject.tema}</h2>
               <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                <p><strong>Grado/Sección:</strong> {selectedProject.gradoSeccion}</p>
+                <p><strong>Nivel:</strong> {selectedProject.nivel || 'Primaria'}</p>
+                <p><strong>{selectedProject.nivel === 'Maternal' ? 'Sala/Edad' : 'Grado/Sección'}:</strong> {selectedProject.gradoSeccion}</p>
                 <p><strong>Duración:</strong> {selectedProject.duracion}</p>
               </div>
             </div>

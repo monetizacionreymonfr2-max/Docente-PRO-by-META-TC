@@ -10,8 +10,10 @@ service cloud.firestore {
     // Collection: estudiantes
     // Document ID: auto-generated
     // Fields:
-    //   - nombre: string (required, length > 0, < 100) - Full name of the student
+    //   - nombre: string (required, length > 0, < 100) - Full name or first names
+    //   - apellidos: string (optional, length < 100) - Last names
     //   - gradoSeccion: string (required, length > 0, < 50) - Grade and section
+    //   - nivel: string (optional, 'Primaria' or 'Maternal') - Educational level
     //   - fechaNacimiento: string (required, YYYY-MM-DD)
     //   - sexo: string (required, 'V' or 'H')
     //   - docenteId: string (required, immutable) - UID of the teacher
@@ -70,9 +72,11 @@ service cloud.firestore {
     // ===============================================================
 
     function isValidStudent(data) {
-      return hasOnlyAllowedFields(['nombre', 'gradoSeccion', 'fechaNacimiento', 'sexo', 'docenteId', 'createdAt']) &&
+      return hasOnlyAllowedFields(['nombre', 'apellidos', 'gradoSeccion', 'nivel', 'fechaNacimiento', 'sexo', 'docenteId', 'createdAt']) &&
              data.nombre is string && data.nombre.size() > 0 && data.nombre.size() < 100 &&
+             (!('apellidos' in data) || (data.apellidos is string && data.apellidos.size() < 100)) &&
              data.gradoSeccion is string && data.gradoSeccion.size() > 0 && data.gradoSeccion.size() < 50 &&
+             (!('nivel' in data) || (data.nivel in ['Primaria', 'Maternal'])) &&
              (!('fechaNacimiento' in data) || (data.fechaNacimiento is string && data.fechaNacimiento.matches("^\\d{4}-\\d{2}-\\d{2}$"))) &&
              (!('sexo' in data) || (data.sexo in ['V', 'H'])) &&
              data.docenteId is string && data.docenteId == request.auth.uid &&
@@ -161,6 +165,22 @@ service cloud.firestore {
       allow create: if isAuthenticated() && isValidReport(request.resource.data) && uidUnchanged();
       allow update: if isDocOwner() && isValidReport(request.resource.data) && uidNotModified() && areImmutableFieldsUnchanged(['docenteId', 'createdAt']);
       allow delete: if isDocOwner();
+    }
+    function isValidRoutine(data) {
+      return hasOnlyAllowedFields(['docenteId', 'estudianteId', 'fecha', 'comida', 'sueno', 'panal', 'actividad', 'createdAt']) &&
+             data.docenteId == request.auth.uid &&
+             data.estudianteId is string &&
+             data.fecha is string && data.fecha.matches("^\\d{4}-\\d{2}-\\d{2}$") &&
+             data.comida is string &&
+             data.sueno is string &&
+             data.panal is string &&
+             (!('actividad' in data) || data.actividad is string);
+    }
+
+    match /bitacoras_maternal/{recordId} {
+      allow read: if isAuthenticated() && resource.data.docenteId == request.auth.uid;
+      allow create: if isAuthenticated() && isValidRoutine(request.resource.data);
+      allow update, delete: if false; // Routines are usually not editable
     }
   }
 }

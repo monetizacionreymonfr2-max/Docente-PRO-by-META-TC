@@ -6,7 +6,9 @@ import { UserPlus, Loader2, Trash2, Edit2, Cake, Gift, Users, CalendarDays } fro
 export interface Student {
   id: string;
   nombre: string;
+  apellidos?: string;
   gradoSeccion: string;
+  nivel: 'Primaria' | 'Maternal';
   fechaNacimiento: string;
   sexo: 'V' | 'H';
   createdAt: any;
@@ -20,9 +22,12 @@ const MONTHS = [
 export default function Students() {
   const [activeTab, setActiveTab] = useState<'list' | 'birthdays'>('list');
   const [nombre, setNombre] = useState('');
+  const [apellidos, setApellidos] = useState('');
   const [gradoSeccion, setGradoSeccion] = useState('');
+  const [nivel, setNivel] = useState<'Primaria' | 'Maternal'>('Primaria');
   const [fechaNacimiento, setFechaNacimiento] = useState('');
   const [sexo, setSexo] = useState<'V' | 'H'>('V');
+  const [sortBy, setSortBy] = useState<'nombre' | 'apellido'>('apellido');
   
   const [students, setStudents] = useState<Student[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -64,7 +69,9 @@ export default function Students() {
     try {
       await addDoc(collection(db, 'estudiantes'), {
         nombre: nombre.trim(),
+        apellidos: apellidos.trim(),
         gradoSeccion: gradoSeccion.trim(),
+        nivel,
         fechaNacimiento,
         sexo,
         docenteId: currentUserId,
@@ -72,7 +79,9 @@ export default function Students() {
       });
       
       setNombre('');
+      setApellidos('');
       setGradoSeccion('');
+      setNivel('Primaria');
       setFechaNacimiento('');
       setSexo('V');
     } catch (error) {
@@ -141,13 +150,13 @@ export default function Students() {
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
                   <label htmlFor="nombre" className="block text-sm font-medium text-gray-700 mb-1">
-                    Nombre Completo
+                    Nombres
                   </label>
                   <input
                     type="text"
                     id="nombre"
                     required
-                    placeholder="Ej: Juan Pérez"
+                    placeholder="Ej: Juan"
                     value={nombre}
                     onChange={(e) => setNombre(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
@@ -155,14 +164,44 @@ export default function Students() {
                 </div>
 
                 <div>
+                  <label htmlFor="apellidos" className="block text-sm font-medium text-gray-700 mb-1">
+                    Apellidos
+                  </label>
+                  <input
+                    type="text"
+                    id="apellidos"
+                    placeholder="Ej: Pérez (Opcional)"
+                    value={apellidos}
+                    onChange={(e) => setApellidos(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="nivel" className="block text-sm font-medium text-gray-700 mb-1">
+                    Nivel Educativo
+                  </label>
+                  <select
+                    id="nivel"
+                    required
+                    value={nivel}
+                    onChange={(e) => setNivel(e.target.value as 'Primaria' | 'Maternal')}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                  >
+                    <option value="Primaria">Primaria / General</option>
+                    <option value="Maternal">Maternal (1-3 años)</option>
+                  </select>
+                </div>
+
+                <div>
                   <label htmlFor="gradoSeccion" className="block text-sm font-medium text-gray-700 mb-1">
-                    Grado y Sección
+                    {nivel === 'Maternal' ? 'Sala / Edad' : 'Grado y Sección'}
                   </label>
                   <input
                     type="text"
                     id="gradoSeccion"
                     required
-                    placeholder="Ej: 4to Grado A"
+                    placeholder={nivel === 'Maternal' ? 'Ej: Lactantes II' : 'Ej: 4to Grado A'}
                     value={gradoSeccion}
                     onChange={(e) => setGradoSeccion(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
@@ -220,16 +259,28 @@ export default function Students() {
           {/* Table Section */}
           <div className="lg:col-span-2">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+              <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex justify-between items-center flex-wrap gap-4">
                 <h3 className="font-semibold text-gray-900">Lista de Estudiantes</h3>
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-gray-600">Ordenar por:</span>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as 'nombre' | 'apellido')}
+                    className="border border-gray-300 rounded-lg px-2 py-1 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-gray-700"
+                  >
+                    <option value="apellido">Apellidos</option>
+                    <option value="nombre">Nombres</option>
+                  </select>
+                </div>
               </div>
               
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse min-w-[600px]">
                   <thead>
                     <tr className="bg-gray-50/50 text-gray-500 text-sm uppercase tracking-wider">
-                      <th className="px-6 py-4 font-medium border-b border-gray-200">Nombre del Alumno</th>
-                      <th className="px-6 py-4 font-medium border-b border-gray-200">Grado / Sección</th>
+                      <th className="px-6 py-4 font-medium border-b border-gray-200">Apellidos y Nombres</th>
+                      <th className="px-6 py-4 font-medium border-b border-gray-200">Nivel</th>
+                      <th className="px-6 py-4 font-medium border-b border-gray-200">Grado / Sala</th>
                       <th className="px-6 py-4 font-medium border-b border-gray-200">Edad</th>
                       <th className="px-6 py-4 font-medium border-b border-gray-200">Sexo</th>
                       <th className="px-6 py-4 font-medium border-b border-gray-200 text-right">Acciones</th>
@@ -250,17 +301,38 @@ export default function Students() {
                         </td>
                       </tr>
                     ) : (
-                      students.map((student) => {
+                      [...students].sort((a, b) => {
+                        if (sortBy === 'apellido') {
+                          const apiA = (a.apellidos || '').trim();
+                          const apiB = (b.apellidos || '').trim();
+                          // Fallback to nombre if apellidos are missing to ensure deterministic sorting
+                          const strA = apiA ? `${apiA} ${a.nombre}` : a.nombre;
+                          const strB = apiB ? `${apiB} ${b.nombre}` : b.nombre;
+                          return strA.localeCompare(strB);
+                        } else {
+                          return a.nombre.localeCompare(b.nombre);
+                        }
+                      }).map((student) => {
                         // Calculate age roughly for display
                         const birthDate = new Date(student.fechaNacimiento);
                         const ageDifMs = Date.now() - birthDate.getTime();
                         const ageDate = new Date(ageDifMs);
                         const age = Math.abs(ageDate.getUTCFullYear() - 1970);
+                        
+                        // Construct display name based on sort order
+                        const displayName = student.apellidos 
+                          ? (sortBy === 'apellido' ? `${student.apellidos}, ${student.nombre}` : `${student.nombre} ${student.apellidos}`)
+                          : student.nombre;
 
                         return (
                           <tr key={student.id} className="hover:bg-gray-50 transition-colors">
                             <td className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap">
-                              {student.nombre}
+                              {displayName}
+                            </td>
+                            <td className="px-6 py-4 text-gray-600 whitespace-nowrap">
+                              <span className={`px-2 py-1 rounded-md text-xs font-semibold ${student.nivel === 'Maternal' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {student.nivel || 'Primaria'}
+                              </span>
                             </td>
                             <td className="px-6 py-4 text-gray-600 whitespace-nowrap">
                               {student.gradoSeccion}

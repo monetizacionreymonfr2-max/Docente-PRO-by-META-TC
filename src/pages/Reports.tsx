@@ -10,7 +10,9 @@ const ai = new GoogleGenAI({ apiKey: 'AIzaSyApq3e0pSpfnnJVv5pKDBSDhIhlE5bUXz4' }
 interface Student {
   id: string;
   nombre: string;
+  apellidos?: string;
   gradoSeccion: string;
+  nivel?: 'Primaria' | 'Maternal';
   fechaNacimiento: string;
   sexo: string;
 }
@@ -66,7 +68,16 @@ export default function Reports() {
           studentsData.push({ id: doc.id, ...data } as Student);
         }
       });
-      setStudents(studentsData);
+      
+      const sorted = studentsData.sort((a, b) => {
+        const apiA = (a.apellidos || '').trim();
+        const apiB = (b.apellidos || '').trim();
+        const strA = apiA ? `${apiA} ${a.nombre}` : a.nombre;
+        const strB = apiB ? `${apiB} ${b.nombre}` : b.nombre;
+        return strA.localeCompare(strB);
+      });
+      
+      setStudents(sorted);
     }, (error) => {
       console.error("Error fetching students:", error);
     });
@@ -107,9 +118,19 @@ export default function Reports() {
 
     setIsGenerating(true);
     try {
-      const prompt = `Eres un docente venezolano redactando la observación final para el boletín de un estudiante. Convierte estas palabras clave en un párrafo formal, pedagógico, motivador y respetuoso (máximo 4 líneas). Inicia resaltando los logros y termina con una sugerencia de mejora constructiva.
+      let prompt = '';
+      const isMaternal = selectedStudentData?.nivel === 'Maternal';
+      
+      if (isMaternal) {
+        prompt = `Eres un docente experto en maternal redactando un reporte de desarrollo para un niño pequeño (1-3 años). Convierte estas palabras clave en un párrafo formal, pedagógico y amoroso (máximo 4 líneas). 
+Enfócate en hilos de desarrollo (motriz, lenguaje, social). Inicia con los avances y termina con una recomendación de estimulación suave.
 
 Palabras clave: ${palabrasClave}`;
+      } else {
+        prompt = `Eres un docente venezolano redactando la observación final para el boletín de un estudiante. Convierte estas palabras clave en un párrafo formal, pedagógico, motivador y respetuoso (máximo 4 líneas). Inicia resaltando los logros y termina con una sugerencia de mejora constructiva.
+
+Palabras clave: ${palabrasClave}`;
+      }
 
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
@@ -237,16 +258,20 @@ Palabras clave: ${palabrasClave}`;
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors bg-white"
                   >
                     <option value="" disabled>Selecciona un alumno...</option>
-                    {students.map(student => (
-                      <option key={student.id} value={student.id}>{student.nombre}</option>
-                    ))}
+                    {students.map(student => {
+                      const displayName = student.apellidos 
+                        ? `${student.apellidos}, ${student.nombre}`
+                        : student.nombre;
+                      return <option key={student.id} value={student.id}>{displayName}</option>;
+                    })}
                   </select>
                 </div>
 
                 {selectedStudentData && (
                   <div className="bg-indigo-50 rounded-lg p-4 flex flex-wrap gap-4 text-sm text-indigo-900 border border-indigo-100">
-                    <p><strong>Nombre:</strong> {selectedStudentData.nombre}</p>
-                    <p><strong>Grado:</strong> {selectedStudentData.gradoSeccion}</p>
+                    <p><strong>Nombres y Apellidos:</strong> {selectedStudentData.apellidos ? `${selectedStudentData.nombre} ${selectedStudentData.apellidos}` : selectedStudentData.nombre}</p>
+                    <p><strong>Nivel:</strong> {selectedStudentData.nivel || 'Primaria'}</p>
+                    <p><strong>{selectedStudentData.nivel === 'Maternal' ? 'Sala' : 'Grado'}:</strong> {selectedStudentData.gradoSeccion}</p>
                     <p><strong>Edad:</strong> {calculateAge(selectedStudentData.fechaNacimiento)} años</p>
                   </div>
                 )}
@@ -336,7 +361,11 @@ Palabras clave: ${palabrasClave}`;
                 <div className="grid grid-cols-2 gap-x-8 gap-y-4 mb-8 text-sm">
                   <div className="col-span-2 sm:col-span-1">
                     <span className="font-bold">Nombres y Apellidos:</span>
-                    <div className="border-b border-gray-400 mt-1 pb-1">{selectedStudentData.nombre}</div>
+                    <div className="border-b border-gray-400 mt-1 pb-1">
+                      {selectedStudentData.apellidos 
+                        ? `${selectedStudentData.apellidos}, ${selectedStudentData.nombre}` 
+                        : selectedStudentData.nombre}
+                    </div>
                   </div>
                   <div className="col-span-2 sm:col-span-1">
                     <span className="font-bold">Grado y Sección:</span>
@@ -403,7 +432,7 @@ Palabras clave: ${palabrasClave}`;
                     <span className="text-xs text-gray-400">{date}</span>
                   </div>
                   <h3 className="font-bold text-gray-900 mb-2 line-clamp-1 group-hover:text-indigo-600 transition-colors">
-                    {student?.nombre || 'Estudiante Desconocido'}
+                    {student ? (student.apellidos ? `${student.apellidos}, ${student.nombre}` : student.nombre) : 'Estudiante Desconocido'}
                   </h3>
                   <p className="text-sm text-gray-500 line-clamp-2">
                     {report.observacion}
@@ -452,7 +481,11 @@ Palabras clave: ${palabrasClave}`;
                   <div className="grid grid-cols-2 gap-x-8 gap-y-4 mb-8 text-sm">
                     <div className="col-span-2 sm:col-span-1">
                       <span className="font-bold">Nombres y Apellidos:</span>
-                      <div className="border-b border-gray-400 mt-1 pb-1">{student?.nombre || 'N/A'}</div>
+                      <div className="border-b border-gray-400 mt-1 pb-1">
+                        {student 
+                          ? (student.apellidos ? `${student.apellidos}, ${student.nombre}` : student.nombre) 
+                          : 'N/A'}
+                      </div>
                     </div>
                     <div className="col-span-2 sm:col-span-1">
                       <span className="font-bold">Grado y Sección:</span>

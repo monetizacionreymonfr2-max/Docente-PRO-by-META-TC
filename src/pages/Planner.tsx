@@ -11,6 +11,7 @@ const ai = new GoogleGenAI({ apiKey: 'AIzaSyApq3e0pSpfnnJVv5pKDBSDhIhlE5bUXz4' }
 interface PPAProject {
   id: string;
   tema: string;
+  nivel?: 'Primaria' | 'Maternal';
   contenido: string;
 }
 
@@ -52,7 +53,12 @@ export default function Planner() {
       snapshot.forEach((doc) => {
         const data = doc.data();
         if (data.docenteId === currentUserId) {
-          ppaData.push({ id: doc.id, tema: data.tema, contenido: data.contenido });
+          ppaData.push({ 
+            id: doc.id, 
+            tema: data.tema, 
+            nivel: data.nivel,
+            contenido: data.contenido 
+          });
         }
       });
       setPpas(ppaData);
@@ -100,7 +106,30 @@ export default function Planner() {
 
     setIsGenerating(true);
     try {
-      const prompt = `Eres un docente venezolano experto. Basándote en el Proyecto Pedagógico proporcionado, redacta una planificación de clase diaria para el tema indicado. Utiliza estrictamente esta estructura: 
+      let prompt = '';
+      
+      if (selectedPpa.nivel === 'Maternal') {
+        prompt = `Actúa como un docente experto en educación inicial (Maternal). Basado en el Proyecto Pedagógico proporcionado, genera una planificación diaria para el tema indicado, adaptada para niños pequeños con niveles de atención cortos.
+
+Organiza el plan estrictamente de la siguiente manera:
+1. Recibimiento (10 min): Actividad de apego y bienvenida.
+2. Ronda / Asamblea (10 min): Introducción visual o musical.
+3. Actividad Central Sensorial (15-20 min): Actividad de exploración o juego guiado. Detalla los materiales.
+4. Rutina de Higiene/Alimentación: Cómo integrar el aprendizaje en estos momentos.
+5. Despedida / Relajación (10 min): Vuelta a la calma.
+
+Tono: Práctico, directo, seguro y centrado 100% en el juego y la estimulación.
+
+---
+DATOS DE LA CLASE:
+- Fecha: ${fecha}
+- Tema del Día: ${temaDia}
+
+---
+PROYECTO PEDAGÓGICO BASE:
+${selectedPpa.contenido}`;
+      } else {
+        prompt = `Eres un docente venezolano experto. Basándote en el Proyecto Pedagógico proporcionado, redacta una planificación de clase diaria para el tema indicado. Utiliza estrictamente esta estructura: 
 1. Inicio (Actividad motivacional o rompehielo)
 2. Desarrollo (Explicación del contenido central)
 3. Cierre (Actividad de evaluación o tarea para la casa)
@@ -114,6 +143,7 @@ DATOS DE LA CLASE:
 ---
 PROYECTO PEDAGÓGICO BASE:
 ${selectedPpa.contenido}`;
+      }
 
       const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
@@ -291,18 +321,24 @@ ${selectedPpa.contenido}`;
             </div>
           ) : (
             dailyPlans.map((plan) => {
-              const ppaName = ppas.find(p => p.id === plan.ppaId)?.tema || 'Proyecto Desconocido';
+              const ppa = ppas.find(p => p.id === plan.ppaId);
+              const ppaName = ppa?.tema || 'Proyecto Desconocido';
+              const isMaternal = ppa?.nivel === 'Maternal';
+
               return (
                 <div 
                   key={plan.id} 
                   onClick={() => setSelectedPlan(plan)}
-                  className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md hover:border-teal-300 transition-all group"
+                  className={`bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md transition-all group ${isMaternal ? 'hover:border-orange-300' : 'hover:border-teal-300'}`}
                 >
                   <div className="flex justify-between items-start mb-4">
-                    <span className="bg-teal-50 text-teal-700 text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1">
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex items-center gap-1 ${isMaternal ? 'bg-orange-50 text-orange-700' : 'bg-teal-50 text-teal-700'}`}>
                       <Calendar className="w-3 h-3" />
                       {plan.fecha}
                     </span>
+                    {isMaternal && (
+                      <span className="bg-orange-100 text-orange-800 text-[10px] uppercase font-bold px-1.5 py-0.5 rounded">Maternal</span>
+                    )}
                   </div>
                   <h3 className="font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-teal-600 transition-colors">
                     {plan.temaDia}
@@ -355,7 +391,8 @@ ${selectedPpa.contenido}`;
                 {selectedPlan.fecha}
               </div>
               <h2 className="text-3xl font-bold text-gray-900 mb-4">{selectedPlan.temaDia}</h2>
-              <div className="text-sm text-gray-600">
+              <div className="text-sm text-gray-600 flex flex-wrap gap-4">
+                <p><strong>Nivel:</strong> {ppas.find(p => p.id === selectedPlan.ppaId)?.nivel || 'Primaria'}</p>
                 <p><strong>Proyecto Base:</strong> {ppas.find(p => p.id === selectedPlan.ppaId)?.tema || 'Desconocido'}</p>
               </div>
             </div>

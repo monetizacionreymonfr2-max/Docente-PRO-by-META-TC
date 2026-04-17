@@ -9,6 +9,7 @@ import PPA from './pages/PPA';
 import Attendance from './pages/Attendance';
 import Planner from './pages/Planner';
 import Reports from './pages/Reports';
+import Maternal from './pages/Maternal';
 import { Loader2 } from 'lucide-react';
 
 export default function App() {
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="attendance" element={<Attendance />} />
           <Route path="planner" element={<Planner />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="maternal" element={<Maternal />} />
         </Route>
       </Routes>
     </BrowserRouter>

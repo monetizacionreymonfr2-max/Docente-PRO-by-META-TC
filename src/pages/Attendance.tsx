@@ -30,7 +30,17 @@ export default function Attendance() {
       snapshot.forEach((doc) => {
         studentsData.push({ id: doc.id, ...doc.data() } as Student);
       });
-      setStudents(studentsData.filter(s => (s as any).docenteId === currentUserId));
+      // Sort by apellidos then nombre client-side for consistent ordering
+      const sorted = studentsData
+        .filter(s => (s as any).docenteId === currentUserId)
+        .sort((a, b) => {
+          const apiA = (a.apellidos || '').trim();
+          const apiB = (b.apellidos || '').trim();
+          const strA = apiA ? `${apiA} ${a.nombre}` : a.nombre;
+          const strB = apiB ? `${apiB} ${b.nombre}` : b.nombre;
+          return strA.localeCompare(strB);
+        });
+      setStudents(sorted);
       setIsLoading(false);
     });
     return () => unsubscribe();
@@ -281,10 +291,21 @@ export default function Attendance() {
                 ) : (
                   students.map((student, index) => {
                     const isPresent = attendanceData[student.id] || false;
+                    const displayName = student.apellidos 
+                      ? `${student.apellidos}, ${student.nombre}`
+                      : student.nombre;
+
                     return (
                       <tr key={student.id} className="hover:bg-gray-50 transition-colors">
                         <td className="px-6 py-4 text-gray-500">{index + 1}</td>
-                        <td className="px-6 py-4 font-medium text-gray-900">{student.nombre}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col">
+                            <span className="font-medium text-gray-900">{displayName}</span>
+                            <span className={`text-[10px] font-bold uppercase w-fit px-1.5 rounded ${student.nivel === 'Maternal' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                              {student.nivel || 'Primaria'}
+                            </span>
+                          </div>
+                        </td>
                         <td className="px-6 py-4 text-center">
                           <button
                             onClick={() => handleToggleAttendance(student.id)}
