@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
+import AccessProtection from '../AccessProtection';
 import { 
   Users, 
   BookOpen, 
@@ -18,11 +19,14 @@ import {
 
 interface LayoutProps {
   isAdmin?: boolean;
+  accessLevel?: 'guest' | 'pro';
+  codeId?: string;
 }
 
-export default function Layout({ isAdmin }: LayoutProps) {
+export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '' }: LayoutProps) {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const isGuest = accessLevel === 'guest';
 
   const navItems = [
     { path: '/students', icon: <Users size={20} />, label: 'Panel de Estudiantes' },
@@ -123,9 +127,11 @@ export default function Layout({ isAdmin }: LayoutProps) {
 
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto bg-gray-50 pt-16 md:pt-0">
-        <div className="p-4 md:p-8">
-          <Outlet />
-        </div>
+        <AccessProtection accessLevel={accessLevel} codeId={codeId}>
+          <div className="p-4 md:p-8">
+            <Outlet context={{ isGuest }} />
+          </div>
+        </AccessProtection>
       </main>
     </div>
   );

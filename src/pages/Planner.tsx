@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { GoogleGenAI } from '@google/genai';
@@ -25,6 +26,7 @@ interface DailyPlan {
 }
 
 export default function Planner() {
+  const { isGuest } = useOutletContext<{ isGuest: boolean }>();
   const [activeTab, setActiveTab] = useState<'generate' | 'history'>('generate');
   
   // Form State
@@ -390,20 +392,24 @@ ${selectedPpa.contenido}`;
               Cerrar Vista
             </button>
             <div className="flex gap-2">
-              <button 
-                onClick={() => handleCopy(selectedPlan.contenido)}
-                className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                <Copy className="w-4 h-4" />
-                Copiar
-              </button>
-              <button 
-                onClick={handlePrint}
-                className="flex items-center gap-2 px-3 py-1.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors"
-              >
-                <Printer className="w-4 h-4" />
-                PDF / Imprimir
-              </button>
+              {!isGuest && (
+                <button 
+                  onClick={() => handleCopy(selectedPlan.contenido)}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <Copy className="w-4 h-4" />
+                  Copiar
+                </button>
+              )}
+              {!isGuest && (
+                <button 
+                  onClick={handlePrint}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors"
+                >
+                  <Printer className="w-4 h-4" />
+                  PDF / Imprimir
+                </button>
+              )}
             </div>
           </div>
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { GoogleGenAI } from '@google/genai';
@@ -34,6 +35,7 @@ const calculateAge = (birthDateString: string) => {
 };
 
 export default function Reports() {
+  const { isGuest } = useOutletContext<{ isGuest: boolean }>();
   const [activeTab, setActiveTab] = useState<'generate' | 'history'>('generate');
   
   // Form State
@@ -479,13 +481,15 @@ Palabras clave: ${palabrasClave}`;
               <X className="w-4 h-4" />
               Cerrar Vista
             </button>
-            <button 
-              onClick={handlePrint}
-              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
-            >
-              <Printer className="w-4 h-4" />
-              Imprimir Boletín
-            </button>
+            {!isGuest && (
+              <button 
+                onClick={handlePrint}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 transition-colors"
+              >
+                <Printer className="w-4 h-4" />
+                Imprimir Boletín
+              </button>
+            )}
           </div>
 
           {/* Report Content (Printable) */}

@@ -100,12 +100,14 @@ export default function App() {
   };
 
   const isActive = isSubscriptionValid();
+  const accessLevel = profile?.access_level || 'pro';
+  const codeId = profile?.activationCode || '';
 
   return (
     <BrowserRouter>
       {user && !isActive && <ActivationModal userId={user.uid} email={user.email} />}
       <Routes>
-        <Route path="/" element={<Layout isAdmin={isAdmin} />}>
+        <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} codeId={codeId} />}>
           <Route index element={<Navigate to="/students" replace />} />
           <Route path="students" element={<Students />} />
           <Route path="ppa" element={<PPA />} />

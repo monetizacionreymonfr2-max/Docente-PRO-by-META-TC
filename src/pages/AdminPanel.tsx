@@ -6,6 +6,7 @@ import { Ticket, CheckCircle2, Copy, History, Loader2, Wand2, CalendarDays, Refr
 interface Code {
   id: string;
   status: 'disponible' | 'usado';
+  access_level: 'guest' | 'pro';
   usedBy?: string;
   usedByEmail?: string;
   expiresAt?: any;
@@ -34,7 +35,7 @@ export default function AdminPanel() {
     return () => unsubscribe();
   }, []);
 
-  const generateCode = async () => {
+  const generateCode = async (level: 'guest' | 'pro') => {
     setIsGenerating(true);
     try {
       // Format: META-XXXX-XXXX
@@ -43,6 +44,7 @@ export default function AdminPanel() {
       
       await setDoc(doc(db, 'activation_codes', codeId), {
         status: 'disponible',
+        access_level: level,
         createdAt: serverTimestamp()
       });
     } catch (error) {
@@ -169,14 +171,24 @@ export default function AdminPanel() {
           <h1 className="text-3xl font-black text-gray-900 tracking-tight">Panel Principal <span className="text-blue-600">SaaS</span></h1>
           <p className="text-gray-500 mt-1 font-medium italic">Gestión de licencias y activación de usuarios.</p>
         </div>
-        <button
-          onClick={generateCode}
-          disabled={isGenerating}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-2xl flex items-center gap-3 shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-sm uppercase tracking-wider disabled:opacity-50"
-        >
-          {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
-          Generar Nuevo Código
-        </button>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={() => generateCode('guest')}
+            disabled={isGenerating}
+            className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-6 rounded-2xl flex items-center gap-3 shadow-lg shadow-amber-500/20 active:scale-95 transition-all text-sm uppercase tracking-wider disabled:opacity-50"
+          >
+            {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
+            Código Invitado
+          </button>
+          <button
+            onClick={() => generateCode('pro')}
+            disabled={isGenerating}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-2xl flex items-center gap-3 shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-sm uppercase tracking-wider disabled:opacity-50"
+          >
+            {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
+            Código PRO
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -219,6 +231,7 @@ export default function AdminPanel() {
             <thead>
               <tr className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-50">
                 <th className="px-8 py-4">Código</th>
+                <th className="px-8 py-4">Nivel</th>
                 <th className="px-8 py-4">Estado</th>
                 <th className="px-8 py-4">Usuario</th>
                 <th className="px-8 py-4 text-right">Acciones</th>
@@ -227,17 +240,24 @@ export default function AdminPanel() {
             <tbody className="divide-y divide-gray-50">
               {isLoading ? (
                 <tr>
-                  <td colSpan={4} className="px-8 py-12 text-center text-gray-400 font-medium">Cargando códigos...</td>
+                  <td colSpan={5} className="px-8 py-12 text-center text-gray-400 font-medium">Cargando códigos...</td>
                 </tr>
               ) : codes.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-8 py-12 text-center text-gray-400 font-medium">No hay códigos generados.</td>
+                  <td colSpan={5} className="px-8 py-12 text-center text-gray-400 font-medium">No hay códigos generados.</td>
                 </tr>
               ) : (
                 codes.map((code) => (
                   <tr key={code.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-8 py-4 font-mono font-bold text-blue-900 tracking-widest">
                       {code.id}
+                    </td>
+                    <td className="px-8 py-4">
+                      <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${
+                        code.access_level === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {code.access_level || 'pro'}
+                      </span>
                     </td>
                     <td className="px-8 py-4">
                       <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${

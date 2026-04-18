@@ -53,6 +53,7 @@ export default function ActivationModal({ userId, email }: ActivationModalProps)
         // 2. Update user status
         transaction.update(userRef, {
           isActive: true,
+          access_level: codeData.access_level || 'pro', // Save the level from the code
           expiresAt: expirationDate,
           activatedAt: serverTimestamp(),
           activationCode: codeId
