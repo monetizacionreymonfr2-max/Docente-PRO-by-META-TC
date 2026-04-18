@@ -27,7 +27,7 @@ interface DailyPlan {
 }
 
 export default function Planner() {
-  const { isGuest, generationsCount } = useOutletContext<{ isGuest: boolean, generationsCount: number }>();
+  const { isGuest, generationsCount, teacherId } = useOutletContext<{ isGuest: boolean, generationsCount: number, teacherId: string }>();
   const [activeTab, setActiveTab] = useState<'generate' | 'history'>('generate');
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   
@@ -41,15 +41,13 @@ export default function Planner() {
   const [dailyPlans, setDailyPlans] = useState<DailyPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<DailyPlan | null>(null);
 
-  const currentUserId = auth.currentUser?.uid;
-
   // Fetch PPAs for the dropdown
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!teacherId) return;
 
     const q = query(
       collection(db, 'proyectos_ppa'),
-      where('docenteId', '==', currentUserId),
+      where('teacher_id', '==', teacherId),
       orderBy('createdAt', 'desc')
     );
 
@@ -72,15 +70,15 @@ export default function Planner() {
     });
 
     return () => unsubscribe();
-  }, [currentUserId]);
+  }, [teacherId, selectedPpaId]);
 
   // Fetch Daily Plans History
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!teacherId) return;
 
     const q = query(
       collection(db, 'planificaciones_diarias'),
-      where('docenteId', '==', currentUserId),
+      where('teacher_id', '==', teacherId),
       orderBy('fecha', 'desc')
     );
 
@@ -95,11 +93,11 @@ export default function Planner() {
     });
 
     return () => unsubscribe();
-  }, [currentUserId]);
+  }, [teacherId]);
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedPpaId || !fecha || !temaDia.trim() || !currentUserId) {
+    if (!selectedPpaId || !fecha || !temaDia.trim() || !teacherId) {
       alert("Por favor completa todos los campos.");
       return;
     }
@@ -174,13 +172,14 @@ ${selectedPpa.contenido}`;
 
       // Save to Firestore
       const docRef = await addDoc(collection(db, 'planificaciones_diarias'), {
-        docenteId: currentUserId,
+        teacher_id: teacherId, // New unified isolation field
+        docenteId: teacherId, // Legacy compatibility
         ...planData,
         createdAt: serverTimestamp()
       });
 
       // Increment generationsCount
-      const userRef = doc(db, 'users', currentUserId);
+      const userRef = doc(db, 'users', teacherId);
       await updateDoc(userRef, {
         generationsCount: increment(1)
       });

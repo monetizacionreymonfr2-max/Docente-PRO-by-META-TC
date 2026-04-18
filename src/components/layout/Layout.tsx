@@ -22,9 +22,10 @@ interface LayoutProps {
   accessLevel?: 'guest' | 'pro';
   codeId?: string;
   generationsCount?: number;
+  teacherId?: string;
 }
 
-export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', generationsCount = 0 }: LayoutProps) {
+export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', generationsCount = 0, teacherId = '' }: LayoutProps) {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isGuest = accessLevel === 'guest';
@@ -50,7 +51,12 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
 
   const handleLogout = async () => {
     try {
+      // Limpieza estricta de estado (Limpiar caché local y de sesión)
+      localStorage.clear();
+      sessionStorage.clear();
       await signOut(auth);
+      // Forzar una recarga para limpiar cualquier estado en memoria (React state)
+      window.location.href = '/';
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -154,7 +160,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
       <main className="flex-1 overflow-y-auto bg-gray-50 pt-16 md:pt-0">
         <AccessProtection accessLevel={accessLevel} codeId={codeId}>
           <div className="p-4 md:p-8">
-            <Outlet context={{ isGuest, generationsCount }} />
+            <Outlet context={{ isGuest, generationsCount, teacherId }} />
           </div>
         </AccessProtection>
       </main>

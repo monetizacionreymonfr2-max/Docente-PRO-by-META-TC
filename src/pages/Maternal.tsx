@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Baby, Loader2, Utensils, Moon, ShieldCheck, CheckSquare, LineChart, Plus, History, X, Trash2 } from 'lucide-react';
@@ -23,6 +24,7 @@ interface Milestone {
 }
 
 export default function Maternal() {
+  const { isGuest, generationsCount, teacherId } = useOutletContext<{ isGuest: boolean, generationsCount: number, teacherId: string }>();
   const [activeTab, setActiveTab] = useState<'routine' | 'milestones'>('routine');
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,12 +39,14 @@ export default function Maternal() {
   const [isSaving, setIsSaving] = useState(false);
   const [routines, setRoutines] = useState<RoutineRecord[]>([]);
 
-  const currentUserId = auth.currentUser?.uid;
-
   // Fetch Students (only Maternal)
   useEffect(() => {
-    if (!currentUserId) return;
-    const q = query(collection(db, 'estudiantes'), where('docenteId', '==', currentUserId), where('nivel', '==', 'Maternal'));
+    if (!teacherId) return;
+    const q = query(
+      collection(db, 'estudiantes'), 
+      where('teacher_id', '==', teacherId), 
+      where('nivel', '==', 'Maternal')
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const studentsData: Student[] = [];
       snapshot.forEach((doc) => {
@@ -52,14 +56,14 @@ export default function Maternal() {
       setIsLoading(false);
     });
     return () => unsubscribe();
-  }, [currentUserId]);
+  }, [teacherId]);
 
   // Fetch Routine History
   useEffect(() => {
-    if (!currentUserId || activeTab !== 'routine') return;
+    if (!teacherId || activeTab !== 'routine') return;
     const q = query(
       collection(db, 'bitacoras_maternal'), 
-      where('docenteId', '==', currentUserId),
+      where('teacher_id', '==', teacherId),
       where('fecha', '==', selectedDate)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -70,16 +74,17 @@ export default function Maternal() {
       setRoutines(routineData);
     });
     return () => unsubscribe();
-  }, [currentUserId, selectedDate, activeTab]);
+  }, [teacherId, selectedDate, activeTab]);
 
   const handleSaveRoutine = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedStudentId || !currentUserId) return;
+    if (!selectedStudentId || !teacherId) return;
 
     setIsSaving(true);
     try {
       await addDoc(collection(db, 'bitacoras_maternal'), {
-        docenteId: currentUserId,
+        teacher_id: teacherId, // New unified isolation field
+        docenteId: teacherId, // Legacy compatibility
         estudianteId: selectedStudentId,
         fecha: selectedDate,
         comida,

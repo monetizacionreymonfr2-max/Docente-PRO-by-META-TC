@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { collection, query, orderBy, onSnapshot, doc, setDoc, getDocs, where } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Student } from './Students';
 import { Calendar as CalendarIcon, Check, X, Loader2, Printer, BarChart3, ClipboardList } from 'lucide-react';
 
 export default function Attendance() {
+  const { isGuest, generationsCount, teacherId } = useOutletContext<{ isGuest: boolean, generationsCount: number, teacherId: string }>();
   const [activeTab, setActiveTab] = useState<'daily' | 'monthly'>('daily');
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -19,12 +21,14 @@ export default function Attendance() {
   const [monthlyStats, setMonthlyStats] = useState<any>(null);
   const [isCalculating, setIsCalculating] = useState(false);
 
-  const currentUserId = auth.currentUser?.uid;
-
   // Fetch Students
   useEffect(() => {
-    if (!currentUserId) return;
-    const q = query(collection(db, 'estudiantes'), orderBy('nombre', 'asc'));
+    if (!teacherId) return;
+    const q = query(
+      collection(db, 'estudiantes'), 
+      where('teacher_id', '==', teacherId),
+      orderBy('nombre', 'asc')
+    );
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const studentsData: Student[] = [];
       snapshot.forEach((doc) => {
@@ -32,7 +36,6 @@ export default function Attendance() {
       });
       // Sort by apellidos then nombre client-side for consistent ordering
       const sorted = studentsData
-        .filter(s => (s as any).docenteId === currentUserId)
         .sort((a, b) => {
           const apiA = (a.apellidos || '').trim();
           const apiB = (b.apellidos || '').trim();
@@ -44,17 +47,17 @@ export default function Attendance() {
       setIsLoading(false);
     });
     return () => unsubscribe();
-  }, [currentUserId]);
+  }, [teacherId]);
 
   // Fetch Daily Attendance
   useEffect(() => {
-    if (!currentUserId || activeTab !== 'daily') return;
+    if (!teacherId || activeTab !== 'daily') return;
     
     const fetchDaily = async () => {
       try {
         const q = query(
           collection(db, 'asistencias'),
-          where('docenteId', '==', currentUserId),
+          where('teacher_id', '==', teacherId),
           where('fecha', '==', selectedDate)
         );
         const snapshot = await getDocs(q);
@@ -69,11 +72,11 @@ export default function Attendance() {
       }
     };
     fetchDaily();
-  }, [currentUserId, selectedDate, activeTab]);
+  }, [teacherId, selectedDate, activeTab]);
 
   // Calculate Monthly Stats
   useEffect(() => {
-    if (!currentUserId || activeTab !== 'monthly' || students.length === 0) return;
+    if (!teacherId || activeTab !== 'monthly' || students.length === 0) return;
 
     const calculateStats = async () => {
       setIsCalculating(true);
@@ -84,10 +87,11 @@ export default function Attendance() {
 
         const q = query(
           collection(db, 'asistencias'),
-          where('docenteId', '==', currentUserId),
+          where('teacher_id', '==', teacherId),
           where('fecha', '>=', startDate),
           where('fecha', '<=', endDate)
         );
+
         
         const snapshot = await getDocs(q);
         const records = snapshot.docs.map(doc => doc.data());
@@ -172,7 +176,7 @@ export default function Attendance() {
     };
 
     calculateStats();
-  }, [currentUserId, selectedMonth, activeTab, students]);
+  }, [teacherId, selectedMonth, activeTab, students]);
 
   const handleToggleAttendance = (studentId: string) => {
     setAttendanceData(prev => ({
@@ -182,14 +186,15 @@ export default function Attendance() {
   };
 
   const handleSaveDaily = async () => {
-    if (!currentUserId) return;
+    if (!teacherId) return;
     setIsSaving(true);
     try {
       const promises = students.map(student => {
         const asistio = attendanceData[student.id] || false;
-        const docId = `${currentUserId}_${student.id}_${selectedDate}`;
+        const docId = `${teacherId}_${student.id}_${selectedDate}`;
         return setDoc(doc(db, 'asistencias', docId), {
-          docenteId: currentUserId,
+          teacher_id: teacherId, // New unified isolation field
+          docenteId: teacherId, // Legacy compatibility
           estudianteId: student.id,
           fecha: selectedDate,
           asistio

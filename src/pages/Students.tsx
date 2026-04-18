@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useOutletContext } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, deleteDoc, doc, updateDoc, where } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { UserPlus, Loader2, Trash2, Edit2, Cake, Gift, Users, CalendarDays, X } from 'lucide-react';
@@ -20,6 +21,7 @@ const MONTHS = [
 ];
 
 export default function Students() {
+  const { isGuest, generationsCount, teacherId } = useOutletContext<{ isGuest: boolean, generationsCount: number, teacherId: string }>();
   const [activeTab, setActiveTab] = useState<'list' | 'birthdays'>('list');
   const [nombre, setNombre] = useState('');
   const [apellidos, setApellidos] = useState('');
@@ -34,17 +36,16 @@ export default function Students() {
   const [isLoading, setIsLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  const currentUserId = auth.currentUser?.uid;
   const currentDate = new Date();
   const currentMonth = currentDate.getMonth() + 1; // 1-12
   const currentYear = currentDate.getFullYear();
 
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!teacherId) return;
 
     const q = query(
       collection(db, 'estudiantes'),
-      where('docenteId', '==', currentUserId),
+      where('teacher_id', '==', teacherId),
       orderBy('createdAt', 'desc')
     );
 
@@ -61,11 +62,11 @@ export default function Students() {
     });
 
     return () => unsubscribe();
-  }, [currentUserId]);
+  }, [teacherId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nombre.trim() || !gradoSeccion.trim() || !fechaNacimiento || !currentUserId) return;
+    if (!nombre.trim() || !gradoSeccion.trim() || !fechaNacimiento || !teacherId) return;
 
     setIsSubmitting(true);
     try {
@@ -90,7 +91,8 @@ export default function Students() {
           nivel,
           fechaNacimiento,
           sexo,
-          docenteId: currentUserId,
+          teacher_id: teacherId, // New unified data isolation field
+          docenteId: teacherId, // Kept for backward compatibility but teacher_id is the new standard
           createdAt: serverTimestamp()
         });
       }

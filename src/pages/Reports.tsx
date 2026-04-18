@@ -36,7 +36,7 @@ const calculateAge = (birthDateString: string) => {
 };
 
 export default function Reports() {
-  const { isGuest, generationsCount } = useOutletContext<{ isGuest: boolean, generationsCount: number }>();
+  const { isGuest, generationsCount, teacherId } = useOutletContext<{ isGuest: boolean, generationsCount: number, teacherId: string }>();
   const [activeTab, setActiveTab] = useState<'generate' | 'history'>('generate');
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   
@@ -53,15 +53,13 @@ export default function Reports() {
   const [reports, setReports] = useState<Report[]>([]);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
 
-  const currentUserId = auth.currentUser?.uid;
-
   // Fetch Students
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!teacherId) return;
 
     const q = query(
       collection(db, 'estudiantes'),
-      where('docenteId', '==', currentUserId),
+      where('teacher_id', '==', teacherId),
       orderBy('nombre', 'asc')
     );
 
@@ -85,15 +83,15 @@ export default function Reports() {
     });
 
     return () => unsubscribe();
-  }, [currentUserId]);
+  }, [teacherId]);
 
   // Fetch Reports History
   useEffect(() => {
-    if (!currentUserId) return;
+    if (!teacherId) return;
 
     const q = query(
       collection(db, 'boletines'),
-      where('docenteId', '==', currentUserId),
+      where('teacher_id', '==', teacherId),
       orderBy('createdAt', 'desc')
     );
 
@@ -108,7 +106,7 @@ export default function Reports() {
     });
 
     return () => unsubscribe();
-  }, [currentUserId]);
+  }, [teacherId]);
 
   const handleGenerateObservation = async () => {
     if (!palabrasClave.trim()) {
@@ -152,7 +150,7 @@ Palabras clave: ${palabrasClave}`;
       setObservacion(response.text || '');
 
       // Increment generationsCount only on successful AI call
-      const userRef = doc(db, 'users', currentUserId);
+      const userRef = doc(db, 'users', teacherId);
       await updateDoc(userRef, {
         generationsCount: increment(1)
       });
@@ -166,7 +164,7 @@ Palabras clave: ${palabrasClave}`;
   };
 
   const handleSaveReport = async () => {
-    if (!selectedStudentId || !calificacion.trim() || !observacion.trim() || !currentUserId) {
+    if (!selectedStudentId || !calificacion.trim() || !observacion.trim() || !teacherId) {
       alert("Por favor, completa todos los campos (Estudiante, Calificación y Observación).");
       return;
     }
@@ -180,7 +178,8 @@ Palabras clave: ${palabrasClave}`;
     setIsSaving(true);
     try {
       const docRef = await addDoc(collection(db, 'boletines'), {
-        docenteId: currentUserId,
+        teacher_id: teacherId, // New unified isolation field
+        docenteId: teacherId, // Legacy compatibility
         ...reportData,
         createdAt: serverTimestamp()
       });

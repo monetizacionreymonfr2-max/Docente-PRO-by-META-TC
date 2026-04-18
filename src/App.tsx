@@ -109,7 +109,7 @@ export default function App() {
     <BrowserRouter>
       {user && !isActive && <ActivationModal userId={user.uid} email={user.email} />}
       <Routes>
-        <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} codeId={codeId} generationsCount={generationsCount} />}>
+        <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} codeId={codeId} generationsCount={generationsCount} teacherId={user.uid} />}>
           <Route index element={<Navigate to="/students" replace />} />
           <Route path="students" element={<Students />} />
           <Route path="ppa" element={<PPA />} />
