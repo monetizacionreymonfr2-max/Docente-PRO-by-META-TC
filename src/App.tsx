@@ -39,6 +39,7 @@ export default function App() {
               email: authUser.email,
               isActive: authUser.email === ADMIN_EMAIL, // Admin is auto-active
               role: authUser.email === ADMIN_EMAIL ? 'admin' : 'teacher',
+              generationsCount: 0,
               createdAt: serverTimestamp()
             };
             await setDoc(userRef, newProfile);
@@ -102,12 +103,13 @@ export default function App() {
   const isActive = isSubscriptionValid();
   const accessLevel = profile?.access_level || 'pro';
   const codeId = profile?.activationCode || '';
+  const generationsCount = profile?.generationsCount || 0;
 
   return (
     <BrowserRouter>
       {user && !isActive && <ActivationModal userId={user.uid} email={user.email} />}
       <Routes>
-        <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} codeId={codeId} />}>
+        <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} codeId={codeId} generationsCount={generationsCount} />}>
           <Route index element={<Navigate to="/students" replace />} />
           <Route path="students" element={<Students />} />
           <Route path="ppa" element={<PPA />} />

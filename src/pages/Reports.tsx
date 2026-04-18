@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { GoogleGenAI } from '@google/genai';
 import { FileBadge, Loader2, Sparkles, Printer, History, X, Save, Trash2 } from 'lucide-react';
+import LimitReachedModal from '../components/LimitReachedModal';
 
 // Initialize Gemini API
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
@@ -35,8 +36,9 @@ const calculateAge = (birthDateString: string) => {
 };
 
 export default function Reports() {
-  const { isGuest } = useOutletContext<{ isGuest: boolean }>();
+  const { isGuest, generationsCount } = useOutletContext<{ isGuest: boolean, generationsCount: number }>();
   const [activeTab, setActiveTab] = useState<'generate' | 'history'>('generate');
+  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   
   // Form State
   const [students, setStudents] = useState<Student[]>([]);
@@ -114,6 +116,12 @@ export default function Reports() {
       return;
     }
 
+    // Check Guest limit
+    if (isGuest && generationsCount >= 3) {
+      setIsLimitModalOpen(true);
+      return;
+    }
+
     setIsGenerating(true);
     try {
       let prompt = '';
@@ -142,6 +150,13 @@ Palabras clave: ${palabrasClave}`;
       });
 
       setObservacion(response.text || '');
+
+      // Increment generationsCount only on successful AI call
+      const userRef = doc(db, 'users', currentUserId);
+      await updateDoc(userRef, {
+        generationsCount: increment(1)
+      });
+
     } catch (error: any) {
       console.error("Error generating observation:", error);
       alert(`Hubo un error al generar la observación: ${error.message || 'Error desconocido'}`);
@@ -554,6 +569,11 @@ Palabras clave: ${palabrasClave}`;
           </div>
         </div>
       )}
+
+      <LimitReachedModal 
+        isOpen={isLimitModalOpen} 
+        onClose={() => setIsLimitModalOpen(false)} 
+      />
     </div>
   );
 }

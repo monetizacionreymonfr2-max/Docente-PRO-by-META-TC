@@ -21,12 +21,15 @@ interface LayoutProps {
   isAdmin?: boolean;
   accessLevel?: 'guest' | 'pro';
   codeId?: string;
+  generationsCount?: number;
 }
 
-export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '' }: LayoutProps) {
+export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', generationsCount = 0 }: LayoutProps) {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isGuest = accessLevel === 'guest';
+  const GUEST_LIMIT = 3;
+  const usagePercentage = Math.min((generationsCount / GUEST_LIMIT) * 100, 100);
 
   const navItems = [
     { path: '/students', icon: <Users size={20} />, label: 'Panel de Estudiantes' },
@@ -114,6 +117,28 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '' }: La
           })}
         </nav>
 
+        {isGuest && (
+          <div className="px-6 py-4 border-t border-blue-800/50 bg-blue-950/30">
+            <div className="flex justify-between items-end mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-300">Uso de Prueba</span>
+              <span className="text-xs font-black text-white">{generationsCount}/{GUEST_LIMIT}</span>
+            </div>
+            <div className="h-1.5 w-full bg-blue-900 rounded-full overflow-hidden border border-blue-800">
+              <div 
+                className={`h-full transition-all duration-1000 ${
+                  generationsCount >= GUEST_LIMIT ? 'bg-red-500' : 'bg-gradient-to-r from-blue-400 to-indigo-400'
+                }`}
+                style={{ width: `${usagePercentage}%` }}
+              />
+            </div>
+            <p className="text-[10px] text-blue-200/60 mt-2 leading-tight">
+              {generationsCount >= GUEST_LIMIT 
+                ? 'Límite alcanzado. Actualiza a PRO.' 
+                : 'Proyectos generados en modo invitado.'}
+            </p>
+          </div>
+        )}
+
         <div className="p-4 border-t border-blue-800">
           <button 
             onClick={handleLogout}
@@ -129,7 +154,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '' }: La
       <main className="flex-1 overflow-y-auto bg-gray-50 pt-16 md:pt-0">
         <AccessProtection accessLevel={accessLevel} codeId={codeId}>
           <div className="p-4 md:p-8">
-            <Outlet context={{ isGuest }} />
+            <Outlet context={{ isGuest, generationsCount }} />
           </div>
         </AccessProtection>
       </main>

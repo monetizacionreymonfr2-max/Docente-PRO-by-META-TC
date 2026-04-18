@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc } from 'firebase/firestore';
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { GoogleGenAI } from '@google/genai';
 import { BookOpen, Loader2, FileText, Copy, Printer, X, History, Calendar, Trash2 } from 'lucide-react';
 import Markdown from 'react-markdown';
+import LimitReachedModal from '../components/LimitReachedModal';
 
 // Initialize Gemini API
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
@@ -26,8 +27,9 @@ interface DailyPlan {
 }
 
 export default function Planner() {
-  const { isGuest } = useOutletContext<{ isGuest: boolean }>();
+  const { isGuest, generationsCount } = useOutletContext<{ isGuest: boolean, generationsCount: number }>();
   const [activeTab, setActiveTab] = useState<'generate' | 'history'>('generate');
+  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   
   // Form State
   const [selectedPpaId, setSelectedPpaId] = useState('');
@@ -102,6 +104,12 @@ export default function Planner() {
       return;
     }
 
+    // Check Guest limit
+    if (isGuest && generationsCount >= 3) {
+      setIsLimitModalOpen(true);
+      return;
+    }
+
     const selectedPpa = ppas.find(p => p.id === selectedPpaId);
     if (!selectedPpa) return;
 
@@ -169,6 +177,12 @@ ${selectedPpa.contenido}`;
         docenteId: currentUserId,
         ...planData,
         createdAt: serverTimestamp()
+      });
+
+      // Increment generationsCount
+      const userRef = doc(db, 'users', currentUserId);
+      await updateDoc(userRef, {
+        generationsCount: increment(1)
       });
 
       // Clear form
@@ -433,6 +447,11 @@ ${selectedPpa.contenido}`;
           </div>
         </div>
       )}
+
+      <LimitReachedModal 
+        isOpen={isLimitModalOpen} 
+        onClose={() => setIsLimitModalOpen(false)} 
+      />
     </div>
   );
 }
