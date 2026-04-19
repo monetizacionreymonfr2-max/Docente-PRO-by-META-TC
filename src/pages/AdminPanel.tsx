@@ -17,7 +17,7 @@ interface Code {
 export default function AdminPanel() {
   const [codes, setCodes] = useState<Code[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [isGenerating, setIsGenerating] = useState<string | false>(false);
 
   useEffect(() => {
     const q = query(collection(db, 'activation_codes'), orderBy('createdAt', 'desc'));
@@ -36,7 +36,7 @@ export default function AdminPanel() {
   }, []);
 
   const generateCode = async (level: 'guest' | 'pro') => {
-    setIsGenerating(true);
+    setIsGenerating(level); // temporary trick to know which one is generating or true
     try {
       // Format: META-XXXX-XXXX
       const randomPart = () => Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -47,6 +47,7 @@ export default function AdminPanel() {
         access_level: level,
         createdAt: serverTimestamp()
       });
+      // Instead of relying on alert or nothing, the user can see it right in the list, but it's instantaneous.
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'activation_codes');
     } finally {
@@ -174,19 +175,19 @@ export default function AdminPanel() {
         <div className="flex flex-wrap gap-3">
           <button
             onClick={() => generateCode('guest')}
-            disabled={isGenerating}
+            disabled={!!isGenerating}
             className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-6 rounded-2xl flex items-center gap-3 shadow-lg shadow-amber-500/20 active:scale-95 transition-all text-sm uppercase tracking-wider disabled:opacity-50"
           >
-            {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
-            Código Invitado
+            {isGenerating === 'guest' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
+            {isGenerating === 'guest' ? 'Generando... (espera)' : 'Código Invitado'}
           </button>
           <button
             onClick={() => generateCode('pro')}
-            disabled={isGenerating}
+            disabled={!!isGenerating}
             className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-2xl flex items-center gap-3 shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-sm uppercase tracking-wider disabled:opacity-50"
           >
-            {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
-            Código PRO
+            {isGenerating === 'pro' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
+            {isGenerating === 'pro' ? 'Generando... (espera)' : 'Código PRO'}
           </button>
         </div>
       </div>

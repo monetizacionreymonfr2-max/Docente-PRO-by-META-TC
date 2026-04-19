@@ -14,7 +14,8 @@ import {
   GraduationCap,
   Menu,
   X,
-  ShieldAlert
+  ShieldAlert,
+  BotMessageSquare
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -39,6 +40,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
     { path: '/maternal', icon: <Baby size={20} />, label: 'Sección Maternal' },
     { path: '/planner', icon: <CalendarDays size={20} />, label: 'Planificador Diario' },
     { path: '/reports', icon: <FileText size={20} />, label: 'Generador de Boletines' },
+    { path: '/camila', icon: <BotMessageSquare size={20} />, label: 'IA Camila' },
   ];
 
   if (isAdmin) {

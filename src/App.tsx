@@ -12,6 +12,7 @@ import Planner from './pages/Planner';
 import Reports from './pages/Reports';
 import Maternal from './pages/Maternal';
 import AdminPanel from './pages/AdminPanel';
+import Camila from './pages/Camila';
 import ActivationModal from './components/ActivationModal';
 import { Loader2 } from 'lucide-react';
 
@@ -117,6 +118,7 @@ export default function App() {
           <Route path="planner" element={<Planner />} />
           <Route path="reports" element={<Reports />} />
           <Route path="maternal" element={<Maternal />} />
+          <Route path="camila" element={<Camila />} />
           {isAdmin && <Route path="admin" element={<AdminPanel />} />}
         </Route>
       </Routes>

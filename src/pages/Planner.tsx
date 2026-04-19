@@ -193,8 +193,6 @@ ${selectedPpa.contenido}`;
         ...planData,
         createdAt: new Date()
       });
-      setActiveTab('history');
-      alert("¡Planificación diaria generada y guardada exitosamente!");
 
     } catch (error: any) {
       console.error("Error generating Daily Plan:", error);
@@ -261,86 +259,88 @@ ${selectedPpa.contenido}`;
 
       {/* Generate Tab */}
       {activeTab === 'generate' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8 max-w-3xl mx-auto">
-          {ppas.length === 0 ? (
-            <div className="text-center py-8">
-              <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No hay Proyectos Pedagógicos</h3>
-              <p className="text-gray-500 mb-6">Debes crear al menos un PPA antes de poder generar una planificación diaria.</p>
-              <a href="/ppa" className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
-                Ir al Gestor de PPA
-              </a>
-            </div>
-          ) : (
-            <form onSubmit={handleGenerate} className="space-y-6">
-              <div>
-                <label htmlFor="ppa" className="block text-sm font-medium text-gray-700 mb-1">
-                  Proyecto Base (PPA)
-                </label>
-                <select
-                  id="ppa"
-                  required
-                  value={selectedPpaId}
-                  onChange={(e) => setSelectedPpaId(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors bg-white"
+        <div className="space-y-8">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8 max-w-3xl mx-auto">
+            {ppas.length === 0 ? (
+              <div className="text-center py-8">
+                <BookOpen className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No hay Proyectos Pedagógicos</h3>
+                <p className="text-gray-500 mb-6">Debes crear al menos un PPA antes de poder generar una planificación diaria.</p>
+                <a href="/ppa" className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+                  Ir al Gestor de PPA
+                </a>
+              </div>
+            ) : (
+              <form onSubmit={handleGenerate} className="space-y-6">
+                <div>
+                  <label htmlFor="ppa" className="block text-sm font-medium text-gray-700 mb-1">
+                    Proyecto Base (PPA)
+                  </label>
+                  <select
+                    id="ppa"
+                    required
+                    value={selectedPpaId}
+                    onChange={(e) => setSelectedPpaId(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors bg-white"
+                  >
+                    <option value="" disabled>Selecciona un proyecto...</option>
+                    {ppas.map(ppa => (
+                      <option key={ppa.id} value={ppa.id}>{ppa.tema}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  <div>
+                    <label htmlFor="fecha" className="block text-sm font-medium text-gray-700 mb-1">
+                      Fecha de la Clase
+                    </label>
+                    <input
+                      type="date"
+                      id="fecha"
+                      required
+                      value={fecha}
+                      onChange={(e) => setFecha(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="temaDia" className="block text-sm font-medium text-gray-700 mb-1">
+                      Tema Específico del Día
+                    </label>
+                    <input
+                      type="text"
+                      id="temaDia"
+                      required
+                      placeholder="Ej: El ciclo del agua"
+                      value={temaDia}
+                      onChange={(e) => setTemaDia(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isGenerating}
+                  className="w-full bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-medium py-3 px-4 rounded-xl transition-all transform hover:scale-[1.01] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none shadow-md mt-8"
                 >
-                  <option value="" disabled>Selecciona un proyecto...</option>
-                  {ppas.map(ppa => (
-                    <option key={ppa.id} value={ppa.id}>{ppa.tema}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="fecha" className="block text-sm font-medium text-gray-700 mb-1">
-                    Fecha de la Clase
-                  </label>
-                  <input
-                    type="date"
-                    id="fecha"
-                    required
-                    value={fecha}
-                    onChange={(e) => setFecha(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="temaDia" className="block text-sm font-medium text-gray-700 mb-1">
-                    Tema Específico del Día
-                  </label>
-                  <input
-                    type="text"
-                    id="temaDia"
-                    required
-                    placeholder="Ej: El ciclo del agua"
-                    value={temaDia}
-                    onChange={(e) => setTemaDia(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isGenerating}
-                className="w-full bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-medium py-3 px-4 rounded-xl transition-all transform hover:scale-[1.01] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none shadow-md mt-8"
-              >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Generando Plan de Clase...
-                  </>
-                ) : (
-                  <>
-                    <BookOpen className="w-5 h-5" />
-                    Generar Plan de Clase
-                  </>
-                )}
-              </button>
-            </form>
-          )}
+                  {isGenerating ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Generando Plan de Clase... (por favor espera)
+                    </>
+                  ) : (
+                    <>
+                      <BookOpen className="w-5 h-5" />
+                      Generar Plan de Clase
+                    </>
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
         </div>
       )}
 
@@ -393,8 +393,8 @@ ${selectedPpa.contenido}`;
       )}
 
       {/* Selected Plan View */}
-      {activeTab === 'history' && selectedPlan && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print-document">
+      {(activeTab === 'history' || activeTab === 'generate') && selectedPlan && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print-document mt-8">
           {/* Header Actions */}
           <div className="bg-gray-50 border-b border-gray-200 p-4 flex flex-wrap justify-between items-center gap-4 no-print">
             <button 

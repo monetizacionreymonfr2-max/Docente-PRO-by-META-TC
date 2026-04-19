@@ -196,14 +196,12 @@ Datos de entrada:
       setDuracion('');
       setDiagnostico('');
       
-      // Show the generated project in history
+      // Show the generated project in the same tab underneath
       setSelectedProject({
         id: docRef.id,
         ...projectData,
         createdAt: new Date()
       });
-      setActiveTab('history');
-      alert("¡PPA generado y guardado exitosamente!");
 
     } catch (error: any) {
       console.error("Error generating PPA:", error);
@@ -271,106 +269,108 @@ Datos de entrada:
 
       {/* Generate Tab */}
       {activeTab === 'generate' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8 max-w-3xl mx-auto">
-          <form onSubmit={handleGenerate} className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              <div>
-                <label htmlFor="nivel" className="block text-sm font-medium text-gray-700 mb-1">
-                  Nivel Educativo
-                </label>
-                <select
-                  id="nivel"
-                  required
-                  value={nivel}
-                  onChange={(e) => setNivel(e.target.value as any)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-                >
-                  <option value="Maternal">Maternal (1-3 años)</option>
-                  <option value="Preescolar">Preescolar / Inicial</option>
-                  <option value="Primaria">Primaria (1ro a 6to)</option>
-                  <option value="Media">Media (1er a 5to año)</option>
-                </select>
+        <div className="space-y-8">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 sm:p-8 max-w-3xl mx-auto">
+            <form onSubmit={handleGenerate} className="space-y-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <div>
+                  <label htmlFor="nivel" className="block text-sm font-medium text-gray-700 mb-1">
+                    Nivel Educativo
+                  </label>
+                  <select
+                    id="nivel"
+                    required
+                    value={nivel}
+                    onChange={(e) => setNivel(e.target.value as any)}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                  >
+                    <option value="Maternal">Maternal (1-3 años)</option>
+                    <option value="Preescolar">Preescolar / Inicial</option>
+                    <option value="Primaria">Primaria (1ro a 6to)</option>
+                    <option value="Media">Media (1er a 5to año)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label htmlFor="gradoSeccion" className="block text-sm font-medium text-gray-700 mb-1">
+                    {nivel === 'Maternal' || nivel === 'Preescolar' ? 'Sala / Edad / Sección' : nivel === 'Media' ? 'Año y Sección' : 'Grado y Sección'}
+                  </label>
+                  <input
+                    type="text"
+                    id="gradoSeccion"
+                    required
+                    placeholder={nivel === 'Maternal' ? 'Ej: Lactantes II' : 'Ej: 4to Grado A'}
+                    value={gradoSeccion}
+                    onChange={(e) => setGradoSeccion(e.target.value)}
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                  />
+                </div>
               </div>
 
               <div>
-                <label htmlFor="gradoSeccion" className="block text-sm font-medium text-gray-700 mb-1">
-                  {nivel === 'Maternal' || nivel === 'Preescolar' ? 'Sala / Edad / Sección' : nivel === 'Media' ? 'Año y Sección' : 'Grado y Sección'}
+                <label htmlFor="duracion" className="block text-sm font-medium text-gray-700 mb-1">
+                  Duración Estimada
                 </label>
                 <input
                   type="text"
-                  id="gradoSeccion"
+                  id="duracion"
                   required
-                  placeholder={nivel === 'Maternal' ? 'Ej: Lactantes II' : 'Ej: 4to Grado A'}
-                  value={gradoSeccion}
-                  onChange={(e) => setGradoSeccion(e.target.value)}
+                  placeholder="Ej: 4 semanas"
+                  value={duracion}
+                  onChange={(e) => setDuracion(e.target.value)}
                   className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                 />
               </div>
-            </div>
 
-            <div>
-              <label htmlFor="duracion" className="block text-sm font-medium text-gray-700 mb-1">
-                Duración Estimada
-              </label>
-              <input
-                type="text"
-                id="duracion"
-                required
-                placeholder="Ej: 4 semanas"
-                value={duracion}
-                onChange={(e) => setDuracion(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-              />
-            </div>
+              <div>
+                <label htmlFor="tema" className="block text-sm font-medium text-gray-700 mb-1">
+                  Tema Central
+                </label>
+                <input
+                  type="text"
+                  id="tema"
+                  required
+                  placeholder="Ej: Conociendo la historia de mi comunidad"
+                  value={tema}
+                  onChange={(e) => setTema(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                />
+              </div>
 
-            <div>
-              <label htmlFor="tema" className="block text-sm font-medium text-gray-700 mb-1">
-                Tema Central
-              </label>
-              <input
-                type="text"
-                id="tema"
-                required
-                placeholder="Ej: Conociendo la historia de mi comunidad"
-                value={tema}
-                onChange={(e) => setTema(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-              />
-            </div>
+              <div>
+                <label htmlFor="diagnostico" className="block text-sm font-medium text-gray-700 mb-1">
+                  Diagnóstico o Necesidad
+                </label>
+                <textarea
+                  id="diagnostico"
+                  required
+                  rows={4}
+                  placeholder="Ej: Los alumnos muestran interés por las leyendas locales pero tienen dificultades en la comprensión lectora..."
+                  value={diagnostico}
+                  onChange={(e) => setDiagnostico(e.target.value)}
+                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors resize-none"
+                />
+              </div>
 
-            <div>
-              <label htmlFor="diagnostico" className="block text-sm font-medium text-gray-700 mb-1">
-                Diagnóstico o Necesidad
-              </label>
-              <textarea
-                id="diagnostico"
-                required
-                rows={4}
-                placeholder="Ej: Los alumnos muestran interés por las leyendas locales pero tienen dificultades en la comprensión lectora..."
-                value={diagnostico}
-                onChange={(e) => setDiagnostico(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors resize-none"
-              />
-            </div>
-
-            <button
-              type="submit"
-              disabled={isGenerating}
-              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium py-3 px-4 rounded-xl transition-all transform hover:scale-[1.01] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none shadow-md"
-            >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Generando Proyecto con IA...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-5 h-5" />
-                  Generar PPA
-                </>
-              )}
-            </button>
-          </form>
+              <button
+                type="submit"
+                disabled={isGenerating}
+                className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-medium py-3 px-4 rounded-xl transition-all transform hover:scale-[1.01] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none shadow-md"
+              >
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Generando Proyecto con IA... (por favor espera)
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-5 h-5" />
+                    Generar PPA
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
         </div>
       )}
 
@@ -425,8 +425,8 @@ Datos de entrada:
       )}
 
       {/* Selected Project View (Modal-like but inline for better mobile UX) */}
-      {activeTab === 'history' && selectedProject && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print-document">
+      {(activeTab === 'history' || activeTab === 'generate') && selectedProject && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden print-document mt-8">
           {/* Header Actions */}
           <div className="bg-gray-50 border-b border-gray-200 p-4 flex flex-wrap justify-between items-center gap-4 no-print">
             <button 
