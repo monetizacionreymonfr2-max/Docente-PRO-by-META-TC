@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { GoogleGenAI, Type } from '@google/genai';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio } from 'lucide-react';
+import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio, X } from 'lucide-react';
 import Markdown from 'react-markdown';
 
 // 1. Buscamos la variable en el formato de Vite (Vercel)
@@ -22,8 +22,7 @@ interface Message {
   text: string;
 }
 
-export default function Camila() {
-  const { teacherId } = useOutletContext<{ teacherId: string }>();
+export function CamilaInner({ teacherId, isEmbedded, onClose }: { teacherId: string, isEmbedded?: boolean, onClose?: () => void }) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([
     { id: 'welcome', role: 'model', text: '¡Hola! Soy Camila, tu asistente pedagógica avanzada de Docente PRO. ¿En qué te puedo ayudar a planificar hoy?' }
@@ -603,7 +602,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
   };
 
   return (
-    <div className="max-w-5xl mx-auto flex flex-col bg-white sm:rounded-3xl shadow-xl shadow-amber-900/5 sm:border border-amber-100/60 overflow-hidden relative" style={{ height: '80vh', minHeight: '500px' }}>
+    <div className={`mx-auto flex flex-col bg-white overflow-hidden relative shadow-xl shadow-amber-900/5 ${isEmbedded ? 'w-full h-full' : 'max-w-5xl w-full h-[80vh] min-h-[500px] sm:rounded-3xl sm:border border-amber-100/60'}`}>
       {/* Header */}
       <div className="bg-gradient-to-r from-amber-600 to-yellow-600 px-6 py-4 flex items-center justify-between shadow-md z-10 relative">
         <div className="flex items-center gap-4">
@@ -633,6 +632,11 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
              <div title="Voz habilitada" className="p-2 text-amber-100">
                <Volume2 className="w-5 h-5 opacity-80" />
              </div>
+          )}
+          {isEmbedded && onClose && (
+            <button onClick={onClose} className="p-2 text-white hover:bg-amber-700/50 rounded-full ml-1" title="Cerrar chat">
+              <X className="w-6 h-6" />
+            </button>
           )}
         </div>
       </div>
@@ -703,71 +707,76 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
       <div className="p-4 bg-white border-t border-amber-100 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.05)] relative z-10 rounded-b-2xl sm:rounded-b-3xl">
         <div className="flex flex-col gap-3 max-w-4xl mx-auto">
           
-          {/* Live Voice Mode Toggle */}
-          <div className="flex justify-center transition-opacity">
-            <button
-              type="button"
-              onClick={toggleLiveMode}
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-bold shadow-md transform active:scale-95 ${
-                isLiveMode 
-                  ? 'bg-red-600 text-white shadow-red-500/30' 
-                  : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
-              }`}
-            >
-              {isLiveMode ? (
-                <>
-                  <Radio className="w-5 h-5 mr-1" />
-                  Modo en Vivo (Escuchando...)
-                </>
-              ) : (
-                <>
-                  <Mic className="w-5 h-5 mr-1" />
-                  Hablar en Vivo
-                </>
-              )}
-            </button>
-          </div>
+          {!isLiveMode ? (
+            <>
+              {/* Modo Live Toggle */}
+              <div className="flex justify-center transition-opacity">
+                <button
+                  type="button"
+                  onClick={startLiveAPI}
+                  className="flex items-center gap-2 px-6 py-2.5 rounded-full font-bold shadow-md transform active:scale-95 bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
+                >
+                  <Radio className="w-5 h-5 mr-1 text-amber-500" />
+                  Modo Live
+                </button>
+              </div>
 
-          <form onSubmit={handleFormSubmit} className="flex gap-2 relative items-end sm:items-center">
-            {/* Single Mic Listen */}
-            <button
-              type="button"
-              onClick={handleSingleListen}
-              disabled={isLiveMode || isLoading}
-              className={`p-3 sm:p-4 rounded-full flex shrink-0 items-center justify-center shadow-sm ${
-                isListening && !isLiveMode 
-                  ? 'bg-red-100 text-red-600' 
-                  : 'bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-600 disabled:opacity-50'
-              }`}
-              title="Escuchar por micrófono (1 mensaje)"
-            >
-              {isListening && !isLiveMode ? <MicOff className="w-5 h-5 sm:w-6 sm:h-6" /> : <Mic className="w-5 h-5 sm:w-6 sm:h-6" />}
-            </button>
+              <form onSubmit={handleFormSubmit} className="flex gap-2 relative items-end sm:items-center">
+                {/* Single Mic Listen */}
+                <button
+                  type="button"
+                  onClick={handleSingleListen}
+                  disabled={isLoading}
+                  className={`p-3 sm:p-4 rounded-full flex shrink-0 items-center justify-center shadow-sm ${
+                    isListening 
+                      ? 'bg-red-100 text-red-600' 
+                      : 'bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-600 disabled:opacity-50'
+                  }`}
+                  title="Escuchar por micrófono (1 mensaje)"
+                >
+                  {isListening ? <MicOff className="w-5 h-5 sm:w-6 sm:h-6" /> : <Mic className="w-5 h-5 sm:w-6 sm:h-6" />}
+                </button>
 
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={isListening ? "Escuchando..." : "Pídele a Camila una planificación, idea o proyecto..."}
-              className="flex-1 px-5 py-3 sm:py-4 rounded-3xl border border-gray-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none transition-all text-sm sm:text-base bg-gray-50 focus:bg-white resize-none shadow-inner"
-              rows={1}
-              disabled={isLoading || isLiveMode}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  if (input.trim() && !isLoading) handleFormSubmit(e as any);
-                }
-              }}
-            />
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder={isListening ? "Escuchando..." : "Pídele a Camila una planificación, idea o proyecto..."}
+                  className="flex-1 px-5 py-3 sm:py-4 rounded-3xl border border-gray-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none transition-all text-sm sm:text-base bg-gray-50 focus:bg-white resize-none shadow-inner"
+                  rows={1}
+                  disabled={isLoading}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      if (input.trim() && !isLoading) handleFormSubmit(e as any);
+                    }
+                  }}
+                />
 
-            <button
-              type="submit"
-              disabled={!input.trim() || isLoading}
-              className="bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-700 hover:to-yellow-600 text-white rounded-full p-3 sm:px-6 sm:py-4 transition-all flex shrink-0 items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg active:scale-95"
-            >
-              <span className="hidden sm:inline font-bold">Enviar</span>
-              <Send className="w-5 h-5 sm:w-6 sm:h-6" />
-            </button>
-          </form>
+                <button
+                  type="submit"
+                  disabled={!input.trim() || isLoading}
+                  className="bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-700 hover:to-yellow-600 text-white rounded-full p-3 sm:px-6 sm:py-4 transition-all flex shrink-0 items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg active:scale-95"
+                >
+                  <span className="hidden sm:inline font-bold">Enviar</span>
+                  <Send className="w-5 h-5 sm:w-6 sm:h-6" />
+                </button>
+              </form>
+            </>
+          ) : (
+            <div className="flex flex-col items-center justify-center p-2 pb-4 animate-in fade-in zoom-in-95 duration-300">
+              <div className="text-red-600 font-bold mb-4 flex items-center gap-2 bg-red-50 px-5 py-2.5 rounded-full border border-red-100 shadow-sm animate-pulse">
+                <Radio className="w-5 h-5" /> En Modo Live...
+              </div>
+              <button
+                type="button"
+                onClick={stopLiveAPI}
+                className="bg-red-600 hover:bg-red-700 text-white rounded-full font-bold px-16 py-4 shadow-xl shadow-red-500/40 flex items-center justify-center gap-3 text-xl active:scale-95 transition-all"
+              >
+                <VolumeX className="w-7 h-7" />
+                Parar
+              </button>
+            </div>
+          )}
 
           <p className="text-center text-xs text-gray-400 mt-1 font-medium bg-white/80 rounded-full px-4 py-1 mx-auto">
             Camila procesa los audios y responde utilizando Modelos IA Avanzados.
@@ -776,5 +785,10 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
       </div>
     </div>
   );
+}
+
+export default function Camila() {
+  const context = useOutletContext<{ teacherId: string }>();
+  return <CamilaInner teacherId={context?.teacherId || 'invitado'} isEmbedded={false} />;
 }
 

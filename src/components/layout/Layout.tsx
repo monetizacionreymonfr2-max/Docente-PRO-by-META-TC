@@ -3,6 +3,7 @@ import { Outlet, Link, useLocation } from 'react-router-dom';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../lib/firebase';
 import AccessProtection from '../AccessProtection';
+import { CamilaInner } from '../../pages/Camila';
 import { 
   Users, 
   BookOpen, 
@@ -29,6 +30,7 @@ interface LayoutProps {
 export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', generationsCount = 0, teacherId = '' }: LayoutProps) {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isCamilaWidgetOpen, setIsCamilaWidgetOpen] = useState(false);
   const isGuest = accessLevel === 'guest';
   const GUEST_LIMIT = 3;
   const usagePercentage = Math.min((generationsCount / GUEST_LIMIT) * 100, 100);
@@ -166,6 +168,24 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
           </div>
         </AccessProtection>
       </main>
+
+      {/* Floating Camila Widget */}
+      {location.pathname !== '/camila' && (
+        <>
+          <button
+            onClick={() => setIsCamilaWidgetOpen(!isCamilaWidgetOpen)}
+            className="fixed bottom-6 right-6 p-4 rounded-full bg-gradient-to-r from-amber-600 to-yellow-500 text-white shadow-2xl hover:shadow-xl hover:scale-105 transition-all z-50 flex items-center justify-center border-4 border-white"
+          >
+            {isCamilaWidgetOpen ? <X size={28} /> : <BotMessageSquare size={28} />}
+          </button>
+
+          {isCamilaWidgetOpen && (
+            <div className="fixed bottom-24 right-4 sm:right-6 w-[calc(100vw-2rem)] sm:w-[450px] h-[600px] max-h-[80vh] bg-white rounded-3xl shadow-2xl z-50 overflow-hidden border border-amber-200 flex flex-col animate-in fade-in slide-in-from-bottom-5">
+              <CamilaInner teacherId={teacherId} isEmbedded={true} onClose={() => setIsCamilaWidgetOpen(false)} />
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
