@@ -199,23 +199,23 @@ export default function Camila() {
 1. IDENTIDAD Y CREADOR:
 - Tono y Estilo: Mantén un lenguaje profesional, empático y motivador, con la voz y personalidad de una chica joven.
 - Sobre tu creador: Si preguntan quién te creó o piden información del responsable, responde con orgullo: 'Mi creador y el de la plataforma es Reymon Castillo, un joven emprendedor nacido en el Estado Apure, Venezuela. Es un desarrollador y profesional enfocado en la tecnología, fundador de META TC, la empresa TMC Tecno Mundo Castillo y DOCENTE PRO.'
-- Sobre la franquicia: Si preguntan, menciona que la marca principal es META TC, nombrada así en honor a los dos hijos de nuestro creador (La 'T' por Tyrone y la 'C' por Camila).
-- Privacidad: Si preguntan detalles muy personales de Reymon, sé amable pero redirige la conversación a cómo puedes ayudarlos con las herramientas de Docente PRO.
 2. FUNCIONES PEDAGÓGICAS (DOCENTE PRO):
 - Tu objetivo principal es ayudar a los profesores a crear materiales educativos de alta calidad.
-Cuando el profesor te pida crear o generar un proyecto o planificación, DEBES ejecutar la herramienta 'saveProject' pasándole todos los datos. Luego, dile al profesor por voz: '¡Listo! Ya he generado tu proyecto y lo he guardado en tu historial'.`
+- OBLIGATORIO: Cuando el profesor te pida crear o generar un proyecto, una planificación diaria o cualquier documento largo, NO LO ESCRIBAS EN EL CHAT NI LO DIGAS TODO EN VOZ ALTA. Tienes estrictamente prohibido narrar todo el contenido.
+- Tienes que usar obligatoriamente la herramienta 'saveProject' pasándole TODOS los datos generados internamente. 
+- Después de usar la herramienta, confírmale al profesor por voz diciéndole únicamente: '¡Listo! He generado el documento completo y lo he guardado automáticamente en tu gestor de proyectos y planificaciones para que lo revises.'`
         },
         tools: [{
           functionDeclarations: [{
             name: "saveProject",
-            description: "Guarda un proyecto educativo o planificación diaria directamente en la base de datos de Docente PRO de forma silenciosa.",
+            description: "Obligatorio usar esto para guardar un proyecto, actividad o planificación educativa en la base de datos.",
             parameters: {
-              type: Type.OBJECT,
+              type: "OBJECT",
               properties: {
-                tipo: { type: Type.STRING, description: "'proyecto_educativo' o 'planificacion_diaria'" },
-                titulo: { type: Type.STRING },
-                resumen: { type: Type.STRING },
-                contenido_completo: { type: Type.STRING, description: "El texto completo y detallado del proyecto." }
+                tipo: { type: "STRING", description: "Debe ser 'proyecto' o 'planificacion'" },
+                titulo: { type: "STRING", description: "El título del proyecto o clase" },
+                resumen: { type: "STRING", description: "El diagnóstico o resumen de lo que trata" },
+                contenido_completo: { type: "STRING", description: "EL contenido largo y completo estructurado en fases o momentos. Todo el material para el profesor." }
               },
               required: ["tipo", "titulo", "resumen", "contenido_completo"]
             }
@@ -290,50 +290,63 @@ Cuando el profesor te pida crear o generar un proyecto o planificación, DEBES e
               }
 
               // 3. Interceptar llamadas a herramientas (Guardar Proyectos)
-              if (message.toolCall) {
-                const functionCalls = message.toolCall.functionCalls;
-                if (functionCalls) {
-                  for (const call of functionCalls) {
-                    if (call.name === 'saveProject') {
-                      const args = call.args;
-                      
-                      const tipo = args.tipo?.toLowerCase() || '';
-                      
-                      if (tipo.includes('proyecto')) {
-                        addDoc(collection(db, 'proyectos_ppa'), {
-                          teacher_id: teacherId, 
-                          docenteId: teacherId,
-                          gradoSeccion: 'Generado por Camila',
-                          nivel: 'Primaria',
-                          tema: args.titulo || 'Sin Título',
-                          duracion: 'Generado por Camila',
-                          diagnostico: args.resumen || '',
-                          contenido: args.contenido_completo || '',
-                          createdAt: serverTimestamp()
-                        }).catch((err: any) => console.error("Error saving PPA in live config:", err));
-                      } else if (tipo.includes('planificacion') || tipo.includes('plan')) {
-                        addDoc(collection(db, 'planificaciones_diarias'), {
-                          teacher_id: teacherId, 
-                          docenteId: teacherId,
-                          ppaId: 'camila-direct',
-                          fecha: new Date().toISOString().split('T')[0],
-                          temaDia: args.titulo || 'Sin Título',
-                          contenido: args.contenido_completo || '',
-                          createdAt: serverTimestamp()
-                        }).catch((err: any) => console.error("Error saving Daily Plan in live config:", err));
-                      }
-                      
-                      if (liveClientRef.current) {
-                        try {
-                          liveClientRef.current.sendToolResponse({
-                            functionResponses: [{
-                              id: call.id,
-                              name: call.name,
-                              response: { result: 'ok', success: true }
-                            }]
-                          });
-                        } catch(e) {}
-                      }
+              let functionCalls = message.toolCall?.functionCalls || [];
+              if (functionCalls.length === 0 && message.serverContent?.modelTurn?.parts) {
+                const fcParts = message.serverContent.modelTurn.parts.filter((p: any) => p.functionCall).map((p: any) => p.functionCall);
+                if (fcParts.length > 0) functionCalls = fcParts;
+              }
+
+              if (functionCalls.length > 0) {
+                for (const call of functionCalls) {
+                  if (call.name === 'saveProject') {
+                    const args = call.args;
+                    
+                    const tipo = args.tipo?.toLowerCase() || 'proyecto';
+                    const docTitle = args.titulo || 'Nuevo Documento';
+                    
+                    // Notificar en la interfaz que se detectó la herramienta
+                    setMessages((prev) => [...prev, { 
+                      id: 'system-' + Date.now(), 
+                      role: 'model', 
+                      text: `*(Guardando automáticamente "${docTitle}" en el gestor de ${tipo.includes('plan') ? 'planificaciones' : 'proyectos'}...)*` 
+                    }]);
+
+                    // Guardar PPA o Planificación
+                    if (tipo.includes('proyecto')) {
+                      addDoc(collection(db, 'proyectos_ppa'), {
+                        teacher_id: teacherId, 
+                        docenteId: teacherId,
+                        gradoSeccion: 'Sugerido por Camila',
+                        nivel: 'Primaria',
+                        tema: docTitle,
+                        duracion: 'Generado por Asistente',
+                        diagnostico: args.resumen || '',
+                        contenido: args.contenido_completo || '',
+                        createdAt: serverTimestamp()
+                      }).catch(err => console.error(err));
+                    } else {
+                      addDoc(collection(db, 'planificaciones_diarias'), {
+                        teacher_id: teacherId, 
+                        docenteId: teacherId,
+                        ppaId: 'camila-id',
+                        fecha: new Date().toISOString().split('T')[0],
+                        temaDia: docTitle,
+                        contenido: args.contenido_completo || args.resumen || '',
+                        createdAt: serverTimestamp()
+                      }).catch(err => console.error(err));
+                    }
+                    
+                    // Responder a la IA para que continúe
+                    if (liveClientRef.current) {
+                      try {
+                        liveClientRef.current.sendToolResponse({
+                          functionResponses: [{
+                            id: call.id || call.name,
+                            name: call.name,
+                            response: { result: { message: "Guardado exitoso" } }
+                          }]
+                        });
+                      } catch(e) {}
                     }
                   }
                 }
