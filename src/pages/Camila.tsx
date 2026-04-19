@@ -6,9 +6,15 @@ import { db } from '../lib/firebase';
 import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio } from 'lucide-react';
 import Markdown from 'react-markdown';
 
-// Initialize Gemini API
-const apiKey = process.env.GEMINI_API_KEY;
-const ai = new GoogleGenAI({ apiKey: apiKey });
+// 1. Buscamos la variable en el formato de Vite (Vercel)
+// 2. Si no está, buscamos en el formato de Node (AI Studio)
+// 3. Si ambas fallan, usamos la llave de respaldo
+const API_KEY = 
+  (import.meta as any).env?.VITE_GEMINI_API_KEY || 
+  (process as any).env?.GEMINI_API_KEY || 
+  'AIzaSyBR2k22CAT-1q0ywdyZlgHj1jphap0-XHM';
+
+const ai = new GoogleGenAI({ apiKey: API_KEY });
 
 interface Message {
   id: string;
