@@ -180,47 +180,49 @@ export default function Camila() {
     try {
       setIsLiveMode(true);
       
-      const liveClient = await (ai as any).live.connect({
-        model: "gemini-3.1-flash-live-preview",
-        config: { 
-          responseModalities: ["AUDIO"] as any,
-          systemInstruction: { parts: [{ text: "Tú eres Camila, la asistente virtual y pedagógica de DOCENTE PRO. Mantén tus respuestas conversacionales, concisas y super útiles." }] }
-        }
-      });
-      liveClientRef.current = liveClient;
-
-      // Init Audio Context for input and playback
       const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
       audioContextRef.current = new AudioCtx({ sampleRate: 16000 });
       const actx = audioContextRef.current;
 
-      (liveClient as any).receive((message: any) => {
-        if (message.serverContent?.modelTurn?.parts) {
-          message.serverContent.modelTurn.parts.forEach((part: any) => {
-            if (part.inlineData && part.inlineData.data && actx) {
-              const base64 = part.inlineData.data;
-              const binaryStr = window.atob(base64);
-              const bytes = new Uint8Array(binaryStr.length);
-              for (let i = 0; i < binaryStr.length; i++) {
-                bytes[i] = binaryStr.charCodeAt(i);
-              }
-              const i16Array = new Int16Array(bytes.buffer);
-              const f32Array = new Float32Array(i16Array.length);
-              for (let i = 0; i < i16Array.length; i++) {
-                f32Array[i] = i16Array[i] / 32768;
-              }
-              // Gemini returns 24kHz PCM natively
-              const audioBuffer = actx.createBuffer(1, f32Array.length, 24000);
-              audioBuffer.getChannelData(0).set(f32Array);
-              
-              const source = actx.createBufferSource();
-              source.buffer = audioBuffer;
-              source.connect(actx.destination);
-              source.start();
+      const liveSessionPromise = (ai as any).live.connect({
+        model: "gemini-3.1-flash-live-preview",
+        config: { 
+          responseModalities: ["AUDIO"],
+          systemInstruction: { parts: [{ text: "Tú eres Camila, la asistente virtual y pedagógica de DOCENTE PRO. Mantén tus respuestas conversacionales, concisas y super útiles." }] }
+        },
+        callbacks: {
+          onmessage: (message: any) => {
+            if (message.serverContent?.modelTurn?.parts) {
+              message.serverContent.modelTurn.parts.forEach((part: any) => {
+                if (part.inlineData && part.inlineData.data && actx) {
+                  const base64 = part.inlineData.data;
+                  const binaryStr = window.atob(base64);
+                  const bytes = new Uint8Array(binaryStr.length);
+                  for (let i = 0; i < binaryStr.length; i++) {
+                    bytes[i] = binaryStr.charCodeAt(i);
+                  }
+                  const i16Array = new Int16Array(bytes.buffer);
+                  const f32Array = new Float32Array(i16Array.length);
+                  for (let i = 0; i < i16Array.length; i++) {
+                    f32Array[i] = i16Array[i] / 32768;
+                  }
+                  // Gemini returns 24kHz PCM natively
+                  const audioBuffer = actx.createBuffer(1, f32Array.length, 24000);
+                  audioBuffer.getChannelData(0).set(f32Array);
+                  
+                  const source = actx.createBufferSource();
+                  source.buffer = audioBuffer;
+                  source.connect(actx.destination);
+                  source.start();
+                }
+              });
             }
-          });
+          }
         }
       });
+
+      // Save the promise to clean up or send data
+      liveClientRef.current = liveSessionPromise;
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
@@ -250,13 +252,13 @@ export default function Camila() {
         }
         const base64Data = window.btoa(binary);
 
-        (liveClient as any).send({
-          realtimeInput: {
-            mediaChunks: [{
+        liveSessionPromise.then((session: any) => {
+          session.sendRealtimeInput({
+            audio: {
               mimeType: "audio/pcm;rate=16000",
               data: base64Data
-            }]
-          }
+            }
+          });
         });
       };
 
@@ -274,7 +276,9 @@ export default function Camila() {
     setIsLiveMode(false);
     
     if (liveClientRef.current) {
-      try { liveClientRef.current.close(); } catch(e){}
+      liveClientRef.current.then((session: any) => {
+        try { session.close(); } catch(e){}
+      });
       liveClientRef.current = null;
     }
     if (streamRef.current) {
