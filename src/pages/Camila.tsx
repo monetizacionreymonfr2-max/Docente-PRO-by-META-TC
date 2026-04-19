@@ -53,7 +53,9 @@ export default function Camila() {
   useEffect(() => { isLoadingRef.current = isLoading; }, [isLoading]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView(); // Removed smooth behavior to avoid iOS WebView paint crashes
+    }
   };
 
   useEffect(() => {
@@ -180,6 +182,15 @@ export default function Camila() {
 
   const startLiveAPI = async () => {
     try {
+      // 1. Pedir permiso del micrófono ANTES para que la UI no intente hacer render 
+      // y esconderse bajo el modal del sistema operativo, previniendo el crasheo "Pantalla Blanca" en WebView.
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      } });
+      streamRef.current = stream;
+
       setIsLiveMode(true);
       
       const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
@@ -187,7 +198,7 @@ export default function Camila() {
       const actx = audioContextRef.current;
       nextPlaybackTimeRef.current = 0; // Reset scheduling
 
-      // 1. ESPERAMOS que la sesión se conecte completamente.
+      // 2. ESPERAMOS que la sesión se conecte completamente.
       const session = await (ai as any).live.connect({
         model: "gemini-3.1-flash-live-preview",
         config: { 
@@ -360,13 +371,6 @@ export default function Camila() {
 
       // Guardar en Ref para envío síncrono.
       liveClientRef.current = session;
-
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
-      } });
-      streamRef.current = stream;
 
       const source = actx.createMediaStreamSource(stream);
       // Deprecated but widely supported for real-time legacy fallback
@@ -599,7 +603,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
   };
 
   return (
-    <div className="max-w-5xl mx-auto flex flex-col bg-white sm:rounded-3xl shadow-xl shadow-amber-900/5 sm:border border-amber-100/60 overflow-hidden relative" style={{ height: 'calc(100dvh - 100px)', minHeight: '500px' }}>
+    <div className="max-w-5xl mx-auto flex flex-col bg-white sm:rounded-3xl shadow-xl shadow-amber-900/5 sm:border border-amber-100/60 overflow-hidden relative" style={{ height: '80vh', minHeight: '500px' }}>
       {/* Header */}
       <div className="bg-gradient-to-r from-amber-600 to-yellow-600 px-6 py-4 flex items-center justify-between shadow-md z-10 relative">
         <div className="flex items-center gap-4">
