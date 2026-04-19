@@ -296,15 +296,32 @@ Cuando el profesor te pida crear o generar un proyecto o planificación, DEBES e
                   for (const call of functionCalls) {
                     if (call.name === 'saveProject') {
                       const args = call.args;
-                      addDoc(collection(db, 'historial_proyectos'), {
-                        teacher_id: teacherId, 
-                        docenteId: teacherId,
-                        tipo: args.tipo || 'general',
-                        titulo: args.titulo || 'Sin Título',
-                        resumen: args.resumen || '',
-                        contenido_completo: args.contenido_completo || '',
-                        createdAt: serverTimestamp()
-                      }).catch((err: any) => console.error("Error saving doc in live config:", err));
+                      
+                      const tipo = args.tipo?.toLowerCase() || '';
+                      
+                      if (tipo.includes('proyecto')) {
+                        addDoc(collection(db, 'proyectos_ppa'), {
+                          teacher_id: teacherId, 
+                          docenteId: teacherId,
+                          gradoSeccion: 'Generado por Camila',
+                          nivel: 'Primaria',
+                          tema: args.titulo || 'Sin Título',
+                          duracion: 'Generado por Camila',
+                          diagnostico: args.resumen || '',
+                          contenido: args.contenido_completo || '',
+                          createdAt: serverTimestamp()
+                        }).catch((err: any) => console.error("Error saving PPA in live config:", err));
+                      } else if (tipo.includes('planificacion') || tipo.includes('plan')) {
+                        addDoc(collection(db, 'planificaciones_diarias'), {
+                          teacher_id: teacherId, 
+                          docenteId: teacherId,
+                          ppaId: 'camila-direct',
+                          fecha: new Date().toISOString().split('T')[0],
+                          temaDia: args.titulo || 'Sin Título',
+                          contenido: args.contenido_completo || '',
+                          createdAt: serverTimestamp()
+                        }).catch((err: any) => console.error("Error saving Daily Plan in live config:", err));
+                      }
                       
                       if (liveClientRef.current) {
                         try {
@@ -505,15 +522,31 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
           const jsonStr = match[1];
           const parsedData = JSON.parse(jsonStr);
           
-          await addDoc(collection(db, 'historial_proyectos'), {
-            teacher_id: teacherId, 
-            docenteId: teacherId,
-            tipo: parsedData.tipo || 'general',
-            titulo: parsedData.titulo || 'Sin Título',
-            resumen: parsedData.resumen || '',
-            contenido_completo: parsedData.contenido_completo || rawText.replace(regex, '').trim(),
-            createdAt: serverTimestamp()
-          });
+          const tipo = (parsedData.tipo || '').toLowerCase();
+          
+          if (tipo.includes('proyecto')) {
+            await addDoc(collection(db, 'proyectos_ppa'), {
+              teacher_id: teacherId, 
+              docenteId: teacherId,
+              gradoSeccion: 'Generado por Camila',
+              nivel: 'Primaria',
+              tema: parsedData.titulo || 'Sin Título',
+              duracion: 'Generado por Camila',
+              diagnostico: parsedData.resumen || '',
+              contenido: parsedData.contenido_completo || rawText.replace(regex, '').trim(),
+              createdAt: serverTimestamp()
+            });
+          } else if (tipo.includes('planificacion') || tipo.includes('plan')) {
+            await addDoc(collection(db, 'planificaciones_diarias'), {
+              teacher_id: teacherId, 
+              docenteId: teacherId,
+              ppaId: 'camila-direct',
+              fecha: new Date().toISOString().split('T')[0],
+              temaDia: parsedData.titulo || 'Sin Título',
+              contenido: parsedData.contenido_completo || rawText.replace(regex, '').trim(),
+              createdAt: serverTimestamp()
+            });
+          }
           
           rawText = rawText.replace(regex, '').trim();
         }
