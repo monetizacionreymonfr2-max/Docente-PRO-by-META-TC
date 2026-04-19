@@ -37,6 +37,12 @@ export default function Camila() {
   const recognitionRef = useRef<any>(null);
   const isSingleListenRef = useRef(false);
 
+  // Live API architecture refs
+  const liveClientRef = useRef<any>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scriptNodeRef = useRef<ScriptProcessorNode | null>(null);
+
   // Use refs for closures inside event listeners
   const isLiveModeRef = useRef(isLiveMode);
   const isLoadingRef = useRef(isLoading);
@@ -170,17 +176,128 @@ export default function Camila() {
     }
   };
 
+  const startLiveAPI = async () => {
+    try {
+      setIsLiveMode(true);
+      
+      const liveClient = await (ai as any).live.connect({
+        model: "gemini-3.1-flash-live-preview",
+        config: { 
+          responseModalities: ["AUDIO"] as any,
+          systemInstruction: { parts: [{ text: "Tú eres Camila, la asistente virtual y pedagógica de DOCENTE PRO. Mantén tus respuestas conversacionales, concisas y super útiles." }] }
+        }
+      });
+      liveClientRef.current = liveClient;
+
+      // Init Audio Context for input and playback
+      const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
+      audioContextRef.current = new AudioCtx({ sampleRate: 16000 });
+      const actx = audioContextRef.current;
+
+      (liveClient as any).receive((message: any) => {
+        if (message.serverContent?.modelTurn?.parts) {
+          message.serverContent.modelTurn.parts.forEach((part: any) => {
+            if (part.inlineData && part.inlineData.data && actx) {
+              const base64 = part.inlineData.data;
+              const binaryStr = window.atob(base64);
+              const bytes = new Uint8Array(binaryStr.length);
+              for (let i = 0; i < binaryStr.length; i++) {
+                bytes[i] = binaryStr.charCodeAt(i);
+              }
+              const i16Array = new Int16Array(bytes.buffer);
+              const f32Array = new Float32Array(i16Array.length);
+              for (let i = 0; i < i16Array.length; i++) {
+                f32Array[i] = i16Array[i] / 32768;
+              }
+              // Gemini returns 24kHz PCM natively
+              const audioBuffer = actx.createBuffer(1, f32Array.length, 24000);
+              audioBuffer.getChannelData(0).set(f32Array);
+              
+              const source = actx.createBufferSource();
+              source.buffer = audioBuffer;
+              source.connect(actx.destination);
+              source.start();
+            }
+          });
+        }
+      });
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+
+      const source = actx.createMediaStreamSource(stream);
+      // Deprecated but widely supported for real-time legacy fallback
+      const scriptNode = actx.createScriptProcessor(4096, 1, 1);
+      scriptNodeRef.current = scriptNode;
+
+      scriptNode.onaudioprocess = (e) => {
+        if (!liveClientRef.current) return;
+        const inputData = e.inputBuffer.getChannelData(0);
+        
+        // Convert Float32 to Int16
+        const buffer = new ArrayBuffer(inputData.length * 2);
+        const view = new DataView(buffer);
+        let offset = 0;
+        for (let i = 0; i < inputData.length; i++, offset += 2) {
+          let s = Math.max(-1, Math.min(1, inputData[i]));
+          view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        }
+        
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        const base64Data = window.btoa(binary);
+
+        (liveClient as any).send({
+          realtimeInput: {
+            mediaChunks: [{
+              mimeType: "audio/pcm;rate=16000",
+              data: base64Data
+            }]
+          }
+        });
+      };
+
+      source.connect(scriptNode);
+      scriptNode.connect(actx.destination);
+
+    } catch (err: any) {
+      console.error("Live API Error:", err);
+      setIsLiveMode(false);
+      alert("Hubo un error conectando a la API en vivo: " + err.message);
+    }
+  };
+
+  const stopLiveAPI = () => {
+    setIsLiveMode(false);
+    
+    if (liveClientRef.current) {
+      try { liveClientRef.current.close(); } catch(e){}
+      liveClientRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (scriptNodeRef.current) {
+      scriptNodeRef.current.disconnect();
+      scriptNodeRef.current = null;
+    }
+    if (audioContextRef.current) {
+      try { audioContextRef.current.close(); } catch(e){}
+      audioContextRef.current = null;
+    }
+  };
+
   const toggleLiveMode = () => {
     if (isLiveMode) {
-      setIsLiveMode(false);
-      stopListening();
-      window.speechSynthesis.cancel();
-      setIsSpeaking(false);
+      stopLiveAPI();
     } else {
-      setIsLiveMode(true);
+      stopListening(); // Ensure traditional speech recog is off
       window.speechSynthesis.cancel();
-      setIsSpeaking(false);
-      startListening();
+      startLiveAPI();
     }
   };
 
@@ -243,7 +360,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
       historyContents.push({ role: 'user', parts: [{ text: userMsg }] });
 
       const response = await ai.models.generateContent({
-        model: isLiveModeRef.current ? 'gemini-3.1-flash-live-preview' : 'gemini-2.5-flash',
+        model: 'gemini-2.5-flash',
         contents: historyContents,
         config: {
           systemInstruction,
@@ -283,11 +400,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: rawText }]);
       
       // Synthesis & Loop Reactivation
-      speakText(rawText, () => {
-         if (isLiveModeRef.current) {
-            startListeningRef.current();
-         }
-      });
+      speakText(rawText);
 
     } catch (error: any) {
       console.error("Error de API detallado:", error);
