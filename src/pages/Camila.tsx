@@ -42,6 +42,7 @@ export default function Camila() {
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scriptNodeRef = useRef<ScriptProcessorNode | null>(null);
+  const nextPlaybackTimeRef = useRef<number>(0);
 
   // Use refs for closures inside event listeners
   const isLiveModeRef = useRef(isLiveMode);
@@ -183,8 +184,10 @@ export default function Camila() {
       const AudioCtx = (window as any).AudioContext || (window as any).webkitAudioContext;
       audioContextRef.current = new AudioCtx({ sampleRate: 16000 });
       const actx = audioContextRef.current;
+      nextPlaybackTimeRef.current = 0; // Reset scheduling
 
-      const liveSessionPromise = (ai as any).live.connect({
+      // 1. ESPERAMOS que la sesión se conecte completamente.
+      const session = await (ai as any).live.connect({
         model: "gemini-3.1-flash-live-preview",
         config: { 
           responseModalities: ["AUDIO"],
@@ -192,39 +195,57 @@ export default function Camila() {
         },
         callbacks: {
           onmessage: (message: any) => {
-            if (message.serverContent?.modelTurn?.parts) {
-              message.serverContent.modelTurn.parts.forEach((part: any) => {
-                if (part.inlineData && part.inlineData.data && actx) {
-                  const base64 = part.inlineData.data;
-                  const binaryStr = window.atob(base64);
-                  const bytes = new Uint8Array(binaryStr.length);
-                  for (let i = 0; i < binaryStr.length; i++) {
-                    bytes[i] = binaryStr.charCodeAt(i);
+            try {
+              // Si nos interrumpen, detener agenda de audios.
+              if (message.serverContent?.interrupted) {
+                nextPlaybackTimeRef.current = 0;
+              }
+
+              if (message.serverContent?.modelTurn?.parts) {
+                message.serverContent.modelTurn.parts.forEach((part: any) => {
+                  if (part.inlineData && part.inlineData.data && actx) {
+                    const base64 = part.inlineData.data;
+                    const binaryStr = window.atob(base64);
+                    const bytes = new Uint8Array(binaryStr.length);
+                    for (let i = 0; i < binaryStr.length; i++) {
+                      bytes[i] = binaryStr.charCodeAt(i);
+                    }
+                    const i16Array = new Int16Array(bytes.buffer);
+                    const f32Array = new Float32Array(i16Array.length);
+                    for (let i = 0; i < i16Array.length; i++) {
+                      f32Array[i] = i16Array[i] / 32768;
+                    }
+                    
+                    // Gemini returns 24kHz PCM natively
+                    const audioBuffer = actx.createBuffer(1, f32Array.length, 24000);
+                    audioBuffer.getChannelData(0).set(f32Array);
+                    
+                    const source = actx.createBufferSource();
+                    source.buffer = audioBuffer;
+                    source.connect(actx.destination);
+                    
+                    // SCHEDULE FIX: Agendar los audios para que suenen unidos y sin pisarse.
+                    const scheduledTime = Math.max(actx.currentTime, nextPlaybackTimeRef.current || 0);
+                    source.start(scheduledTime);
+                    nextPlaybackTimeRef.current = scheduledTime + audioBuffer.duration;
                   }
-                  const i16Array = new Int16Array(bytes.buffer);
-                  const f32Array = new Float32Array(i16Array.length);
-                  for (let i = 0; i < i16Array.length; i++) {
-                    f32Array[i] = i16Array[i] / 32768;
-                  }
-                  // Gemini returns 24kHz PCM natively
-                  const audioBuffer = actx.createBuffer(1, f32Array.length, 24000);
-                  audioBuffer.getChannelData(0).set(f32Array);
-                  
-                  const source = actx.createBufferSource();
-                  source.buffer = audioBuffer;
-                  source.connect(actx.destination);
-                  source.start();
-                }
-              });
+                });
+              }
+            } catch (e) {
+              console.error("Error reproduciendo audio recibido:", e);
             }
           }
         }
       });
 
-      // Save the promise to clean up or send data
-      liveClientRef.current = liveSessionPromise;
+      // Guardar en Ref para envío síncrono.
+      liveClientRef.current = session;
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true
+      } });
       streamRef.current = stream;
 
       const source = actx.createMediaStreamSource(stream);
@@ -234,32 +255,35 @@ export default function Camila() {
 
       scriptNode.onaudioprocess = (e) => {
         if (!liveClientRef.current) return;
-        const inputData = e.inputBuffer.getChannelData(0);
-        
-        // Convert Float32 to Int16
-        const buffer = new ArrayBuffer(inputData.length * 2);
-        const view = new DataView(buffer);
-        let offset = 0;
-        for (let i = 0; i < inputData.length; i++, offset += 2) {
-          let s = Math.max(-1, Math.min(1, inputData[i]));
-          view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-        }
-        
-        let binary = '';
-        const bytes = new Uint8Array(buffer);
-        for (let i = 0; i < bytes.byteLength; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
-        const base64Data = window.btoa(binary);
+        try {
+          const inputData = e.inputBuffer.getChannelData(0);
+          
+          // Convert Float32 to Int16
+          const buffer = new ArrayBuffer(inputData.length * 2);
+          const view = new DataView(buffer);
+          let offset = 0;
+          for (let i = 0; i < inputData.length; i++, offset += 2) {
+            let s = Math.max(-1, Math.min(1, inputData[i]));
+            view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+          }
+          
+          let binary = '';
+          const bytes = new Uint8Array(buffer);
+          for (let i = 0; i < bytes.byteLength; i++) {
+            binary += String.fromCharCode(bytes[i]);
+          }
+          const base64Data = window.btoa(binary);
 
-        liveSessionPromise.then((session: any) => {
-          session.sendRealtimeInput({
+          // Envío síncrono - No más acumulación de promesas que crashean la página
+          liveClientRef.current.sendRealtimeInput({
             audio: {
               mimeType: "audio/pcm;rate=16000",
               data: base64Data
             }
           });
-        });
+        } catch (e) {
+          console.error("Error capturando micrófono:", e);
+        }
       };
 
       source.connect(scriptNode);
@@ -276,9 +300,7 @@ export default function Camila() {
     setIsLiveMode(false);
     
     if (liveClientRef.current) {
-      liveClientRef.current.then((session: any) => {
-        try { session.close(); } catch(e){}
-      });
+      try { liveClientRef.current.close(); } catch(e){}
       liveClientRef.current = null;
     }
     if (streamRef.current) {
