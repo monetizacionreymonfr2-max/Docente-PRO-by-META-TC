@@ -7,9 +7,7 @@ import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio } from '
 import Markdown from 'react-markdown';
 
 // Initialize Gemini API
-// Nota: Has proporcionado tu clave directamente. La hemos colocado aquí para que funcione ahora mismo.
-// Por seguridad en el futuro, es recomendable moverla a un archivo .env si despliegas fuera de AI Studio.
-const apiKey = 'AIzaSyBR2k22CAT-1q0ywdyZlgHj1jphap0-XHM';
+const apiKey = process.env.GEMINI_API_KEY;
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
 interface Message {
