@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { GoogleGenAI, Type } from '@google/genai';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio, X } from 'lucide-react';
+import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio, X, Sparkles } from 'lucide-react';
 import Markdown from 'react-markdown';
 
 // 1. Buscamos la variable en el formato de Vite (Vercel)
@@ -606,8 +606,9 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
       {/* Header */}
       <div className="bg-gradient-to-r from-amber-600 to-yellow-600 px-6 py-4 flex items-center justify-between shadow-md z-10 relative">
         <div className="flex items-center gap-4">
-          <div className="bg-amber-100 p-2.5 rounded-full border-2 border-amber-300 shadow-inner">
-            <Bot className="w-7 h-7 text-amber-700" />
+          <div className="bg-amber-100 p-2.5 rounded-full border-2 border-amber-300 shadow-inner flex items-center justify-center relative overflow-hidden">
+            <div className="absolute inset-0 bg-yellow-300 opacity-20 animate-spin-slow"></div>
+            <Sparkles className="w-7 h-7 text-amber-700 relative z-10" />
           </div>
           <div>
             <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
@@ -655,7 +656,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
                   ${message.role === 'model' ? 'bg-gradient-to-br from-amber-500 to-yellow-600 border border-amber-400' : 'bg-gray-200 border border-gray-300'}`}
                 >
                   {message.role === 'model' ? (
-                    <Bot className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                    <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   ) : (
                     <User className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" />
                   )}
@@ -687,7 +688,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
             <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2">
                <div className="flex gap-3 max-w-[85%] flex-row">
                  <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-sm mt-1 bg-gradient-to-br from-amber-500 to-yellow-600 border border-amber-400">
-                    <Bot className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                    <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                  </div>
                  <div className="px-5 py-4 rounded-2xl bg-white border border-amber-100/50 rounded-tl-sm shadow-md flex items-center gap-2">
                    <div className="flex space-x-1.5">

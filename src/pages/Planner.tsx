@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { GoogleGenAI } from '@google/genai';
-import { BookOpen, Loader2, FileText, Copy, Printer, X, History, Calendar, Trash2 } from 'lucide-react';
+import { BookOpen, Loader2, FileText, Copy, Printer, X, History, Calendar, Trash2, Edit3, Save } from 'lucide-react';
 import Markdown from 'react-markdown';
 import LimitReachedModal from '../components/LimitReachedModal';
 
@@ -40,6 +40,11 @@ export default function Planner() {
   const [ppas, setPpas] = useState<PPAProject[]>([]);
   const [dailyPlans, setDailyPlans] = useState<DailyPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<DailyPlan | null>(null);
+
+  // Edit State
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedTitle, setEditedTitle] = useState('');
+  const [editedContent, setEditedContent] = useState('');
 
   // Fetch PPAs for the dropdown
   useEffect(() => {
@@ -202,6 +207,28 @@ ${selectedPpa.contenido}`;
     }
   };
 
+  const handlePlanClick = (plan: DailyPlan) => {
+    setSelectedPlan(plan);
+    setEditedTitle(plan.temaDia);
+    setEditedContent(plan.contenido);
+    setIsEditing(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedPlan || !editedTitle.trim() || !editedContent.trim()) return;
+    try {
+      const docRef = doc(db, 'planificaciones_diarias', selectedPlan.id);
+      await updateDoc(docRef, {
+        temaDia: editedTitle,
+        contenido: editedContent
+      });
+      setSelectedPlan(prev => prev ? { ...prev, temaDia: editedTitle, contenido: editedContent } : null);
+      setIsEditing(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'planificaciones_diarias');
+    }
+  };
+
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     alert('¡Copiado al portapapeles!');
@@ -361,7 +388,7 @@ ${selectedPpa.contenido}`;
               return (
                 <div 
                   key={plan.id} 
-                  onClick={() => setSelectedPlan(plan)}
+                  onClick={() => handlePlanClick(plan)}
                   className={`bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md transition-all group ${isMaternal ? 'hover:border-orange-300' : 'hover:border-teal-300'}`}
                 >
                   <div className="flex justify-between items-start mb-4">
@@ -374,7 +401,7 @@ ${selectedPpa.contenido}`;
                     )}
                     <button 
                       onClick={(e) => handleDelete(plan.id, e)}
-                      className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors opacity-0 group-hover:opacity-100"
+                      className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors sm:opacity-0 group-hover:opacity-100"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -405,16 +432,34 @@ ${selectedPpa.contenido}`;
               Cerrar Vista
             </button>
             <div className="flex gap-2">
+              {!isGuest && !isEditing && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <Edit3 className="w-4 h-4" />
+                  Editar
+                </button>
+              )}
+              {!isGuest && isEditing && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleSaveEdit(); }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-green-600 border border-green-700 rounded-lg text-sm font-medium text-white hover:bg-green-700 transition-colors"
+                >
+                  <Save className="w-4 h-4" />
+                  Guardar
+                </button>
+              )}
               {!isGuest && (
                 <button 
-                  onClick={() => handleCopy(selectedPlan.contenido)}
+                  onClick={(e) => { e.stopPropagation(); handleCopy(selectedPlan.contenido); }}
                   className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   <Copy className="w-4 h-4" />
                   Copiar
                 </button>
               )}
-              {!isGuest && (
+              {!isGuest && !isEditing && (
                 <button 
                   onClick={handlePrint}
                   className="flex items-center gap-2 px-3 py-1.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors"
@@ -428,20 +473,44 @@ ${selectedPpa.contenido}`;
 
           {/* Plan Content */}
           <div className="p-8 sm:p-12">
-            <div className="mb-8 pb-6 border-b border-gray-200">
-              <div className="flex items-center gap-2 text-teal-600 font-semibold mb-2">
-                <Calendar className="w-5 h-5" />
-                {selectedPlan.fecha}
+            {isEditing ? (
+              <div className="mb-8 pb-6 border-b border-gray-200">
+                <div className="flex items-center gap-2 text-teal-600 font-semibold mb-2">
+                  <Calendar className="w-5 h-5" />
+                  {selectedPlan.fecha}
+                </div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Actividad / Tema del Día</label>
+                <input 
+                   type="text" 
+                   value={editedTitle} 
+                   onChange={e => setEditedTitle(e.target.value)} 
+                   className="w-full text-2xl font-bold text-gray-900 mb-4 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                />
               </div>
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">{selectedPlan.temaDia}</h2>
-              <div className="text-sm text-gray-600 flex flex-wrap gap-4">
-                <p><strong>Nivel:</strong> {ppas.find(p => p.id === selectedPlan.ppaId)?.nivel || 'Primaria'}</p>
-                <p><strong>Proyecto Base:</strong> {ppas.find(p => p.id === selectedPlan.ppaId)?.tema || 'Desconocido'}</p>
+            ) : (
+              <div className="mb-8 pb-6 border-b border-gray-200">
+                <div className="flex items-center gap-2 text-teal-600 font-semibold mb-2">
+                  <Calendar className="w-5 h-5" />
+                  {selectedPlan.fecha}
+                </div>
+                <h2 className="text-3xl font-bold text-gray-900 mb-4">{selectedPlan.temaDia}</h2>
+                <div className="text-sm text-gray-600 flex flex-wrap gap-4">
+                  <p><strong>Nivel:</strong> {ppas.find(p => p.id === selectedPlan.ppaId)?.nivel || 'Primaria'}</p>
+                  <p><strong>Proyecto Base:</strong> {ppas.find(p => p.id === selectedPlan.ppaId)?.tema || 'Desconocido'}</p>
+                </div>
               </div>
-            </div>
+            )}
             
             <div className="prose prose-teal max-w-none prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg">
-              <Markdown>{selectedPlan.contenido}</Markdown>
+              {isEditing ? (
+                 <textarea
+                   value={editedContent}
+                   onChange={e => setEditedContent(e.target.value)}
+                   className="w-full h-[600px] p-4 border border-gray-300 rounded-md font-mono text-sm focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                 />
+              ) : (
+                <Markdown>{selectedPlan.contenido}</Markdown>
+              )}
             </div>
           </div>
         </div>

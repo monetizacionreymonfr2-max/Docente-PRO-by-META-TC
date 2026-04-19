@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { GoogleGenAI } from '@google/genai';
-import { Sparkles, Loader2, FileText, Copy, Printer, X, History, Trash2 } from 'lucide-react';
+import { Sparkles, Loader2, FileText, Copy, Printer, X, History, Trash2, Edit3, Save } from 'lucide-react';
 import Markdown from 'react-markdown';
 import LimitReachedModal from '../components/LimitReachedModal';
 
@@ -36,6 +36,11 @@ export default function PPA() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [projects, setProjects] = useState<PPAProject[]>([]);
   const [selectedProject, setSelectedProject] = useState<PPAProject | null>(null);
+
+  // Edit State
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedTitle, setEditedTitle] = useState('');
+  const [editedContent, setEditedContent] = useState('');
 
   // Fetch History
   useEffect(() => {
@@ -225,6 +230,28 @@ Datos de entrada:
     }
   };
 
+  const handleProjectClick = (project: PPAProject) => {
+    setSelectedProject(project);
+    setEditedTitle(project.tema);
+    setEditedContent(project.contenido);
+    setIsEditing(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedProject || !editedTitle.trim() || !editedContent.trim()) return;
+    try {
+      const docRef = doc(db, 'proyectos_ppa', selectedProject.id);
+      await updateDoc(docRef, {
+        tema: editedTitle,
+        contenido: editedContent
+      });
+      setSelectedProject(prev => prev ? { ...prev, tema: editedTitle, contenido: editedContent } : null);
+      setIsEditing(false);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, 'proyectos_ppa');
+    }
+  };
+
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     alert('¡Copiado al portapapeles!');
@@ -388,7 +415,7 @@ Datos de entrada:
               return (
                 <div 
                   key={project.id} 
-                  onClick={() => setSelectedProject(project)}
+                  onClick={() => handleProjectClick(project)}
                   className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all group"
                 >
                   <div className="flex justify-between items-start mb-4">
@@ -404,7 +431,7 @@ Datos de entrada:
                       <span className="text-xs text-gray-400">{date}</span>
                       <button 
                         onClick={(e) => handleDelete(project.id, e)}
-                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors opacity-0 group-hover:opacity-100"
+                        className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors sm:opacity-0 group-hover:opacity-100"
                         title="Eliminar"
                       >
                         <Trash2 className="w-4 h-4" />
@@ -437,16 +464,34 @@ Datos de entrada:
               Cerrar Vista
             </button>
             <div className="flex gap-2">
+              {!isGuest && !isEditing && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  <Edit3 className="w-4 h-4" />
+                  Editar
+                </button>
+              )}
+              {!isGuest && isEditing && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleSaveEdit(); }}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-green-600 border border-green-700 rounded-lg text-sm font-medium text-white hover:bg-green-700 transition-colors"
+                >
+                  <Save className="w-4 h-4" />
+                  Guardar
+                </button>
+              )}
               {!isGuest && (
                 <button 
-                  onClick={() => handleCopy(selectedProject.contenido)}
+                  onClick={(e) => { e.stopPropagation(); handleCopy(selectedProject.contenido); }}
                   className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   <Copy className="w-4 h-4" />
                   Copiar
                 </button>
               )}
-              {!isGuest && (
+              {!isGuest && !isEditing && (
                 <button 
                   onClick={handlePrint}
                   className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
@@ -460,17 +505,37 @@ Datos de entrada:
 
           {/* Project Content */}
           <div className="p-8 sm:p-12">
-            <div className="mb-8 pb-6 border-b border-gray-200">
-              <h2 className="text-3xl font-bold text-gray-900 mb-4">{selectedProject.tema}</h2>
-              <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                <p><strong>Nivel:</strong> {selectedProject.nivel || 'Primaria'}</p>
-                <p><strong>{selectedProject.nivel === 'Maternal' ? 'Sala/Edad' : 'Grado/Sección'}:</strong> {selectedProject.gradoSeccion}</p>
-                <p><strong>Duración:</strong> {selectedProject.duracion}</p>
+            {isEditing ? (
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Título del Proyecto</label>
+                <input 
+                   type="text" 
+                   value={editedTitle} 
+                   onChange={e => setEditedTitle(e.target.value)} 
+                   className="w-full text-2xl font-bold text-gray-900 mb-4 p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
               </div>
-            </div>
+            ) : (
+              <div className="mb-8 pb-6 border-b border-gray-200">
+                <h2 className="text-3xl font-bold text-gray-900 mb-4">{selectedProject.tema}</h2>
+                <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+                  <p><strong>Nivel:</strong> {selectedProject.nivel || 'Primaria'}</p>
+                  <p><strong>{selectedProject.nivel === 'Maternal' ? 'Sala/Edad' : 'Grado/Sección'}:</strong> {selectedProject.gradoSeccion}</p>
+                  <p><strong>Duración:</strong> {selectedProject.duracion}</p>
+                </div>
+              </div>
+            )}
             
             <div className="prose prose-blue max-w-none prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg">
-              <Markdown>{selectedProject.contenido}</Markdown>
+              {isEditing ? (
+                 <textarea
+                   value={editedContent}
+                   onChange={e => setEditedContent(e.target.value)}
+                   className="w-full h-[600px] p-4 border border-gray-300 rounded-md font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                 />
+              ) : (
+                <Markdown>{selectedProject.contenido}</Markdown>
+              )}
             </div>
           </div>
         </div>

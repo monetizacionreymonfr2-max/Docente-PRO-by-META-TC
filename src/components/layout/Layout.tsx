@@ -16,7 +16,7 @@ import {
   Menu,
   X,
   ShieldAlert,
-  BotMessageSquare
+  Sparkles
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -42,7 +42,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
     { path: '/maternal', icon: <Baby size={20} />, label: 'Sección Maternal' },
     { path: '/planner', icon: <CalendarDays size={20} />, label: 'Planificador Diario' },
     { path: '/reports', icon: <FileText size={20} />, label: 'Generador de Boletines' },
-    { path: '/camila', icon: <BotMessageSquare size={20} />, label: 'IA Camila' },
+    { path: '/camila', icon: <Sparkles size={20} className="text-amber-400" />, label: 'IA Camila' },
   ];
 
   if (isAdmin) {
@@ -174,9 +174,9 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
         <>
           <button
             onClick={() => setIsCamilaWidgetOpen(!isCamilaWidgetOpen)}
-            className="fixed bottom-6 right-6 p-4 rounded-full bg-gradient-to-r from-amber-600 to-yellow-500 text-white shadow-2xl hover:shadow-xl hover:scale-105 transition-all z-50 flex items-center justify-center border-4 border-white"
+            className="fixed bottom-6 right-6 p-4 rounded-full bg-gradient-to-r from-amber-600 to-yellow-500 text-white shadow-2xl hover:shadow-xl hover:scale-105 transition-all z-50 flex items-center justify-center border-4 border-white group"
           >
-            {isCamilaWidgetOpen ? <X size={28} /> : <BotMessageSquare size={28} />}
+            {isCamilaWidgetOpen ? <X size={28} /> : <Sparkles size={28} className="group-hover:animate-spin-slow" />}
           </button>
 
           {isCamilaWidgetOpen && (
