@@ -202,12 +202,12 @@ export default function Camila() {
 2. FUNCIONES PEDAGÓGICAS (DOCENTE PRO):
 - Tu objetivo principal es ayudar a los profesores a crear materiales educativos de alta calidad.
 - OBLIGATORIO: Cuando el profesor te pida crear o generar un proyecto, una planificación diaria o cualquier documento largo, NO LO ESCRIBAS EN EL CHAT NI LO DIGAS TODO EN VOZ ALTA. Tienes estrictamente prohibido narrar todo el contenido.
-- Tienes que usar obligatoriamente la herramienta 'saveProject' pasándole TODOS los datos generados internamente. 
+- Tienes que usar obligatoriamente la herramienta 'guardar_documento' pasándole TODOS los datos generados internamente. 
 - Después de usar la herramienta, confírmale al profesor por voz diciéndole únicamente: '¡Listo! He generado el documento completo y lo he guardado automáticamente en tu gestor de proyectos y planificaciones para que lo revises.'`
         },
         tools: [{
           functionDeclarations: [{
-            name: "saveProject",
+            name: "guardar_documento",
             description: "Obligatorio usar esto para guardar un proyecto, actividad o planificación educativa en la base de datos.",
             parameters: {
               type: "OBJECT",
@@ -298,7 +298,7 @@ export default function Camila() {
 
               if (functionCalls.length > 0) {
                 for (const call of functionCalls) {
-                  if (call.name === 'saveProject') {
+                  if (call.name === 'guardar_documento' || call.name === 'saveProject') {
                     const args = call.args;
                     
                     const tipo = args.tipo?.toLowerCase() || 'proyecto';
@@ -313,7 +313,7 @@ export default function Camila() {
 
                     // Guardar PPA o Planificación
                     if (tipo.includes('proyecto')) {
-                      addDoc(collection(db, 'proyectos_ppa'), {
+                      addDoc(collection(db, 'historial_proyectos'), {
                         teacher_id: teacherId, 
                         docenteId: teacherId,
                         gradoSeccion: 'Sugerido por Camila',
@@ -325,7 +325,7 @@ export default function Camila() {
                         createdAt: serverTimestamp()
                       }).catch(err => console.error(err));
                     } else {
-                      addDoc(collection(db, 'planificaciones_diarias'), {
+                      addDoc(collection(db, 'historial_planificaciones'), {
                         teacher_id: teacherId, 
                         docenteId: teacherId,
                         ppaId: 'camila-id',
@@ -538,7 +538,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
           const tipo = (parsedData.tipo || '').toLowerCase();
           
           if (tipo.includes('proyecto')) {
-            await addDoc(collection(db, 'proyectos_ppa'), {
+            await addDoc(collection(db, 'historial_proyectos'), {
               teacher_id: teacherId, 
               docenteId: teacherId,
               gradoSeccion: 'Generado por Camila',
@@ -550,7 +550,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
               createdAt: serverTimestamp()
             });
           } else if (tipo.includes('planificacion') || tipo.includes('plan')) {
-            await addDoc(collection(db, 'planificaciones_diarias'), {
+            await addDoc(collection(db, 'historial_planificaciones'), {
               teacher_id: teacherId, 
               docenteId: teacherId,
               ppaId: 'camila-direct',
