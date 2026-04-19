@@ -246,12 +246,12 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
 
       let rawText = response.text || '';
       
-      // Parse Secret JSON for Saving
-      const regex = /\[SAVE_START\]([\s\S]*?)\[SAVE_END\]/;
-      const match = rawText.match(regex);
+      // Parse Secret JSON for Saving - ISOLATED IN ITS OWN TRY/CATCH
+      try {
+        const regex = /\[SAVE_START\]([\s\S]*?)\[SAVE_END\]/;
+        const match = rawText.match(regex);
 
-      if (match) {
-        try {
+        if (match) {
           const jsonStr = match[1];
           const parsedData = JSON.parse(jsonStr);
           
@@ -264,11 +264,13 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
             contenido_completo: parsedData.contenido_completo || rawText.replace(regex, '').trim(),
             createdAt: serverTimestamp()
           });
-        } catch (jsonError) {
-          console.error("Error interpretando el JSON de Camila:", jsonError);
+          
+          rawText = rawText.replace(regex, '').trim();
         }
-        
-        rawText = rawText.replace(regex, '').trim();
+      } catch (jsonError) {
+        console.error("Error al interceptar o interpretar el JSON de Camila:", jsonError);
+        // We clean up the tags even if parsing failed, so the user doesn't see broken text
+        rawText = rawText.replace(/\[SAVE_START\]([\s\S]*?)\[SAVE_END\]/g, '').trim();
       }
 
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: rawText }]);
@@ -280,9 +282,9 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
          }
       });
 
-    } catch (error) {
-      console.error("Error comunicando con Camila:", error);
-      const errorMsg = 'Ups, tuve un error procesando tu solicitud. Por favor intenta de nuevo en unos momentos.';
+    } catch (error: any) {
+      console.error("Error de API:", error);
+      const errorMsg = `Ups, tuve un error procesando tu solicitud. Por favor intenta de nuevo en unos momentos.`;
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: errorMsg }]);
       speakText(errorMsg, () => {
         if (isLiveModeRef.current) setIsLiveMode(false);
