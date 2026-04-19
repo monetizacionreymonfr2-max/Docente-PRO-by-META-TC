@@ -7,7 +7,10 @@ import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio } from '
 import Markdown from 'react-markdown';
 
 // Initialize Gemini API
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+// Nota: Has proporcionado tu clave directamente. La hemos colocado aquí para que funcione ahora mismo.
+// Por seguridad en el futuro, es recomendable moverla a un archivo .env si despliegas fuera de AI Studio.
+const apiKey = 'AIzaSyBR2k22CAT-1q0ywdyZlgHj1jphap0-XHM';
+const ai = new GoogleGenAI({ apiKey: apiKey });
 
 interface Message {
   id: string;
@@ -236,7 +239,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
       historyContents.push({ role: 'user', parts: [{ text: userMsg }] });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
+        model: 'gemini-2.5-pro',
         contents: historyContents,
         config: {
           systemInstruction,
