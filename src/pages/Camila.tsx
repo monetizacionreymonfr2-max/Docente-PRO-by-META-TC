@@ -203,24 +203,24 @@ export default function Camila() {
 - Tu objetivo principal es ayudar a los profesores a crear materiales educativos de alta calidad.
 - OBLIGATORIO: Cuando el profesor te pida crear o generar un proyecto, una planificación diaria o cualquier documento largo, NO LO ESCRIBAS EN EL CHAT NI LO DIGAS TODO EN VOZ ALTA. Tienes estrictamente prohibido narrar todo el contenido.
 - Tienes que usar obligatoriamente la herramienta 'guardar_documento' pasándole TODOS los datos generados internamente. 
-- Después de usar la herramienta, confírmale al profesor por voz diciéndole únicamente: '¡Listo! He generado el documento completo y lo he guardado automáticamente en tu gestor de proyectos y planificaciones para que lo revises.'`
-        },
-        tools: [{
-          functionDeclarations: [{
-            name: "guardar_documento",
-            description: "Obligatorio usar esto para guardar un proyecto, actividad o planificación educativa en la base de datos.",
-            parameters: {
-              type: "OBJECT",
-              properties: {
-                tipo: { type: "STRING", description: "Debe ser 'proyecto' o 'planificacion'" },
-                titulo: { type: "STRING", description: "El título del proyecto o clase" },
-                resumen: { type: "STRING", description: "El diagnóstico o resumen de lo que trata" },
-                contenido_completo: { type: "STRING", description: "EL contenido largo y completo estructurado en fases o momentos. Todo el material para el profesor." }
-              },
-              required: ["tipo", "titulo", "resumen", "contenido_completo"]
-            }
+- Después de usar la herramienta, confírmale al profesor por voz diciéndole únicamente: '¡Listo! He generado el documento completo y lo he guardado automáticamente en tu gestor de proyectos y planificaciones para que lo revises.'`,
+          tools: [{
+            functionDeclarations: [{
+              name: "guardar_documento",
+              description: "Obligatorio usar esto para guardar un proyecto, actividad o planificación educativa en la base de datos.",
+              parameters: {
+                type: Type.OBJECT,
+                properties: {
+                  tipo: { type: Type.STRING, description: "Debe ser 'proyecto' o 'planificacion'" },
+                  titulo: { type: Type.STRING, description: "El título del proyecto o clase" },
+                  resumen: { type: Type.STRING, description: "El diagnóstico o resumen de lo que trata" },
+                  contenido_completo: { type: Type.STRING, description: "EL contenido largo y completo estructurado en fases o momentos. Todo el material para el profesor." }
+                },
+                required: ["tipo", "titulo", "resumen", "contenido_completo"]
+              }
+            }]
           }]
-        }],
+        },
         callbacks: {
           onmessage: (message: any) => {
             try {
@@ -313,7 +313,7 @@ export default function Camila() {
 
                     // Guardar PPA o Planificación
                     if (tipo.includes('proyecto')) {
-                      addDoc(collection(db, 'historial_proyectos'), {
+                      addDoc(collection(db, 'proyectos_ppa'), {
                         teacher_id: teacherId, 
                         docenteId: teacherId,
                         gradoSeccion: 'Sugerido por Camila',
@@ -325,7 +325,7 @@ export default function Camila() {
                         createdAt: serverTimestamp()
                       }).catch(err => console.error(err));
                     } else {
-                      addDoc(collection(db, 'historial_planificaciones'), {
+                      addDoc(collection(db, 'planificaciones_diarias'), {
                         teacher_id: teacherId, 
                         docenteId: teacherId,
                         ppaId: 'camila-id',
@@ -538,7 +538,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
           const tipo = (parsedData.tipo || '').toLowerCase();
           
           if (tipo.includes('proyecto')) {
-            await addDoc(collection(db, 'historial_proyectos'), {
+            await addDoc(collection(db, 'proyectos_ppa'), {
               teacher_id: teacherId, 
               docenteId: teacherId,
               gradoSeccion: 'Generado por Camila',
@@ -550,7 +550,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
               createdAt: serverTimestamp()
             });
           } else if (tipo.includes('planificacion') || tipo.includes('plan')) {
-            await addDoc(collection(db, 'historial_planificaciones'), {
+            await addDoc(collection(db, 'planificaciones_diarias'), {
               teacher_id: teacherId, 
               docenteId: teacherId,
               ppaId: 'camila-direct',
