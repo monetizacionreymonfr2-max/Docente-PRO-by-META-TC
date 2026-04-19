@@ -599,7 +599,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
   };
 
   return (
-    <div className="max-w-5xl mx-auto h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] flex flex-col bg-white rounded-2xl sm:rounded-3xl shadow-xl shadow-amber-900/5 border border-amber-100/60 overflow-hidden">
+    <div className="max-w-5xl mx-auto flex flex-col bg-white sm:rounded-3xl shadow-xl shadow-amber-900/5 sm:border border-amber-100/60 overflow-hidden relative" style={{ height: 'calc(100dvh - 100px)', minHeight: '500px' }}>
       {/* Header */}
       <div className="bg-gradient-to-r from-amber-600 to-yellow-600 px-6 py-4 flex items-center justify-between shadow-md z-10 relative">
         <div className="flex items-center gap-4">
@@ -700,24 +700,24 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
         <div className="flex flex-col gap-3 max-w-4xl mx-auto">
           
           {/* Live Voice Mode Toggle */}
-          <div className="flex justify-center transition-all">
+          <div className="flex justify-center transition-opacity">
             <button
               type="button"
               onClick={toggleLiveMode}
-              className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-bold shadow-md transition-all transform active:scale-95 ${
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-bold shadow-md transform active:scale-95 ${
                 isLiveMode 
-                  ? 'bg-red-500 text-white animate-pulse shadow-red-500/30 ring-2 ring-red-400 ring-offset-2' 
+                  ? 'bg-red-600 text-white shadow-red-500/30' 
                   : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
               }`}
             >
               {isLiveMode ? (
                 <>
-                  <Radio className="w-5 h-5 animate-bounce" />
+                  <Radio className="w-5 h-5 mr-1" />
                   Modo en Vivo (Escuchando...)
                 </>
               ) : (
                 <>
-                  <Mic className="w-5 h-5" />
+                  <Mic className="w-5 h-5 mr-1" />
                   Hablar en Vivo
                 </>
               )}
@@ -730,9 +730,9 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
               type="button"
               onClick={handleSingleListen}
               disabled={isLiveMode || isLoading}
-              className={`p-3 sm:p-4 rounded-full transition-colors flex shrink-0 items-center justify-center shadow-sm ${
+              className={`p-3 sm:p-4 rounded-full flex shrink-0 items-center justify-center shadow-sm ${
                 isListening && !isLiveMode 
-                  ? 'bg-red-100 text-red-600 animate-pulse' 
+                  ? 'bg-red-100 text-red-600' 
                   : 'bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-600 disabled:opacity-50'
               }`}
               title="Escuchar por micrófono (1 mensaje)"
