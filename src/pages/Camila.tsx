@@ -201,6 +201,23 @@ export default function Camila() {
                 nextPlaybackTimeRef.current = 0;
               }
 
+              // 1. Manejo seguro de TEXTO (Prevención de Pantalla Blanca)
+              const textParts = message.serverContent?.modelTurn?.parts?.filter((p: any) => p.text).map((p: any) => p.text) || [];
+              if (textParts.length > 0) {
+                 const incomingText = textParts.join('');
+                 setMessages((prev) => {
+                    const lastMsg = prev[prev.length - 1];
+                    if (lastMsg && lastMsg.role === 'model' && lastMsg.id.startsWith('live-model-')) {
+                       const updated = [...prev];
+                       updated[updated.length - 1] = { ...lastMsg, text: lastMsg.text + incomingText };
+                       return updated;
+                    } else {
+                       return [...prev, { id: 'live-model-' + Date.now(), role: 'model', text: incomingText }];
+                    }
+                 });
+              }
+
+              // 2. Manejo seguro de AUDIO
               if (message.serverContent?.modelTurn?.parts) {
                 message.serverContent.modelTurn.parts.forEach((part: any) => {
                   if (part.inlineData && part.inlineData.data && actx) {
@@ -515,10 +532,12 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
                       : 'bg-white border border-amber-100/50 text-gray-800 rounded-tl-sm shadow-md'}`}
                 >
                   {message.role === 'user' ? (
-                     <p className="whitespace-pre-wrap">{message.text}</p>
+                     <p className="whitespace-pre-wrap">{typeof message.text === 'string' ? message.text : ""}</p>
                   ) : (
                      <div className="markdown-body text-sm sm:text-base prose prose-amber max-w-none prose-headings:text-amber-900 prose-a:text-amber-600">
-                       <Markdown>{message.text}</Markdown>
+                       {message.text && typeof message.text === 'string' ? (
+                         <Markdown>{message.text}</Markdown>
+                       ) : null}
                      </div>
                   )}
                 </div>
