@@ -243,7 +243,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
       historyContents.push({ role: 'user', parts: [{ text: userMsg }] });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-1.5-pro',
+        model: 'gemini-1.5-flash',
         contents: historyContents,
         config: {
           systemInstruction,
@@ -290,10 +290,14 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
       });
 
     } catch (error: any) {
-      console.error("Error de API:", error);
-      const errorMsg = `Ups, tuve un error procesando tu solicitud. Por favor intenta de nuevo en unos momentos.`;
+      console.error("Error de API detallado:", error);
+      
+      // ¡TRUCO DE DEPURACIÓN! Mostraremos el error exacto en la burbuja de chat para que sepamos qué falla:
+      const msjErrorApi = error?.message || error?.statusText || JSON.stringify(error) || "Error desconocido";
+      const errorMsg = `**Ups, tuve un error de conexión.**\nEl sistema me devolvió este mensaje:\n\`${msjErrorApi}\`\n\nPor favor, verifica el modelo o tu API Key.`;
+      
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: errorMsg }]);
-      speakText(errorMsg, () => {
+      speakText("Ups, tuve un error de conexión, verifica el mensaje en pantalla.", () => {
         if (isLiveModeRef.current) setIsLiveMode(false);
       });
     } finally {
