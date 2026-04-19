@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Type } from '@google/genai';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio } from 'lucide-react';
@@ -43,6 +43,7 @@ export default function Camila() {
   const streamRef = useRef<MediaStream | null>(null);
   const scriptNodeRef = useRef<ScriptProcessorNode | null>(null);
   const nextPlaybackTimeRef = useRef<number>(0);
+  const audioQueueRef = useRef<AudioBufferSourceNode[]>([]);
 
   // Use refs for closures inside event listeners
   const isLiveModeRef = useRef(isLiveMode);
@@ -201,8 +202,25 @@ export default function Camila() {
 - Sobre la franquicia: Si preguntan, menciona que la marca principal es META TC, nombrada así en honor a los dos hijos de nuestro creador (La 'T' por Tyrone y la 'C' por Camila).
 - Privacidad: Si preguntan detalles muy personales de Reymon, sé amable pero redirige la conversación a cómo puedes ayudarlos con las herramientas de Docente PRO.
 2. FUNCIONES PEDAGÓGICAS (DOCENTE PRO):
-- Tu objetivo principal es ayudar a los profesores a crear materiales educativos de alta calidad.`
+- Tu objetivo principal es ayudar a los profesores a crear materiales educativos de alta calidad.
+Cuando el profesor te pida crear o generar un proyecto o planificación, DEBES ejecutar la herramienta 'saveProject' pasándole todos los datos. Luego, dile al profesor por voz: '¡Listo! Ya he generado tu proyecto y lo he guardado en tu historial'.`
         },
+        tools: [{
+          functionDeclarations: [{
+            name: "saveProject",
+            description: "Guarda un proyecto educativo o planificación diaria directamente en la base de datos de Docente PRO de forma silenciosa.",
+            parameters: {
+              type: Type.OBJECT,
+              properties: {
+                tipo: { type: Type.STRING, description: "'proyecto_educativo' o 'planificacion_diaria'" },
+                titulo: { type: Type.STRING },
+                resumen: { type: Type.STRING },
+                contenido_completo: { type: Type.STRING, description: "El texto completo y detallado del proyecto." }
+              },
+              required: ["tipo", "titulo", "resumen", "contenido_completo"]
+            }
+          }]
+        }],
         callbacks: {
           onmessage: (message: any) => {
             try {
@@ -215,16 +233,23 @@ export default function Camila() {
               const textParts = message.serverContent?.modelTurn?.parts?.filter((p: any) => p.text).map((p: any) => p.text) || [];
               if (textParts.length > 0) {
                  const incomingText = textParts.join('');
-                 setMessages((prev) => {
-                    const lastMsg = prev[prev.length - 1];
-                    if (lastMsg && lastMsg.role === 'model' && lastMsg.id.startsWith('live-model-')) {
-                       const updated = [...prev];
-                       updated[updated.length - 1] = { ...lastMsg, text: lastMsg.text + incomingText };
-                       return updated;
-                    } else {
-                       return [...prev, { id: 'live-model-' + Date.now(), role: 'model', text: incomingText }];
-                    }
-                 });
+                 if (typeof incomingText === 'string') {
+                   setMessages((prev) => {
+                      try {
+                        const lastMsg = prev[prev.length - 1];
+                        if (lastMsg && lastMsg.role === 'model' && lastMsg.id.startsWith('live-model-')) {
+                           const updated = [...prev];
+                           updated[updated.length - 1] = { ...lastMsg, text: lastMsg.text + incomingText };
+                           return updated;
+                        } else {
+                           return [...prev, { id: 'live-model-' + Date.now(), role: 'model', text: incomingText }];
+                        }
+                      } catch(e) {
+                         console.error("Error setting messages:", e);
+                         return prev;
+                      }
+                   });
+                 }
               }
 
               // 2. Manejo seguro de AUDIO
@@ -251,12 +276,50 @@ export default function Camila() {
                     source.buffer = audioBuffer;
                     source.connect(actx.destination);
                     
+                    source.onended = () => {
+                      audioQueueRef.current = audioQueueRef.current.filter(n => n !== source);
+                    };
+                    audioQueueRef.current.push(source);
+                    
                     // SCHEDULE FIX: Agendar los audios para que suenen unidos y sin pisarse.
                     const scheduledTime = Math.max(actx.currentTime, nextPlaybackTimeRef.current || 0);
                     source.start(scheduledTime);
                     nextPlaybackTimeRef.current = scheduledTime + audioBuffer.duration;
                   }
                 });
+              }
+
+              // 3. Interceptar llamadas a herramientas (Guardar Proyectos)
+              if (message.toolCall) {
+                const functionCalls = message.toolCall.functionCalls;
+                if (functionCalls) {
+                  for (const call of functionCalls) {
+                    if (call.name === 'saveProject') {
+                      const args = call.args;
+                      addDoc(collection(db, 'historial_proyectos'), {
+                        teacher_id: teacherId, 
+                        docenteId: teacherId,
+                        tipo: args.tipo || 'general',
+                        titulo: args.titulo || 'Sin Título',
+                        resumen: args.resumen || '',
+                        contenido_completo: args.contenido_completo || '',
+                        createdAt: serverTimestamp()
+                      }).catch((err: any) => console.error("Error saving doc in live config:", err));
+                      
+                      if (liveClientRef.current) {
+                        try {
+                          liveClientRef.current.sendToolResponse({
+                            functionResponses: [{
+                              id: call.id,
+                              name: call.name,
+                              response: { result: 'ok', success: true }
+                            }]
+                          });
+                        } catch(e) {}
+                      }
+                    }
+                  }
+                }
               }
             } catch (e) {
               console.error("Error reproduciendo audio recibido:", e);
@@ -326,6 +389,16 @@ export default function Camila() {
   const stopLiveAPI = () => {
     setIsLiveMode(false);
     
+    // Stop and clear audio queue
+    audioQueueRef.current.forEach(node => {
+      try { node.stop(); } catch(e){}
+    });
+    audioQueueRef.current = [];
+    
+    if (audioContextRef.current) {
+      try { audioContextRef.current.suspend(); } catch(e){}
+    }
+
     if (liveClientRef.current) {
       try { liveClientRef.current.close(); } catch(e){}
       liveClientRef.current = null;
