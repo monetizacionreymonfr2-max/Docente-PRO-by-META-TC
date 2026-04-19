@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { GoogleGenAI } from '@google/genai';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Bot, User, Send, Loader2, Volume2, VolumeX, History } from 'lucide-react';
+import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio } from 'lucide-react';
 import Markdown from 'react-markdown';
 
 // Initialize Gemini API
@@ -23,7 +23,19 @@ export default function Camila() {
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isLiveMode, setIsLiveMode] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const isSingleListenRef = useRef(false);
+
+  // Use refs for closures inside event listeners
+  const isLiveModeRef = useRef(isLiveMode);
+  const isLoadingRef = useRef(isLoading);
+  
+  useEffect(() => { isLiveModeRef.current = isLiveMode; }, [isLiveMode]);
+  useEffect(() => { isLoadingRef.current = isLoading; }, [isLoading]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -33,19 +45,114 @@ export default function Camila() {
     scrollToBottom();
   }, [messages]);
 
-  const speakText = (text: string) => {
+  // Handle Speech Recognition setup
+  useEffect(() => {
+    const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognitionAPI) {
+      const recognition = new SpeechRecognitionAPI();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'es-ES';
+
+      recognition.onstart = () => {
+        setIsListening(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setInput(transcript);
+        sendMessageRef.current(transcript);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        setIsListening(false);
+        // Retry logic for loop mode
+        if (event.error === 'no-speech' && isLiveModeRef.current && !isLoadingRef.current) {
+           setTimeout(() => {
+             if (isLiveModeRef.current && !isLoadingRef.current) {
+               startListeningRef.current();
+             }
+           }, 100);
+        } else if (event.error !== 'no-speech') {
+           setIsLiveMode(false);
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        if (isSingleListenRef.current) {
+          isSingleListenRef.current = false;
+        } else if (isLiveModeRef.current && !isLoadingRef.current) {
+          // Restart loop if in live mode and not loading
+          setTimeout(() => {
+             if (isLiveModeRef.current && !isLoadingRef.current) {
+                startListeningRef.current();
+             }
+          }, 100);
+        }
+      };
+
+      recognitionRef.current = recognition;
+    }
+    
+    return () => {
+       if (recognitionRef.current) {
+          recognitionRef.current.abort();
+       }
+       if ('speechSynthesis' in window) {
+          window.speechSynthesis.cancel();
+       }
+    };
+  }, []);
+
+  const startListening = () => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.start();
+      } catch (e) {
+        // Ignored if already started
+      }
+    } else {
+      alert("Tu navegador no soporta reconocimiento de voz.");
+    }
+  };
+  const startListeningRef = useRef(startListening);
+  useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+  };
+
+  const speakText = (text: string, onEndCallback?: () => void) => {
     if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel(); // Stop any ongoing speech
-      const utterance = new SpeechSynthesisUtterance(text);
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+
+      // Clean up text for better dictation (remove json parts, markdown)
+      let cleanText = text.replace(/\[SAVE_START\][\s\S]*?\[SAVE_END\]/g, '').trim();
+      cleanText = cleanText.replace(/[*#_]+/g, '').replace(/\[.*?\]\(.*?\)/g, '');
+
+      const utterance = new SpeechSynthesisUtterance(cleanText);
       utterance.lang = 'es-ES';
       utterance.rate = 1.0;
       utterance.pitch = 1.0;
       
       utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      utterance.onerror = () => setIsSpeaking(false);
+      utterance.onend = () => {
+        setIsSpeaking(false);
+        if (onEndCallback) onEndCallback();
+      };
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+        if (onEndCallback) onEndCallback();
+      };
 
       window.speechSynthesis.speak(utterance);
+    } else {
+      if (onEndCallback) onEndCallback();
     }
   };
 
@@ -56,14 +163,41 @@ export default function Camila() {
     }
   };
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || !teacherId || isLoading) return;
+  const toggleLiveMode = () => {
+    if (isLiveMode) {
+      setIsLiveMode(false);
+      stopListening();
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+    } else {
+      setIsLiveMode(true);
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      startListening();
+    }
+  };
 
-    const userMsg = input.trim();
+  const handleSingleListen = () => {
+    if (isLiveMode) return;
+    if (isListening) {
+      stopListening();
+      isSingleListenRef.current = false;
+    } else {
+      isSingleListenRef.current = true;
+      startListening();
+    }
+  };
+
+  const handleSend = async (userMsg: string) => {
+    if (!userMsg.trim() || !teacherId || isLoadingRef.current) return;
+
     setInput('');
     setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', text: userMsg }]);
     setIsLoading(true);
+
+    if (recognitionRef.current && isListening) {
+      stopListening();
+    }
 
     try {
       const systemInstruction = `Tú eres Camila, la asistente virtual y pedagógica avanzada de la plataforma DOCENTE PRO. Debes seguir estas directrices estrictas:
@@ -90,7 +224,8 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
 }
 [SAVE_END]`;
 
-      // Build context history
+      // Build context history based on current states
+      // Avoid Welcome message to prevent bloat if needed, but it helps context
       const historyContents = messages
         .filter(m => m.id !== 'welcome')
         .map(m => ({
@@ -101,7 +236,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
       historyContents.push({ role: 'user', parts: [{ text: userMsg }] });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview', // Available testing model via GoogleGenAI SDK format mappings.
+        model: 'gemini-3.1-pro-preview',
         contents: historyContents,
         config: {
           systemInstruction,
@@ -111,7 +246,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
 
       let rawText = response.text || '';
       
-      // 2. LÓGICA DE GUARDADO EN HISTORIAL (Regex Parsing)
+      // Parse Secret JSON for Saving
       const regex = /\[SAVE_START\]([\s\S]*?)\[SAVE_END\]/;
       const match = rawText.match(regex);
 
@@ -120,53 +255,65 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
           const jsonStr = match[1];
           const parsedData = JSON.parse(jsonStr);
           
-          // Guardar el bloque JSON en Firebase respetando el Aislamiento
           await addDoc(collection(db, 'historial_proyectos'), {
             teacher_id: teacherId, 
-            docenteId: teacherId, // Compatibilidad heredada
+            docenteId: teacherId,
             tipo: parsedData.tipo || 'general',
             titulo: parsedData.titulo || 'Sin Título',
             resumen: parsedData.resumen || '',
             contenido_completo: parsedData.contenido_completo || rawText.replace(regex, '').trim(),
             createdAt: serverTimestamp()
           });
-          
-          console.log("¡Proyecto de IA guardado en historial_proyectos de Firebase exitosamente!");
         } catch (jsonError) {
           console.error("Error interpretando el JSON de Camila:", jsonError);
         }
         
-        // Remove the block from the message displayed to the user
         rawText = rawText.replace(regex, '').trim();
       }
 
       setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: rawText }]);
       
-      // 3. SÍNTESIS DE VOZ (Web Speech API)
-      speakText(rawText);
+      // Synthesis & Loop Reactivation
+      speakText(rawText, () => {
+         if (isLiveModeRef.current) {
+            startListeningRef.current();
+         }
+      });
 
     } catch (error) {
       console.error("Error comunicando con Camila:", error);
-      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: 'Ups, tuve un error procesando tu solicitud. Por favor intenta de nuevo en unos momentos.' }]);
+      const errorMsg = 'Ups, tuve un error procesando tu solicitud. Por favor intenta de nuevo en unos momentos.';
+      setMessages(prev => [...prev, { id: Date.now().toString(), role: 'model', text: errorMsg }]);
+      speakText(errorMsg, () => {
+        if (isLiveModeRef.current) setIsLiveMode(false);
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
+  const sendMessageRef = useRef(handleSend);
+  useEffect(() => { sendMessageRef.current = handleSend; }, [messages, teacherId]);
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    sendMessageRef.current(input);
+  };
+
   return (
-    <div className="max-w-4xl mx-auto h-[calc(100vh-8rem)] flex flex-col bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <div className="max-w-5xl mx-auto h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] flex flex-col bg-white rounded-2xl sm:rounded-3xl shadow-xl shadow-amber-900/5 border border-amber-100/60 overflow-hidden">
       {/* Header */}
-      <div className="bg-blue-900 px-6 py-4 flex items-center justify-between shadow-md z-10 relative">
+      <div className="bg-gradient-to-r from-amber-600 to-yellow-600 px-6 py-4 flex items-center justify-between shadow-md z-10 relative">
         <div className="flex items-center gap-4">
-          <div className="bg-blue-800 p-2.5 rounded-full border border-blue-700/50 shadow-inner">
-            <Bot className="w-7 h-7 text-blue-200" />
+          <div className="bg-amber-100 p-2.5 rounded-full border-2 border-amber-300 shadow-inner">
+            <Bot className="w-7 h-7 text-amber-700" />
           </div>
           <div>
             <h1 className="text-xl font-bold text-white tracking-tight flex items-center gap-2">
               Camila
-              <span className="bg-blue-400 text-blue-950 text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wider uppercase">IA Pedagógica</span>
+              <span className="bg-yellow-200 text-yellow-900 text-[10px] font-bold px-2 py-0.5 rounded-full tracking-wider uppercase shadow-sm">IA Pedagógica</span>
             </h1>
-            <p className="text-blue-200 text-xs mt-0.5">Siempre lista para ayudarte a planificar.</p>
+            <p className="text-amber-100 text-xs mt-0.5 font-medium shadow-sm">Siempre lista para ayudarte a planificar.</p>
           </div>
         </div>
         
@@ -175,50 +322,50 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
             <button 
               onClick={toggleSpeech}
               title="Detener voz"
-              className="p-2 bg-red-500/20 hover:bg-red-500/30 text-red-100 rounded-full transition-colors animate-pulse"
+              className="p-2 bg-red-500/80 hover:bg-red-500 text-white rounded-full transition-colors animate-pulse shadow-md"
             >
               <VolumeX className="w-5 h-5" />
             </button>
           )}
           {!isSpeaking && 'speechSynthesis' in window && (
-             <div title="Voz habilitada" className="p-2 text-blue-300">
-               <Volume2 className="w-5 h-5 opacity-50" />
+             <div title="Voz habilitada" className="p-2 text-amber-100">
+               <Volume2 className="w-5 h-5 opacity-80" />
              </div>
           )}
         </div>
       </div>
 
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-6 bg-slate-50 relative scroll-smooth">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-orange-50/30 relative scroll-smooth">
         <div className="space-y-6">
           {messages.map((message) => (
             <div 
               key={message.id} 
               className={`flex ${message.role === 'model' ? 'justify-start' : 'justify-end'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
             >
-              <div className={`flex gap-3 max-w-[85%] ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+              <div className={`flex gap-3 max-w-[90%] sm:max-w-[85%] ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
                 {/* Avatar */}
-                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow-sm mt-1
-                  ${message.role === 'model' ? 'bg-gradient-to-br from-blue-700 to-blue-900 border border-blue-600' : 'bg-gray-200 border border-gray-300'}`}
+                <div className={`flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-sm mt-1
+                  ${message.role === 'model' ? 'bg-gradient-to-br from-amber-500 to-yellow-600 border border-amber-400' : 'bg-gray-200 border border-gray-300'}`}
                 >
                   {message.role === 'model' ? (
-                    <Bot className="w-5 h-5 text-blue-100" />
+                    <Bot className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   ) : (
-                    <User className="w-5 h-5 text-gray-500" />
+                    <User className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" />
                   )}
                 </div>
                 
                 {/* Bubble */}
                 <div 
-                  className={`px-4 py-3 rounded-2xl shadow-sm text-sm sm:text-base leading-relaxed
+                  className={`px-4 py-3 sm:px-5 sm:py-4 rounded-2xl shadow-sm text-sm sm:text-base leading-relaxed
                     ${message.role === 'user' 
-                      ? 'bg-blue-600 text-white rounded-tr-sm' 
-                      : 'bg-white border border-gray-200 text-gray-800 rounded-tl-sm'}`}
+                      ? 'bg-amber-600 text-white rounded-tr-sm' 
+                      : 'bg-white border border-amber-100/50 text-gray-800 rounded-tl-sm shadow-md'}`}
                 >
                   {message.role === 'user' ? (
                      <p className="whitespace-pre-wrap">{message.text}</p>
                   ) : (
-                     <div className="markdown-body text-sm prose prose-blue max-w-none">
+                     <div className="markdown-body text-sm sm:text-base prose prose-amber max-w-none prose-headings:text-amber-900 prose-a:text-amber-600">
                        <Markdown>{message.text}</Markdown>
                      </div>
                   )}
@@ -226,17 +373,19 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
               </div>
             </div>
           ))}
+
+          {/* Loading Indicator */}
           {isLoading && (
-            <div className="flex justify-start animate-in fade-in">
+            <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2">
                <div className="flex gap-3 max-w-[85%] flex-row">
-                 <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center shadow-sm mt-1 bg-gradient-to-br from-blue-700 to-blue-900 border border-blue-600">
-                    <Bot className="w-5 h-5 text-blue-100" />
+                 <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-sm mt-1 bg-gradient-to-br from-amber-500 to-yellow-600 border border-amber-400">
+                    <Bot className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                  </div>
-                 <div className="px-5 py-4 rounded-2xl bg-white border border-gray-200 rounded-tl-sm shadow-sm flex items-center gap-2">
+                 <div className="px-5 py-4 rounded-2xl bg-white border border-amber-100/50 rounded-tl-sm shadow-md flex items-center gap-2">
                    <div className="flex space-x-1.5">
-                     <div className="w-2 h-2 rounded-full bg-blue-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                     <div className="w-2 h-2 rounded-full bg-blue-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-                     <div className="w-2 h-2 rounded-full bg-blue-600 animate-bounce" style={{ animationDelay: '300ms' }} />
+                     <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                     <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                     <div className="w-2.5 h-2.5 rounded-full bg-amber-600 animate-bounce" style={{ animationDelay: '300ms' }} />
                    </div>
                  </div>
                </div>
@@ -247,29 +396,81 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
       </div>
 
       {/* Input Area */}
-      <div className="p-4 bg-white border-t border-gray-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] relative z-10">
-        <form onSubmit={handleSend} className="flex gap-3 max-w-4xl mx-auto">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Pídele a Camila una planificación, proyecto o idea..."
-            className="flex-1 px-4 py-3 rounded-full border border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all text-sm sm:text-base bg-gray-50 focus:bg-white"
-            disabled={isLoading}
-          />
-          <button
-            type="submit"
-            disabled={!input.trim() || isLoading}
-            className="bg-blue-600 hover:bg-blue-700 text-white rounded-full p-3 md:px-6 md:py-3 transition-colors flex items-center justify-center gap-2 disabled:bg-gray-300 disabled:cursor-not-allowed shadow-md hover:shadow-lg active:scale-95"
-          >
-            <span className="hidden md:inline font-medium">Enviar</span>
-            <Send className="w-5 h-5" />
-          </button>
-        </form>
-        <p className="text-center text-xs text-gray-400 mt-2 font-medium">
-          Camila puede cometer errores. Verifica la información antes de utilizarla en el aula.
-        </p>
+      <div className="p-4 bg-white border-t border-amber-100 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.05)] relative z-10 rounded-b-2xl sm:rounded-b-3xl">
+        <div className="flex flex-col gap-3 max-w-4xl mx-auto">
+          
+          {/* Live Voice Mode Toggle */}
+          <div className="flex justify-center transition-all">
+            <button
+              type="button"
+              onClick={toggleLiveMode}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-bold shadow-md transition-all transform active:scale-95 ${
+                isLiveMode 
+                  ? 'bg-red-500 text-white animate-pulse shadow-red-500/30 ring-2 ring-red-400 ring-offset-2' 
+                  : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200'
+              }`}
+            >
+              {isLiveMode ? (
+                <>
+                  <Radio className="w-5 h-5 animate-bounce" />
+                  Modo en Vivo (Escuchando...)
+                </>
+              ) : (
+                <>
+                  <Mic className="w-5 h-5" />
+                  Hablar en Vivo
+                </>
+              )}
+            </button>
+          </div>
+
+          <form onSubmit={handleFormSubmit} className="flex gap-2 relative items-end sm:items-center">
+            {/* Single Mic Listen */}
+            <button
+              type="button"
+              onClick={handleSingleListen}
+              disabled={isLiveMode || isLoading}
+              className={`p-3 sm:p-4 rounded-full transition-colors flex shrink-0 items-center justify-center shadow-sm ${
+                isListening && !isLiveMode 
+                  ? 'bg-red-100 text-red-600 animate-pulse' 
+                  : 'bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-600 disabled:opacity-50'
+              }`}
+              title="Escuchar por micrófono (1 mensaje)"
+            >
+              {isListening && !isLiveMode ? <MicOff className="w-5 h-5 sm:w-6 sm:h-6" /> : <Mic className="w-5 h-5 sm:w-6 sm:h-6" />}
+            </button>
+
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={isListening ? "Escuchando..." : "Pídele a Camila una planificación, idea o proyecto..."}
+              className="flex-1 px-5 py-3 sm:py-4 rounded-3xl border border-gray-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none transition-all text-sm sm:text-base bg-gray-50 focus:bg-white resize-none shadow-inner"
+              rows={1}
+              disabled={isLoading || isLiveMode}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  if (input.trim() && !isLoading) handleFormSubmit(e as any);
+                }
+              }}
+            />
+
+            <button
+              type="submit"
+              disabled={!input.trim() || isLoading}
+              className="bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-700 hover:to-yellow-600 text-white rounded-full p-3 sm:px-6 sm:py-4 transition-all flex shrink-0 items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg active:scale-95"
+            >
+              <span className="hidden sm:inline font-bold">Enviar</span>
+              <Send className="w-5 h-5 sm:w-6 sm:h-6" />
+            </button>
+          </form>
+
+          <p className="text-center text-xs text-gray-400 mt-1 font-medium bg-white/80 rounded-full px-4 py-1 mx-auto">
+            Camila procesa los audios y responde utilizando Modelos IA Avanzados.
+          </p>
+        </div>
       </div>
     </div>
   );
 }
+
