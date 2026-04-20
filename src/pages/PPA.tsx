@@ -157,7 +157,7 @@ Datos de entrada:
       console.log("Generando PPA con prompt:", prompt);
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3.1-pro-preview',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
           systemInstruction,
