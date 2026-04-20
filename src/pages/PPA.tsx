@@ -156,7 +156,7 @@ Datos de entrada:
       console.log("Generando PPA con prompt:", prompt);
 
       const response = await generateContentWithRetry({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.0-flash',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
           systemInstruction,
