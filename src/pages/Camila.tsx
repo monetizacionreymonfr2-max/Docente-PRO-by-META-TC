@@ -521,7 +521,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
       historyContents.push({ role: 'user', parts: [{ text: userMsg }] });
 
       const response = await generateContentWithRetry({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-3-flash-preview',
         contents: historyContents,
         config: {
           systemInstruction,

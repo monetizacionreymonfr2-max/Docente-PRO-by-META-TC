@@ -153,7 +153,7 @@ ${selectedPpa.contenido}`;
       }
 
       const response = await generateContentWithRetry({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-3-flash-preview',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
           systemInstruction,
