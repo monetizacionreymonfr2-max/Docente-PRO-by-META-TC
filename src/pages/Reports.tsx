@@ -336,7 +336,7 @@ Palabras clave: ${palabrasClave}`;
                   />
                   {errorMsg && (
                     <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-3">
-                      {errorMsg}
+                      <span>{errorMsg}</span>
                     </div>
                   )}
                   <button
@@ -346,9 +346,15 @@ Palabras clave: ${palabrasClave}`;
                     className="w-full bg-indigo-100 hover:bg-indigo-200 text-indigo-700 font-medium py-2.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
                     {isGenerating ? (
-                      <><Loader2 className="w-4 h-4 animate-spin" /> Generando...</>
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Generando...</span>
+                      </>
                     ) : (
-                      <><Sparkles className="w-4 h-4" /> Generar Observación con IA</>
+                      <>
+                        <Sparkles className="w-4 h-4" />
+                        <span>Generar Observación con IA</span>
+                      </>
                     )}
                   </button>
                 </div>
@@ -374,9 +380,15 @@ Palabras clave: ${palabrasClave}`;
                   className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 px-4 rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-md"
                 >
                   {isSaving ? (
-                    <><Loader2 className="w-5 h-5 animate-spin" /> Guardando...</>
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      <span>Guardando...</span>
+                    </>
                   ) : (
-                    <><Save className="w-5 h-5" /> Guardar Boletín</>
+                    <>
+                      <Save className="w-5 h-5" />
+                      <span>Guardar Boletín</span>
+                    </>
                   )}
                 </button>
               </div>

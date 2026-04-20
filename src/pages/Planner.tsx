@@ -350,7 +350,7 @@ ${selectedPpa.contenido}`;
               <div className="pt-2">
                 {errorMsg && (
                   <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-4">
-                    {errorMsg}
+                    <span>{errorMsg}</span>
                   </div>
                 )}
                 <button
@@ -361,12 +361,12 @@ ${selectedPpa.contenido}`;
                   {isGenerating ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Procesando Plan... (esto puede tardar unos segundos)
+                      <span>Procesando Plan... (esto puede tardar unos segundos)</span>
                     </>
                   ) : (
                     <>
                       <BookOpen className="w-5 h-5" />
-                      Generar Plan de Clase
+                      <span>Generar Plan de Clase</span>
                     </>
                   )}
                 </button>
