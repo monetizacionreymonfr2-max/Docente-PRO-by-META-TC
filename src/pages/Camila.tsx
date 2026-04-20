@@ -519,7 +519,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
       historyContents.push({ role: 'user', parts: [{ text: userMsg }] });
 
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
+        model: 'gemini-2.5-flash',
         contents: historyContents,
         config: {
           systemInstruction,
