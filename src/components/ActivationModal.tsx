@@ -127,7 +127,7 @@ export default function ActivationModal({ userId, email }: ActivationModalProps)
 
           <div className="mt-10 pt-8 border-t border-gray-100">
             <p className="text-center text-sm font-medium text-gray-900 mb-4">
-              por ahora la app es gratuita comunicarse con el Creador
+              Compra tu código PRO por $1
             </p>
             <a
               href="https://wa.me/584262953484"
