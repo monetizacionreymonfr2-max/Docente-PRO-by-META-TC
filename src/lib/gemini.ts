@@ -1,8 +1,22 @@
 import { GoogleGenAI, GenerateContentParameters } from '@google/genai';
 
-const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || 
-               (process as any).env?.GEMINI_API_KEY || 
-               '';
+const getApiKey = () => {
+  try {
+    if (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GEMINI_API_KEY) {
+      return (import.meta as any).env.VITE_GEMINI_API_KEY;
+    }
+  } catch (e) {}
+  
+  try {
+    if (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) {
+      return process.env.GEMINI_API_KEY;
+    }
+  } catch (e) {}
+
+  return '';
+};
+
+const apiKey = getApiKey();
 
 export const ai = new GoogleGenAI({ apiKey });
 
