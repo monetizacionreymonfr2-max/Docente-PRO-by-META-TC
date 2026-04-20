@@ -8,12 +8,13 @@ const getApiKey = () => {
   } catch (e) {}
   
   try {
-    if (typeof process !== 'undefined' && process.env?.GEMINI_API_KEY) {
-      return process.env.GEMINI_API_KEY;
-    }
+    // Vite replaces process.env.GEMINI_API_KEY statically. 
+    // Do NOT use typeof process check here, as it evaluates to false in the browser.
+    const key = (process as any).env?.GEMINI_API_KEY;
+    if (key) return key;
   } catch (e) {}
 
-  return '';
+  return 'AIzaSyBR2k22CAT-1q0ywdyZlgHj1jphap0-XHM';
 };
 
 const apiKey = getApiKey();
