@@ -2,12 +2,9 @@ import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { GoogleGenAI } from '@google/genai';
+import { generateContentWithRetry } from '../lib/gemini';
 import { FileBadge, Loader2, Sparkles, Printer, History, X, Save, Trash2 } from 'lucide-react';
 import LimitReachedModal from '../components/LimitReachedModal';
-
-// Initialize Gemini API
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 interface Student {
   id: string;
@@ -52,6 +49,7 @@ export default function Reports() {
   
   const [reports, setReports] = useState<Report[]>([]);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Fetch Students
   useEffect(() => {
@@ -110,7 +108,7 @@ export default function Reports() {
 
   const handleGenerateObservation = async () => {
     if (!palabrasClave.trim()) {
-      alert("Por favor, ingresa algunas palabras clave sobre el rendimiento del estudiante.");
+      setErrorMsg("Por favor, ingresa algunas palabras clave sobre el rendimiento del estudiante.");
       return;
     }
 
@@ -120,6 +118,7 @@ export default function Reports() {
       return;
     }
 
+    setErrorMsg(null);
     setIsGenerating(true);
     try {
       let prompt = '';
@@ -138,7 +137,7 @@ Estructura: Un párrafo formal, pedagógico y motivador (máximo 4 líneas). Res
 Palabras clave: ${palabrasClave}`;
       }
 
-      const response = await ai.models.generateContent({
+      const response = await generateContentWithRetry({
         model: 'gemini-3-flash-preview',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
@@ -157,7 +156,7 @@ Palabras clave: ${palabrasClave}`;
 
     } catch (error: any) {
       console.error("Error generating observation:", error);
-      alert(`Hubo un error al generar la observación: ${error.message || 'Error desconocido'}`);
+      setErrorMsg(`Hubo un error: ${error.message || 'Error desconocido'}`);
     } finally {
       setIsGenerating(false);
     }
@@ -165,7 +164,7 @@ Palabras clave: ${palabrasClave}`;
 
   const handleSaveReport = async () => {
     if (!selectedStudentId || !calificacion.trim() || !observacion.trim() || !teacherId) {
-      alert("Por favor, completa todos los campos (Estudiante, Calificación y Observación).");
+      setErrorMsg("Por favor, completa todos los campos (Estudiante, Calificación y Observación).");
       return;
     }
 
@@ -175,6 +174,7 @@ Palabras clave: ${palabrasClave}`;
       observacion: observacion.trim(),
     };
 
+    setErrorMsg(null);
     setIsSaving(true);
     try {
       const docRef = await addDoc(collection(db, 'boletines'), {
@@ -197,12 +197,11 @@ Palabras clave: ${palabrasClave}`;
         createdAt: new Date()
       });
       setActiveTab('history');
-      alert("Boletín guardado exitosamente.");
 
     } catch (error) {
       console.error("Error saving report:", error);
       handleFirestoreError(error, OperationType.CREATE, 'boletines');
-      alert("Hubo un error al guardar el boletín.");
+      setErrorMsg("Hubo un error al guardar el boletín.");
     } finally {
       setIsSaving(false);
     }
@@ -335,6 +334,11 @@ Palabras clave: ${palabrasClave}`;
                     onChange={(e) => setPalabrasClave(e.target.value)}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors mb-3"
                   />
+                  {errorMsg && (
+                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-3">
+                      {errorMsg}
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={handleGenerateObservation}

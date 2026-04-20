@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { GoogleGenAI, Type } from '@google/genai';
+import { generateContentWithRetry } from '../lib/gemini';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio, X, Sparkles } from 'lucide-react';
@@ -211,9 +212,10 @@ export function CamilaInner({ teacherId, isEmbedded, onClose }: { teacherId: str
 - Sobre tu creador: Si preguntan quién te creó o piden información del responsable, responde con orgullo: 'Mi creador y el de la plataforma es Reymon Castillo, un joven emprendedor nacido en el Estado Apure, Venezuela. Es un desarrollador y profesional enfocado en la tecnología, fundador de META TC, la empresa TMC Tecno Mundo Castillo y DOCENTE PRO.'
 2. FUNCIONES PEDAGÓGICAS (DOCENTE PRO):
 - Tu objetivo principal es ayudar a los profesores a crear materiales educativos de alta calidad.
-- OBLIGATORIO: Cuando el profesor te pida crear o generar un proyecto, una planificación diaria o cualquier documento largo, NO LO ESCRIBAS EN EL CHAT NI LO DIGAS TODO EN VOZ ALTA. Tienes estrictamente prohibido narrar todo el contenido.
-- Tienes que usar obligatoriamente la herramienta 'guardar_documento' pasándole TODOS los datos generados internamente. 
-- Después de usar la herramienta, confírmale al profesor por voz diciéndole únicamente: '¡Listo! He generado el documento completo y lo he guardado automáticamente en tu gestor de proyectos y planificaciones para que lo revises.'`,
+- OBLIGATORIO: Cuando el profesor te pida crear o generar un proyecto o planificación larga, NO la respondas en voz alta ni la narres porque sería interminable y molesto para el profesor.
+- En cambio, debes reflexionar internamente y crear el proyecto más extenso, estructurado, detallado y maravilloso que puedas generar. Y luego GUARDARLO MUDAMENTE enviándolo EXCLUSIVAMENTE a la herramienta 'guardar_documento' en la propiedad 'contenido_completo'.
+- Asegúrate de llenar 'contenido_completo' con docenas de líneas de planificación de aula, objetivos, métodos y evaluación profunda.
+- Después de usar la herramienta, confírmale al profesor de forma MUY breve y hablada: '¡Listo! He generado un proyecto largo y estructurado, y lo guardé en tu gestor para que lo leas.'`,
           tools: [{
             functionDeclarations: [{
               name: "guardar_documento",
@@ -224,7 +226,7 @@ export function CamilaInner({ teacherId, isEmbedded, onClose }: { teacherId: str
                   tipo: { type: Type.STRING, description: "Debe ser 'proyecto' o 'planificacion'" },
                   titulo: { type: Type.STRING, description: "El título del proyecto o clase" },
                   resumen: { type: Type.STRING, description: "El diagnóstico o resumen de lo que trata" },
-                  contenido_completo: { type: Type.STRING, description: "EL contenido largo y completo estructurado en fases o momentos. Todo el material para el profesor." }
+                  contenido_completo: { type: Type.STRING, description: "MUY IMPORTANTE: Todo el material inmenso y detallado. Estructura con Inicio, Desarrollo, Cierre, Objetivos, etc. Debes crear un documento MUY extenso aquí." }
                 },
                 required: ["tipo", "titulo", "resumen", "contenido_completo"]
               }
@@ -518,7 +520,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
       
       historyContents.push({ role: 'user', parts: [{ text: userMsg }] });
 
-      const response = await ai.models.generateContent({
+      const response = await generateContentWithRetry({
         model: 'gemini-2.5-flash',
         contents: historyContents,
         config: {

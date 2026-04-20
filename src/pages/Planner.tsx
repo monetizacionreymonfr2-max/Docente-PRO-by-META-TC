@@ -2,13 +2,10 @@ import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { GoogleGenAI } from '@google/genai';
+import { generateContentWithRetry } from '../lib/gemini';
 import { BookOpen, Loader2, FileText, Copy, Printer, X, History, Calendar, Trash2, Edit3, Save } from 'lucide-react';
 import Markdown from 'react-markdown';
 import LimitReachedModal from '../components/LimitReachedModal';
-
-// Initialize Gemini API
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 interface PPAProject {
   id: string;
@@ -40,6 +37,7 @@ export default function Planner() {
   const [ppas, setPpas] = useState<PPAProject[]>([]);
   const [dailyPlans, setDailyPlans] = useState<DailyPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<DailyPlan | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Edit State
   const [isEditing, setIsEditing] = useState(false);
@@ -103,7 +101,7 @@ export default function Planner() {
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPpaId || !fecha || !temaDia.trim() || !teacherId) {
-      alert("Por favor completa todos los campos.");
+      setErrorMsg("Por favor completa todos los campos.");
       return;
     }
 
@@ -116,6 +114,7 @@ export default function Planner() {
     const selectedPpa = ppas.find(p => p.id === selectedPpaId);
     if (!selectedPpa) return;
 
+    setErrorMsg(null);
     setIsGenerating(true);
     try {
       let prompt = '';
@@ -153,7 +152,7 @@ PROYECTO BASE:
 ${selectedPpa.contenido}`;
       }
 
-      const response = await ai.models.generateContent({
+      const response = await generateContentWithRetry({
         model: 'gemini-3-flash-preview',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
@@ -201,7 +200,7 @@ ${selectedPpa.contenido}`;
 
     } catch (error: any) {
       console.error("Error generating Daily Plan:", error);
-      alert(`Hubo un error al generar la planificación: ${error.message || 'Error desconocido'}`);
+      setErrorMsg(`Hubo un error: ${error.message || 'Error desconocido'}`);
     } finally {
       setIsGenerating(false);
     }
@@ -348,15 +347,21 @@ ${selectedPpa.contenido}`;
                   </div>
                 </div>
 
+              <div className="pt-2">
+                {errorMsg && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm mb-4">
+                    {errorMsg}
+                  </div>
+                )}
                 <button
                   type="submit"
                   disabled={isGenerating}
-                  className="w-full bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-medium py-3 px-4 rounded-xl transition-all transform hover:scale-[1.01] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none shadow-md mt-8"
+                  className="w-full bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-medium py-3 px-4 rounded-xl transition-all transform hover:scale-[1.01] flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none shadow-md"
                 >
                   {isGenerating ? (
                     <>
                       <Loader2 className="w-5 h-5 animate-spin" />
-                      Generando Plan de Clase... (por favor espera)
+                      Procesando Plan... (esto puede tardar unos segundos)
                     </>
                   ) : (
                     <>
@@ -365,6 +370,7 @@ ${selectedPpa.contenido}`;
                     </>
                   )}
                 </button>
+              </div>
               </form>
             )}
           </div>

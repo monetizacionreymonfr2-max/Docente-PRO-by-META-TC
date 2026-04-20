@@ -2,13 +2,10 @@ import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
-import { GoogleGenAI } from '@google/genai';
+import { generateContentWithRetry } from '../lib/gemini';
 import { Sparkles, Loader2, FileText, Copy, Printer, X, History, Trash2, Edit3, Save } from 'lucide-react';
 import Markdown from 'react-markdown';
 import LimitReachedModal from '../components/LimitReachedModal';
-
-// Initialize Gemini API
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
 
 interface PPAProject {
   id: string;
@@ -36,6 +33,7 @@ export default function PPA() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [projects, setProjects] = useState<PPAProject[]>([]);
   const [selectedProject, setSelectedProject] = useState<PPAProject | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // Edit State
   const [isEditing, setIsEditing] = useState(false);
@@ -69,7 +67,7 @@ export default function PPA() {
     e.preventDefault();
     
     if (!gradoSeccion.trim() || !tema.trim() || !duracion.trim() || !diagnostico.trim() || !teacherId) {
-      alert("Por favor completa todos los campos requeridos.");
+      setErrorMsg("Por favor completa todos los campos requeridos.");
       return;
     }
 
@@ -80,6 +78,7 @@ export default function PPA() {
     }
 
     setIsGenerating(true);
+    setErrorMsg(null);
     try {
       let prompt = '';
       const systemInstruction = "Eres un especialista en planificación educativa adaptado al sistema escolar de Venezuela. Tu objetivo es redactar Proyectos Pedagógicos de Aula (PPA) completos, profesionales y listos para imprimir. Usa un tono formal, pedagógico y enfocado en el aprendizaje significativo.";
@@ -156,7 +155,7 @@ Datos de entrada:
 
       console.log("Generando PPA con prompt:", prompt);
 
-      const response = await ai.models.generateContent({
+      const response = await generateContentWithRetry({
         model: 'gemini-3-flash-preview',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
@@ -210,7 +209,7 @@ Datos de entrada:
 
     } catch (error: any) {
       console.error("Error generating PPA:", error);
-      alert(`Hubo un error al generar el proyecto: ${error.message || 'Error desconocido'}`);
+      setErrorMsg(`Hubo un error: ${error.message || 'Error desconocido'}`);
     } finally {
       setIsGenerating(false);
     }
@@ -379,6 +378,12 @@ Datos de entrada:
                 />
               </div>
 
+              {errorMsg && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+                  {errorMsg}
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={isGenerating}
@@ -387,7 +392,7 @@ Datos de entrada:
                 {isGenerating ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    Generando Proyecto con IA... (por favor espera)
+                    Procesando Proyecto... (esto puede tardar unos segundos)
                   </>
                 ) : (
                   <>
