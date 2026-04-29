@@ -85,7 +85,7 @@ export default function Reports() {
 
     const q = query(
       collection(db, 'estudiantes'),
-      where('teacher_id', '==', teacherId),
+      where('docenteId', '==', teacherId),
       orderBy('nombre', 'asc')
     );
 
@@ -117,7 +117,7 @@ export default function Reports() {
 
     const q = query(
       collection(db, 'boletines'),
-      where('teacher_id', '==', teacherId),
+      where('docenteId', '==', teacherId),
       orderBy('createdAt', 'desc')
     );
 

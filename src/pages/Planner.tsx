@@ -38,6 +38,7 @@ export default function Planner() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [ppas, setPpas] = useState<PPAProject[]>([]);
   const [dailyPlans, setDailyPlans] = useState<DailyPlan[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true);
   const [selectedPlan, setSelectedPlan] = useState<DailyPlan | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -77,7 +78,7 @@ export default function Planner() {
 
     const q = query(
       collection(db, 'proyectos_ppa'),
-      where('teacher_id', '==', teacherId),
+      where('docenteId', '==', teacherId),
       orderBy('createdAt', 'desc')
     );
 
@@ -108,7 +109,7 @@ export default function Planner() {
 
     const q = query(
       collection(db, 'planificaciones_diarias'),
-      where('teacher_id', '==', teacherId),
+      where('docenteId', '==', teacherId),
       orderBy('fecha', 'desc')
     );
 
@@ -118,7 +119,9 @@ export default function Planner() {
         plansData.push({ id: doc.id, ...doc.data() } as DailyPlan);
       });
       setDailyPlans(plansData);
+      setIsHistoryLoading(false);
     }, (error) => {
+      setIsHistoryLoading(false);
       handleFirestoreError(error, OperationType.LIST, 'planificaciones_diarias');
     });
 
@@ -407,7 +410,12 @@ ${selectedPpa.contenido}`;
       {/* History Tab */}
       {activeTab === 'history' && !selectedPlan && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {dailyPlans.length === 0 ? (
+          {isHistoryLoading ? (
+             <div className="col-span-full py-20 text-center">
+               <Loader2 className="w-10 h-10 animate-spin text-teal-600 mx-auto mb-4" />
+               <p className="text-gray-500 font-medium">Buscando tus planificaciones...</p>
+             </div>
+          ) : dailyPlans.length === 0 ? (
             <div className="col-span-full bg-white rounded-xl p-8 text-center border border-gray-200">
               <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">No tienes planificaciones diarias generadas aún.</p>

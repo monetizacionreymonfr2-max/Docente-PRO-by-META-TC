@@ -34,6 +34,7 @@ export default function PPA() {
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [projects, setProjects] = useState<PPAProject[]>([]);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<PPAProject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -82,7 +83,7 @@ export default function PPA() {
 
     const q = query(
       collection(db, 'proyectos_ppa'),
-      where('teacher_id', '==', teacherId),
+      where('docenteId', '==', teacherId),
       orderBy('createdAt', 'desc')
     );
 
@@ -92,7 +93,9 @@ export default function PPA() {
         projectsData.push({ id: doc.id, ...doc.data() } as PPAProject);
       });
       setProjects(projectsData);
+      setIsInitialLoading(false);
     }, (error) => {
+      setIsInitialLoading(false);
       handleFirestoreError(error, OperationType.LIST, 'proyectos_ppa');
     });
 
@@ -445,7 +448,12 @@ Datos de entrada:
       {/* History Tab */}
       {activeTab === 'history' && !selectedProject && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {projects.length === 0 ? (
+          {isInitialLoading ? (
+             <div className="col-span-full py-20 text-center">
+               <Loader2 className="w-10 h-10 animate-spin text-blue-600 mx-auto mb-4" />
+               <p className="text-gray-500 font-medium">Buscando tus proyectos...</p>
+             </div>
+          ) : projects.length === 0 ? (
             <div className="col-span-full bg-white rounded-xl p-8 text-center border border-gray-200">
               <FileText className="w-12 h-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500">No tienes proyectos generados aún.</p>

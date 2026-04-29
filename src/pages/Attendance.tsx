@@ -38,7 +38,7 @@ export default function Attendance() {
     if (!teacherId) return;
     const q = query(
       collection(db, 'estudiantes'), 
-      where('teacher_id', '==', teacherId),
+      where('docenteId', '==', teacherId),
       orderBy('nombre', 'asc')
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -69,7 +69,7 @@ export default function Attendance() {
       try {
         const q = query(
           collection(db, 'asistencias'),
-          where('teacher_id', '==', teacherId),
+          where('docenteId', '==', teacherId),
           where('fecha', '==', selectedDate)
         );
         const snapshot = await getDocs(q);
@@ -99,7 +99,7 @@ export default function Attendance() {
 
         const q = query(
           collection(db, 'asistencias'),
-          where('teacher_id', '==', teacherId),
+          where('docenteId', '==', teacherId),
           where('fecha', '>=', startDate),
           where('fecha', '<=', endDate)
         );

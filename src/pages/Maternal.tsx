@@ -44,7 +44,7 @@ export default function Maternal() {
     if (!teacherId) return;
     const q = query(
       collection(db, 'estudiantes'), 
-      where('teacher_id', '==', teacherId), 
+      where('docenteId', '==', teacherId), 
       where('nivel', '==', 'Maternal')
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -63,7 +63,7 @@ export default function Maternal() {
     if (!teacherId || activeTab !== 'routine') return;
     const q = query(
       collection(db, 'bitacoras_maternal'), 
-      where('teacher_id', '==', teacherId),
+      where('docenteId', '==', teacherId),
       where('fecha', '==', selectedDate)
     );
     const unsubscribe = onSnapshot(q, (snapshot) => {

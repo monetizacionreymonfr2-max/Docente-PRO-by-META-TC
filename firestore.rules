@@ -27,10 +27,12 @@ service cloud.firestore {
       return isAuthenticated() && (
         (resource != null && (
           resource.data.docenteId == request.auth.uid || 
+          resource.data.teacher_id == request.auth.uid || 
           resource.data.uid == request.auth.uid
         )) ||
         (request.resource != null && (
           request.resource.data.docenteId == request.auth.uid || 
+          request.resource.data.teacher_id == request.auth.uid || 
           request.resource.data.uid == request.auth.uid
         ))
       );
