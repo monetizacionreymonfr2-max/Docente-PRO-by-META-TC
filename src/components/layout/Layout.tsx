@@ -16,7 +16,8 @@ import {
   Menu,
   X,
   ShieldAlert,
-  Sparkles
+  Sparkles,
+  MessageCircle
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -125,6 +126,18 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
               </Link>
             );
           })}
+          
+          {/* Botón de Compartir con un Colega (WhatsApp) */}
+          <button
+            onClick={() => {
+              const text = "¡Hola! Estoy usando Docente PRO, una plataforma increíble para docentes con IA. ¡Te la recomiendo! Visítala en: https://docentepro.com";
+              window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+            }}
+            className="flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left text-blue-100 hover:bg-green-600/20 hover:text-green-400 transition-colors mt-2 border border-blue-800/30 group"
+          >
+            <MessageCircle size={20} className="group-hover:scale-110 transition-transform" />
+            <span className="font-medium text-sm">Compartir con un Colega</span>
+          </button>
         </nav>
 
         {isGuest && (
