@@ -4,7 +4,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { generateContentWithRetry } from '../lib/gemini';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio, X, Sparkles } from 'lucide-react';
+import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio, X, Sparkles, MessageCircle } from 'lucide-react';
 import Markdown from 'react-markdown';
 
 // 1. Buscamos la variable en el formato de Vite (Vercel)
@@ -792,6 +792,26 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
 
 export default function Camila() {
   const context = useOutletContext<{ teacherId: string }>();
-  return <CamilaInner teacherId={context?.teacherId || 'invitado'} isEmbedded={false} />;
+
+  const handleShare = () => {
+    const text = "¡Hola! Estoy usando Docente PRO, una plataforma increíble para docentes con IA. ¡Te la recomiendo! Visítala en: https://docentepro.com";
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  return (
+    <div className="space-y-8 pb-16">
+      <CamilaInner teacherId={context?.teacherId || 'invitado'} isEmbedded={false} />
+      
+      <div className="flex justify-center">
+        <button
+          onClick={handleShare}
+          className="flex items-center gap-3 px-8 py-4 bg-[#25D366] hover:bg-[#20ba5c] text-white font-bold rounded-full shadow-xl transition-all transform hover:scale-105 active:scale-95 border-2 border-white/20"
+        >
+          <MessageCircle className="w-6 h-6 fill-white" />
+          Compartir con un Colega
+        </button>
+      </div>
+    </div>
+  );
 }
 
