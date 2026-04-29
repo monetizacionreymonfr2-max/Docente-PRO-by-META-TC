@@ -7,19 +7,31 @@ import { Calendar as CalendarIcon, Check, X, Loader2, Printer, BarChart3, Clipbo
 
 export default function Attendance() {
   const { isGuest, generationsCount, teacherId } = useOutletContext<{ isGuest: boolean, generationsCount: number, teacherId: string }>();
-  const [activeTab, setActiveTab] = useState<'daily' | 'monthly'>('daily');
+  const [activeTab, setActiveTab] = useState<'daily' | 'monthly'>(() => (localStorage.getItem('attendance_active_tab') as any) || 'daily');
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
+  useEffect(() => {
+    localStorage.setItem('attendance_active_tab', activeTab);
+  }, [activeTab]);
+  
   // Daily State
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(() => localStorage.getItem('attendance_selected_date') || new Date().toISOString().split('T')[0]);
   const [attendanceData, setAttendanceData] = useState<Record<string, boolean>>({});
   const [isSaving, setIsSaving] = useState(false);
 
+  useEffect(() => {
+    localStorage.setItem('attendance_selected_date', selectedDate);
+  }, [selectedDate]);
+
   // Monthly State
-  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [selectedMonth, setSelectedMonth] = useState(() => localStorage.getItem('attendance_selected_month') || new Date().toISOString().slice(0, 7));
   const [monthlyStats, setMonthlyStats] = useState<any>(null);
   const [isCalculating, setIsCalculating] = useState(false);
+
+  useEffect(() => {
+    localStorage.setItem('attendance_selected_month', selectedMonth);
+  }, [selectedMonth]);
 
   // Fetch Students
   useEffect(() => {

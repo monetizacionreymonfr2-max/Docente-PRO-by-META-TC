@@ -22,8 +22,12 @@ const MONTHS = [
 
 export default function Students() {
   const { isGuest, generationsCount, teacherId } = useOutletContext<{ isGuest: boolean, generationsCount: number, teacherId: string }>();
-  const [activeTab, setActiveTab] = useState<'list' | 'birthdays'>('list');
+  const [activeTab, setActiveTab] = useState<'list' | 'birthdays'>(() => (localStorage.getItem('students_active_tab') as any) || 'list');
   const [nombre, setNombre] = useState('');
+
+  useEffect(() => {
+    localStorage.setItem('students_active_tab', activeTab);
+  }, [activeTab]);
   const [apellidos, setApellidos] = useState('');
   const [gradoSeccion, setGradoSeccion] = useState('');
   const [nivel, setNivel] = useState<'Primaria' | 'Maternal' | 'Preescolar' | 'Media'>('Primaria');

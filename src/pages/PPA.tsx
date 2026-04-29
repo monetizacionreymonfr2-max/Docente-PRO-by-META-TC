@@ -20,20 +20,56 @@ interface PPAProject {
 
 export default function PPA() {
   const { isGuest, generationsCount, teacherId } = useOutletContext<{ isGuest: boolean, generationsCount: number, teacherId: string }>();
-  const [activeTab, setActiveTab] = useState<'generate' | 'history'>('generate');
+  const [activeTab, setActiveTab] = useState<'generate' | 'history'>(() => {
+    return (localStorage.getItem('ppa_active_tab') as 'generate' | 'history') || 'generate';
+  });
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   
   // Form State
-  const [gradoSeccion, setGradoSeccion] = useState('');
-  const [nivel, setNivel] = useState<'Primaria' | 'Maternal' | 'Preescolar' | 'Media'>('Primaria');
-  const [tema, setTema] = useState('');
-  const [duracion, setDuracion] = useState('');
-  const [diagnostico, setDiagnostico] = useState('');
+  const [gradoSeccion, setGradoSeccion] = useState(() => localStorage.getItem('ppa_form_grado') || '');
+  const [nivel, setNivel] = useState<'Primaria' | 'Maternal' | 'Preescolar' | 'Media'>(() => (localStorage.getItem('ppa_form_nivel') as any) || 'Primaria');
+  const [tema, setTema] = useState(() => localStorage.getItem('ppa_form_tema') || '');
+  const [duracion, setDuracion] = useState(() => localStorage.getItem('ppa_form_duracion') || '');
+  const [diagnostico, setDiagnostico] = useState(() => localStorage.getItem('ppa_form_diagnostico') || '');
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [projects, setProjects] = useState<PPAProject[]>([]);
   const [selectedProject, setSelectedProject] = useState<PPAProject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Sync Form to LocalStorage
+  useEffect(() => {
+    localStorage.setItem('ppa_active_tab', activeTab);
+  }, [activeTab]);
+
+  useEffect(() => {
+    localStorage.setItem('ppa_form_grado', gradoSeccion);
+    localStorage.setItem('ppa_form_nivel', nivel);
+    localStorage.setItem('ppa_form_tema', tema);
+    localStorage.setItem('ppa_form_duracion', duracion);
+    localStorage.setItem('ppa_form_diagnostico', diagnostico);
+  }, [gradoSeccion, nivel, tema, duracion, diagnostico]);
+
+  // Persist selected project ID
+  useEffect(() => {
+    if (selectedProject) {
+      localStorage.setItem('ppa_selected_id', selectedProject.id);
+    } else if (activeTab === 'generate') {
+       // if we are in generate and just cleared, maybe keep it? 
+       // but if we switch to history and don't select anything, clear it.
+    }
+  }, [selectedProject, activeTab]);
+
+  // Auto-select project from ID on history load
+  useEffect(() => {
+    const savedId = localStorage.getItem('ppa_selected_id');
+    if (savedId && projects.length > 0 && !selectedProject) {
+      const found = projects.find(p => p.id === savedId);
+      if (found) {
+        setSelectedProject(found);
+      }
+    }
+  }, [projects, selectedProject]);
 
   // Edit State
   const [isEditing, setIsEditing] = useState(false);
@@ -462,7 +498,10 @@ Datos de entrada:
           {/* Header Actions */}
           <div className="bg-gray-50 border-b border-gray-200 p-4 flex flex-wrap justify-between items-center gap-4 no-print">
             <button 
-              onClick={() => setSelectedProject(null)}
+              onClick={() => {
+                setSelectedProject(null);
+                localStorage.removeItem('ppa_selected_id');
+              }}
               className="text-gray-500 hover:text-gray-700 flex items-center gap-1 font-medium text-sm"
             >
               <X className="w-4 h-4" />

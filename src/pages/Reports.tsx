@@ -34,15 +34,17 @@ const calculateAge = (birthDateString: string) => {
 
 export default function Reports() {
   const { isGuest, generationsCount, teacherId } = useOutletContext<{ isGuest: boolean, generationsCount: number, teacherId: string }>();
-  const [activeTab, setActiveTab] = useState<'generate' | 'history'>('generate');
+  const [activeTab, setActiveTab] = useState<'generate' | 'history'>(() => {
+    return (localStorage.getItem('reports_active_tab') as 'generate' | 'history') || 'generate';
+  });
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   
   // Form State
   const [students, setStudents] = useState<Student[]>([]);
-  const [selectedStudentId, setSelectedStudentId] = useState('');
-  const [calificacion, setCalificacion] = useState('');
-  const [palabrasClave, setPalabrasClave] = useState('');
-  const [observacion, setObservacion] = useState('');
+  const [selectedStudentId, setSelectedStudentId] = useState(() => localStorage.getItem('reports_form_student') || '');
+  const [calificacion, setCalificacion] = useState(() => localStorage.getItem('reports_form_calif') || '');
+  const [palabrasClave, setPalabrasClave] = useState(() => localStorage.getItem('reports_form_keywords') || '');
+  const [observacion, setObservacion] = useState(() => localStorage.getItem('reports_form_obs') || '');
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -50,6 +52,32 @@ export default function Reports() {
   const [reports, setReports] = useState<Report[]>([]);
   const [selectedReport, setSelectedReport] = useState<Report | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Sync state to LocalStorage
+  useEffect(() => {
+    localStorage.setItem('reports_active_tab', activeTab);
+    localStorage.setItem('reports_form_student', selectedStudentId);
+    localStorage.setItem('reports_form_calif', calificacion);
+    localStorage.setItem('reports_form_keywords', palabrasClave);
+    localStorage.setItem('reports_form_obs', observacion);
+  }, [activeTab, selectedStudentId, calificacion, palabrasClave, observacion]);
+
+  useEffect(() => {
+    if (selectedReport) {
+      localStorage.setItem('reports_selected_id', selectedReport.id);
+    }
+  }, [selectedReport]);
+
+  // Restore selected report
+  useEffect(() => {
+    const savedId = localStorage.getItem('reports_selected_id');
+    if (savedId && reports.length > 0 && !selectedReport) {
+      const found = reports.find(p => p.id === savedId);
+      if (found) {
+        setSelectedReport(found);
+      }
+    }
+  }, [reports, selectedReport]);
 
   // Fetch Students
   useEffect(() => {
@@ -505,7 +533,10 @@ Palabras clave: ${palabrasClave}`;
           {/* Header Actions */}
           <div className="bg-gray-50 border-b border-gray-200 p-4 flex flex-wrap justify-between items-center gap-4 no-print">
             <button 
-              onClick={() => setSelectedReport(null)}
+              onClick={() => {
+                setSelectedReport(null);
+                localStorage.removeItem('reports_selected_id');
+              }}
               className="text-gray-500 hover:text-gray-700 flex items-center gap-1 font-medium text-sm"
             >
               <X className="w-4 h-4" />

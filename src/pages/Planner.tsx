@@ -25,19 +25,46 @@ interface DailyPlan {
 
 export default function Planner() {
   const { isGuest, generationsCount, teacherId } = useOutletContext<{ isGuest: boolean, generationsCount: number, teacherId: string }>();
-  const [activeTab, setActiveTab] = useState<'generate' | 'history'>('generate');
+  const [activeTab, setActiveTab] = useState<'generate' | 'history'>(() => {
+    return (localStorage.getItem('planner_active_tab') as 'generate' | 'history') || 'generate';
+  });
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   
   // Form State
-  const [selectedPpaId, setSelectedPpaId] = useState('');
-  const [fecha, setFecha] = useState('');
-  const [temaDia, setTemaDia] = useState('');
+  const [selectedPpaId, setSelectedPpaId] = useState(() => localStorage.getItem('planner_form_ppa') || '');
+  const [fecha, setFecha] = useState(() => localStorage.getItem('planner_form_fecha') || '');
+  const [temaDia, setTemaDia] = useState(() => localStorage.getItem('planner_form_tema') || '');
   
   const [isGenerating, setIsGenerating] = useState(false);
   const [ppas, setPpas] = useState<PPAProject[]>([]);
   const [dailyPlans, setDailyPlans] = useState<DailyPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<DailyPlan | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Sync state to LocalStorage
+  useEffect(() => {
+    localStorage.setItem('planner_active_tab', activeTab);
+    localStorage.setItem('planner_form_ppa', selectedPpaId);
+    localStorage.setItem('planner_form_fecha', fecha);
+    localStorage.setItem('planner_form_tema', temaDia);
+  }, [activeTab, selectedPpaId, fecha, temaDia]);
+
+  useEffect(() => {
+    if (selectedPlan) {
+      localStorage.setItem('planner_selected_id', selectedPlan.id);
+    }
+  }, [selectedPlan]);
+
+  // Restore selected plan
+  useEffect(() => {
+    const savedId = localStorage.getItem('planner_selected_id');
+    if (savedId && dailyPlans.length > 0 && !selectedPlan) {
+      const found = dailyPlans.find(p => p.id === savedId);
+      if (found) {
+        setSelectedPlan(found);
+      }
+    }
+  }, [dailyPlans, selectedPlan]);
 
   // Edit State
   const [isEditing, setIsEditing] = useState(false);
@@ -431,7 +458,10 @@ ${selectedPpa.contenido}`;
           {/* Header Actions */}
           <div className="bg-gray-50 border-b border-gray-200 p-4 flex flex-wrap justify-between items-center gap-4 no-print">
             <button 
-              onClick={() => setSelectedPlan(null)}
+              onClick={() => {
+                setSelectedPlan(null);
+                localStorage.removeItem('planner_selected_id');
+              }}
               className="text-gray-500 hover:text-gray-700 flex items-center gap-1 font-medium text-sm"
             >
               <X className="w-4 h-4" />
