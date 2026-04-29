@@ -794,7 +794,7 @@ export default function Camila() {
   const context = useOutletContext<{ teacherId: string }>();
 
   const handleShare = () => {
-    const text = "¡Hola! Estoy usando Docente PRO, una plataforma increíble para docentes con IA. ¡Te la recomiendo! Visítala en: https://docentepro.com";
+    const text = "¡Hola! Estoy usando Docente PRO, una plataforma increíble para docentes con IA. ¡Te la recomiendo! Visítala en: https://docente-pro-by-meta-tc.vercel.app/";
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 

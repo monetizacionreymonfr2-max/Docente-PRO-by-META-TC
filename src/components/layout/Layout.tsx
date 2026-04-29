@@ -130,7 +130,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
           {/* Botón de Compartir con un Colega (WhatsApp) */}
           <button
             onClick={() => {
-              const text = "¡Hola! Estoy usando Docente PRO, una plataforma increíble para docentes con IA. ¡Te la recomiendo! Visítala en: https://docentepro.com";
+              const text = "¡Hola! Estoy usando Docente PRO, una plataforma increíble para docentes con IA. ¡Te la recomiendo! Visítala en: https://docente-pro-by-meta-tc.vercel.app/";
               window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
             }}
             className="flex items-center gap-3 px-4 py-3 rounded-lg w-full text-left text-blue-100 hover:bg-green-600/20 hover:text-green-400 transition-colors mt-2 border border-blue-800/30 group"
