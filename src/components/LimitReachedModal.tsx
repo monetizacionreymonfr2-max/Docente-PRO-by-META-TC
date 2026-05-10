@@ -7,7 +7,7 @@ interface LimitReachedModalProps {
 
 export default function LimitReachedModal({ isOpen, onClose }: LimitReachedModalProps) {
   const WHATSAPP_NUMBER = '584126830537'; // Number from previous context/common VZ number pattern
-  const WHATSAPP_MESSAGE = encodeURIComponent('Hola, vengo de DOCENTE PRO. Alcancé el límite de invitado y quiero adquirir un código PRO por $1.');
+  const WHATSAPP_MESSAGE = encodeURIComponent('Hola, vengo de DOCENTE PRO. Alcancé el límite de invitado y quiero adquirir un código PRO por $2 (30 días).');
   const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${WHATSAPP_MESSAGE}`;
 
   if (!isOpen) return null;
@@ -52,9 +52,9 @@ export default function LimitReachedModal({ isOpen, onClose }: LimitReachedModal
 
           <div className="space-y-4 mb-8">
             <div className="bg-gray-50 rounded-2xl p-6 flex flex-col items-center justify-center border border-gray-100">
-              <span className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-1">Inversión única</span>
+              <span className="text-gray-500 text-sm font-medium uppercase tracking-wider mb-1">Plan Mensual (30 días)</span>
               <div className="flex items-baseline gap-1">
-                <span className="text-5xl font-black text-gray-900">$1</span>
+                <span className="text-5xl font-black text-gray-900">$2</span>
                 <span className="text-xl font-bold text-gray-500 uppercase">usd</span>
               </div>
             </div>
@@ -72,7 +72,7 @@ export default function LimitReachedModal({ isOpen, onClose }: LimitReachedModal
             
             <div className="flex items-center gap-3 relative z-10">
               <MessageSquare className="w-6 h-6 animate-bounce" />
-              <span className="text-lg">Obtener Código PRO por $1</span>
+              <span className="text-lg">Obtener Código PRO por $2 (30 días)</span>
               <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
             </div>
           </a>
