@@ -23,15 +23,29 @@ interface Message {
   text: string;
 }
 
-export function CamilaInner({ teacherId, isEmbedded, onClose }: { teacherId: string, isEmbedded?: boolean, onClose?: () => void }) {
+export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat' }: { teacherId: string, isEmbedded?: boolean, onClose?: () => void, mode?: 'chat' | 'sales' }) {
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<Message[]>([
-    { id: 'welcome', role: 'model', text: '¡Hola! Soy Camila, tu asistente pedagógica avanzada de Docente PRO. ¿En qué te puedo ayudar a planificar hoy?' }
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isLiveMode, setIsLiveMode] = useState(false);
   const [isListening, setIsListening] = useState(false);
+
+  useEffect(() => {
+    if (mode === 'sales') {
+      setMessages([
+        { id: 'welcome', role: 'model', text: '¡Hola! Soy Camila. He notado que estás interesado en Docente PRO. Permíteme contarte cómo puedo transformar tu labor educativa. ¿Te gustaría saber qué puedo hacer por ti?' }
+      ]);
+      // Auto-speak welcome in sales mode
+      setTimeout(() => {
+        speakText('¡Hola! Soy Camila. He notado que estás interesado en Docente PRO. Permíteme contarte cómo puedo transformar tu labor educativa. ¿Te gustaría saber qué puedo hacer por ti?');
+      }, 500);
+    } else {
+      setMessages([
+        { id: 'welcome', role: 'model', text: '¡Hola! Soy Camila, tu asistente pedagógica avanzada de Docente PRO. ¿En qué te puedo ayudar a planificar hoy?' }
+      ]);
+    }
+  }, [mode]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -485,7 +499,18 @@ export function CamilaInner({ teacherId, isEmbedded, onClose }: { teacherId: str
     }
 
     try {
-      const systemInstruction = `Tú eres Camila, la asistente virtual y pedagógica avanzada de la plataforma DOCENTE PRO. Debes seguir estas directrices estrictas:
+      const systemInstruction = mode === 'sales' 
+        ? `Tú eres Camila, la asistente virtual de DOCENTE PRO. Tu objetivo actual es INFORMAR y VENDER la suscripción PRO a un docente interesado.
+Directrices:
+1. INFORMACIÓN CLAVE:
+   - Docente PRO es una plataforma con IA avanzada para crear planificaciones, proyectos (PPA), rúbricas, boletines y más en segundos.
+   - Ayuda a ahorrar horas de trabajo administrativo y mejora la calidad pedagógica.
+   - Ventajas: Rapidez, precisión, adaptabilidad a cualquier grado y nivel.
+   - COSTO: Solo $2 por 30 días de acceso total.
+2. ESTILO: Sé muy amable, entusiasta y convincente. Usa voz de chica joven y empática.
+3. CIERRE: Si el usuario parece convencido, menciona que puede comprar su código contactando por WhatsApp con el botón que aparece debajo.
+4. VOZ: Como el usuario prefiere voz, mantén tus respuestas concisas pero informativas.`
+        : `Tú eres Camila, la asistente virtual y pedagógica avanzada de la plataforma DOCENTE PRO. Debes seguir estas directrices estrictas:
 
 1. IDENTIDAD Y CREADOR:
 - Tono y Estilo: Mantén un lenguaje profesional, empático y motivador, con la voz y personalidad de una chica joven.
@@ -684,6 +709,21 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
               </div>
             </div>
           ))}
+
+          {/* Sales Conversion Button */}
+          {mode === 'sales' && messages.length > 2 && (
+            <div className="flex justify-center py-4 animate-in fade-in zoom-in duration-500">
+              <a
+                href="https://wa.me/584262953484?text=Hola%20Camila,%20estoy%20convencido.%20Quiero%20comprar%20mi%20código%20PRO."
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white font-bold px-6 py-3 rounded-full shadow-lg transform transition-transform hover:scale-105 active:scale-95"
+              >
+                <MessageCircle size={20} className="fill-white" />
+                Comprar Código PRO ahora
+              </a>
+            </div>
+          )}
 
           {/* Loading Indicator */}
           {isLoading && (

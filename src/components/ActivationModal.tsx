@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
-import { Key, Loader2, ShieldCheck, XCircle } from 'lucide-react';
+import { Key, Loader2, ShieldCheck, XCircle, Info, Sparkles } from 'lucide-react';
+import { CamilaInner } from '../pages/Camila';
 
 interface ActivationModalProps {
   userId: string;
@@ -12,6 +13,7 @@ export default function ActivationModal({ userId, email }: ActivationModalProps)
   const [code, setCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showInfo, setShowInfo] = useState(false);
 
   const handleActivate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -72,6 +74,20 @@ export default function ActivationModal({ userId, email }: ActivationModalProps)
 
   return (
     <div className="fixed inset-0 bg-blue-900/95 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+      {/* Camila Info Overlay */}
+      {showInfo && (
+        <div className="fixed inset-0 z-[110] bg-black/60 backdrop-blur-sm flex items-center justify-center p-0 sm:p-4 animate-in fade-in duration-300">
+          <div className="w-full h-full max-w-4xl max-h-[90vh] bg-white sm:rounded-3xl shadow-2xl relative overflow-hidden flex flex-col">
+            <CamilaInner 
+              teacherId={userId} 
+              isEmbedded={true} 
+              onClose={() => setShowInfo(false)} 
+              mode="sales"
+            />
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-3xl shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-300">
         <div className="p-8 text-center border-b border-gray-100 bg-gray-50/50">
           <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6 text-blue-600 shadow-inner">
@@ -106,27 +122,39 @@ export default function ActivationModal({ userId, email }: ActivationModalProps)
               </div>
             )}
 
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black py-4 rounded-2xl text-lg shadow-xl shadow-blue-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Verificando...
-                </>
-              ) : (
-                <>
-                  <ShieldCheck className="w-6 h-6" />
-                  Activar Ahora
-                </>
-              )}
-            </button>
+            <div className="space-y-3">
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black py-4 rounded-2xl text-lg shadow-xl shadow-blue-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Verificando...
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-6 h-6" />
+                    Activar Ahora
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowInfo(true)}
+                className="w-full bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 border border-amber-200 transition-all active:scale-[0.98] group"
+              >
+                <Sparkles size={18} className="text-amber-500 group-hover:animate-spin-slow" />
+                <span>¿Necesitas Información? Habla con Camila</span>
+                <Info size={16} className="opacity-50" />
+              </button>
+            </div>
           </form>
 
-          <div className="mt-10 pt-8 border-t border-gray-100">
-            <p className="text-center text-sm font-medium text-gray-900 mb-4">
+          <div className="mt-8 pt-6 border-t border-gray-100">
+            <p className="text-center text-xs font-semibold text-gray-500 mb-3 uppercase tracking-wider">
               Compra tu código PRO por $2 (30 días)
             </p>
             <a
