@@ -30,7 +30,7 @@ export default function Home() {
   };
 
   const handleWhatsAppContact = () => {
-    const text = "Hola Reimond, vengo de la plataforma Docente PRO. Me gustaría consultar sobre tus servicios de programación y desarrollo web.";
+    const text = "Hola Reymon, vengo de la plataforma Docente PRO. Me gustaría consultar sobre tus servicios de programación y desarrollo web.";
     window.open(`https://wa.me/584262953484?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -143,12 +143,12 @@ export default function Home() {
             <div className="flex-1 space-y-6 text-center lg:text-left">
               <div>
                 <h4 className="text-futuristic-magenta font-black tracking-widest text-sm mb-2 uppercase">EL ARQUITECTO</h4>
-                <h2 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase italic">REIMOND CASTILLO</h2>
+                <h2 className="text-4xl md:text-5xl font-black text-white tracking-tighter uppercase italic">REYMON CASTILLO</h2>
                 <p className="text-futuristic-accent font-bold tracking-widest text-xs mt-2 uppercase">INGENIERO DE SISTEMAS • PROGRAMADOR FULL STACK</p>
               </div>
               
               <p className="text-slate-300 leading-relaxed text-lg">
-                Nacido en el corazón del llano venezolano, en el **Estado Apure**, Reimond Castillo es la mente maestra detrás de ecosistemas digitales que están redefiniendo el comercio y la educación en Venezuela. Como experto en **Programación Web** y **Dropshipping**, ha dedicado su carrera a construir puentes entre la tecnología avanzada y las necesidades reales del país.
+                Nacido en el corazón del llano venezolano, en el **Estado Apure**, Reymon Castillo es la mente maestra detrás de ecosistemas digitales que están redefiniendo el comercio y la educación en Venezuela. Como experto en **Programación Web** y **Dropshipping**, ha dedicado su carrera a construir puentes entre la tecnología avanzada y las necesidades reales del país.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
