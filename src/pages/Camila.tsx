@@ -673,36 +673,26 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
       {/* Messages Area - Modified for Sales Mode */}
       <div className={`flex-1 overflow-y-auto p-4 sm:p-6 relative scroll-smooth ${mode === 'sales' ? 'bg-gradient-to-b from-amber-50 to-white flex items-center justify-center' : 'bg-orange-50/30'}`}>
         {mode === 'sales' ? (
-          <div className="max-w-md w-full space-y-12 text-center animate-in fade-in zoom-in duration-700">
-            <div className="relative inline-block">
-              <div className="absolute inset-0 bg-amber-400/30 blur-3xl rounded-full animate-pulse"></div>
-              <div className="relative bg-white p-8 sm:p-10 rounded-[3rem] shadow-2xl border-2 border-amber-100 flex flex-col items-center">
-                <div className="w-20 h-20 bg-amber-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-amber-500/20">
-                  <Bot className="w-12 h-12 text-white" />
-                </div>
-                <div className="prose prose-amber text-lg font-medium text-amber-900 leading-relaxed italic">
-                  "{messages[messages.length - 1]?.text}"
-                </div>
+          <div className="max-w-md w-full space-y-8 text-center animate-in fade-in zoom-in duration-700">
+            <div className="relative inline-block mb-4">
+              <div className="absolute inset-0 bg-amber-400/20 blur-3xl rounded-full animate-pulse"></div>
+              <div className="relative w-24 h-24 bg-amber-500 rounded-full flex items-center justify-center mx-auto shadow-xl shadow-amber-500/20 ring-4 ring-white">
+                <Bot className="w-14 h-14 text-white" />
               </div>
             </div>
 
-            <div className="space-y-6">
-              <div className="flex items-center justify-center gap-4">
-                <div className={`w-4 h-4 rounded-full bg-amber-500 ${isSpeaking ? 'animate-ping' : ''}`}></div>
-                <span className="font-black text-amber-700 uppercase tracking-[0.2em] text-sm">Camila está hablando</span>
-              </div>
-              
-              <div className="flex flex-col items-center gap-4 pt-4">
+            <div className="space-y-6 pt-4">
+              <div className="flex flex-col items-center gap-4">
                 <a
                   href="https://wa.me/584262953484?text=Hola%20Camila,%20estoy%20convencido.%20Quiero%20comprar%20mi%20código%20PRO."
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-3 bg-green-500 hover:bg-green-600 text-white font-black px-12 py-5 rounded-full shadow-2xl transform transition-all hover:scale-105 active:scale-95 text-xl"
+                  className="flex items-center gap-3 bg-green-500 hover:bg-green-600 text-white font-black px-12 py-5 rounded-full shadow-2xl transform transition-all hover:scale-105 active:scale-95 text-xl w-full sm:w-auto justify-center"
                 >
                   <MessageCircle size={28} className="fill-white" />
                   Comprar Acceso PRO
                 </a>
-                <p className="text-green-600 font-bold text-base px-6 py-2 bg-green-50 rounded-full border border-green-100">
+                <p className="text-green-600 font-bold text-base px-6 py-2 bg-green-50 rounded-full border border-green-100 italic">
                   ¡Solo $2 por 30 días!
                 </p>
               </div>
