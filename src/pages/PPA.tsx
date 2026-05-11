@@ -120,76 +120,79 @@ export default function PPA() {
     setErrorMsg(null);
     try {
       let prompt = '';
-      const systemInstruction = "Eres un especialista en planificación educativa adaptado al sistema escolar de Venezuela. Tu objetivo es redactar Proyectos Pedagógicos de Aula (PPA) completos, profesionales y listos para imprimir. Usa un tono formal, pedagógico y enfocado en el aprendizaje significativo.";
+      const systemInstruction = "Eres un especialista senior en planificación educativa del MPPE (Venezuela). Tu objetivo es generar Proyectos Pedagógicos de Aula (PPA) bajo el NUEVO FORMATO VIGENTE. Usa un tono técnico-pedagógico impecable.";
 
       if (nivel === 'Maternal') {
-        prompt = `Actúa como un docente experto en Educación Inicial, etapa Maternal (0-3 años) en Venezuela. 
-Genera un Proyecto Pedagógico de Aula (PPA) completo siguiendo estrictamente las orientaciones del Ministerio del Poder Popular para la Educación (MPPE) de Venezuela.
+        prompt = `Actúa como un docente experto en Educación Inicial (Maternal). Genera un PPA bajo el nuevo formato venezolano.
+DATOS: Tema: ${tema}, Sala: ${gradoSeccion}, Duración: ${duracion}, Diagnóstico: ${diagnostico}.
 
-DATOS DEL PROYECTO:
-- Tema Central: ${tema}
-- Grupo Etáreo/Sala: ${gradoSeccion}
-- Duración: ${duracion}
-- Diagnóstico inicial: ${diagnostico}
-
-ESTRUCTURA REQUERIDA (Formato Markdown):
-
-1.  **MEMBRETE DEL PLANTEL**
-2.  **IDENTIFICACIÓN**:
-    - Docentes: (Nombre del docente)
-    - Matrícula: (Número de niños/as)
-    - Etapa: Maternal
-    - Grupo Etáreo: ${gradoSeccion}
-3.  **DIAGNÓSTICO PEDAGÓGICO**: (Un párrafo pedagógico y detallado que sea la base para las experiencias de aprendizaje).
-4.  **PLANIFICACIÓN DIDÁCTICA (TABLA TÉCNICA)**: Genera una tabla con:
-    - Área de Formación
-    - Componente
-    - Énfasis Prioritario
-    - Contenidos Esenciales
-    - Tejido Temático
-    - Referentes Teóricos y Prácticos
-    - Aprendizajes Esperados
-    (Incluye áreas: Formación Personal y Social, Relación con otros componentes del Ambiente, Comunicación y Representación).
-5.  **PLANIFICACIÓN DE LA JORNADA (LUNES A VIERNES)**:
-    Detalla actividades y estrategias para:
-    - **Bienvenida** (Identidad y Lenguaje)
-    - **Aseo Personal y Alimentación** (Higiene, autonomía)
-    - **Planificación del Niño/a** (Expresión de deseos)
-    - **Trabajo Libre en los Espacios** (Rincón de Lectura, Representar e Imitar, Armar y Construir, Experimentar y Descubrir, Expresar y Crear).
-    - **Intercambio y Recuento** (Círculo de conversación)
-    - **Pequeños Grupos** (Actividades dirigidas)
-    - **Despedida** (Cierre afectivo)
-
-Tono: Profesional, pedagógico y centrado en el aprendizaje a través del juego y la rutina. Usa lenguaje oficial de Venezuela.`;
+ESTRUCTURA OBLIGATORIA:
+1. MEMBRETE: (Incluye Código plantel, Logo [Logo], Docente, Nombre del Proyecto, Matrícula, Grado/Sección, Año Escolar 2025-2026, Tiempo de ejecución: ${duracion}).
+2. IDENTIFICACIÓN DE PEIC: (Relaciona el proyecto con el Proyecto Educativo Integral Comunitario).
+3. LÍNEA DE INVESTIGACIÓN: (Selecciona una pertinente según el currículo venezolano).
+4. DIAGNÓSTICO: (Detallado y descriptivo basado en: ${diagnostico}).
+5. PROPÓSITO: (Objetivo central del proyecto).
+6. TABLA DE CORRELACIÓN CURRICULAR (NUEVA):
+   - Áreas de aprendizaje (Maternal).
+   - Ejes integradores.
+   - Tema indispensable (de los 14 temas nacionales).
+   - Tema generador / Componente.
+   - Tejido temático.
+   - Énfasis curricular.
+   - Vértices de educación (Menciona al menos 3 pertinentes del Plan Educativo Nacional).
+7. PLANIFICACIÓN DE ESTRATEGIAS Y ACTIVIDADES: (Dividido en Inicio, Desarrollo y Cierre).
+8. INTENCIONALIDADES Y RECURSOS.
+9. INDICADORES DE EVALUACIÓN.`;
       } else if (nivel === 'Preescolar') {
-        prompt = `Genera un Proyecto de Aprendizaje para niños de la etapa Preescolar (3-6 años). 
-El tema de interés de los niños es: ${tema}.
+        prompt = `Genera un Proyecto de Aprendizaje para Preescolar bajo el nuevo formato MPPE.
+DATOS: Tema: ${tema}, Sección: ${gradoSeccion}, Duración: ${duracion}, Diagnóstico: ${diagnostico}.
 
-Estructura requerida:
-1. Título del Proyecto (creativo y corto)
-2. Objetivo general (enfocado en el desarrollo integral)
-3. Áreas de desarrollo a estimular (Formación Personal, Social y Comunicación, Relación con otros componentes del Ambiente)
-4. Lista de materiales recomendados
-5. Hitos de evaluación cualitativa
-
-Datos adicionales:
-- Sala/Edad/Sección: ${gradoSeccion}
-- Duración: ${duracion}
-- Diagnóstico: ${diagnostico}`;
+ESTRUCTURA OBLIGATORIA:
+1. MEMBRETE COMPLETO (Incluye placeholders para logo y código).
+2. IDENTIFICACIÓN PEIC Y LÍNEA DE INVESTIGACIÓN.
+3. DIAGNÓSTICO Y PROPÓSITO.
+4. CUADRO DE PLANIFICACIÓN INTEGRAL:
+   - Áreas de Formación.
+   - Énfasis Curricular.
+   - Tema Indispensable.
+   - Tema Generador.
+   - Tejido Temático.
+   - Vértices del Plan Educativo (1 al 10).
+5. ESTRATEGIAS (ABP, Juegos, etc.) Y ACTIVIDADES.
+6. REFERENTES TEÓRICOS PRÁCTICOS.
+7. RECURSOS E INDICADORES.`;
       } else {
-        prompt = `Redacta un Proyecto Pedagógico estructurado para educación por grados (${nivel}). 
-Estructura requerida:
-1. Título del Proyecto (creativo)
-2. Justificación
-3. Propósito General
-4. Áreas de Aprendizaje (Lenguaje, Matemáticas, Ciencias Naturales, Ciencias Sociales)
-5. Estrategias de Evaluación.
+        prompt = `Genera un PPA para ${nivel} siguiendo estrictamente el RECIENTE FORMATO de planificación venezolana.
+DATOS DE ENTRADA: Grado/Sección: ${gradoSeccion}, Tema: ${tema}, Duración: ${duracion}, Diagnóstico: ${diagnostico}.
 
-Datos de entrada:
-- Grado/Año y Sección: ${gradoSeccion}
-- Tema Central: ${tema}
-- Duración Estimada: ${duracion}
-- Diagnóstico o Necesidad: ${diagnostico}`;
+ESTRUCTURA REQUERIDA (MARKDOWN):
+1. **MEMBRETE E IDENTIFICACIÓN**: Incluir Código del plantel (____), Docente (____), Matrícula (V:__ H:__ T:__), Año Escolar (2025-2026).
+2. **CONTEXTO PEDAGÓGICO**:
+   - Identificación de PEIC relacionado.
+   - Línea de Investigación (Menciona una específica: Currículo, Gestión, Clima Escolar, etc.).
+   - Diagnóstico (Basado en: ${diagnostico}).
+   - Propósito del Proyecto.
+3. **RELACIÓN ÁREAS DE FORMACIÓN Y ÉNFASIS CURRICULARES**:
+   (Usa estrictamente esta relación en una tabla):
+   - Lenguaje y Comunicación -> Lengua y Escritura.
+   - Matemáticas -> Matemáticas.
+   - Ciencias Naturales -> Ciencias Naturales.
+   - Ciencias Sociales -> Identidad.
+   - Educación Física, Recreación y Deporte -> Deporte.
+   - Cultura e Idiomas -> Cultura.
+4. **ELEMENTOS INTEGRADORES**:
+   - Tema Indispensable (Selecciona 1 de los 14 oficiales, ej: Democracia participativa, Ideario Bolivariano, Ciencia y Tecnología, etc.).
+   - Tema Generador / Componente.
+   - Tejido Temático / Contenido.
+   - Énfasis Curricular.
+   - Vértices de Educación (Menciona los vértices relevantes del 1 al 10).
+5. **PLANIFICACIÓN DIDÁCTICA**:
+   - Referentes Teóricos Prácticos.
+   - Estrategias (Usa estrategias modernas: ABP, Gamificación, etc.).
+   - Actividades (Inicio, Desarrollo, Cierre).
+   - Intencionalidades.
+   - Recursos.
+   - Indicadores de Evaluación sugeridos.`;
       }
 
       console.log("Generando PPA con prompt:", prompt);
