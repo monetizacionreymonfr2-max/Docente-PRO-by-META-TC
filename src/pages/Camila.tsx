@@ -33,13 +33,14 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat' }: {
 
   useEffect(() => {
     if (mode === 'sales') {
+      const salesGreeting = '¡Hola! Mira, ¿estás interesado en Docente PRO? Permíteme contarte cómo puedo transformar tu labor educativa y ahorrarte horas de trabajo administrativo. ¿Te gustaría saber más sobre el acceso total por solo $2 dólares?';
       setMessages([
-        { id: 'welcome', role: 'model', text: '¡Hola! Soy Camila. He notado que estás interesado en Docente PRO. Permíteme contarte cómo puedo transformar tu labor educativa. ¿Te gustaría saber qué puedo hacer por ti?' }
+        { id: 'welcome', role: 'model', text: salesGreeting }
       ]);
       // Auto-speak welcome in sales mode
       setTimeout(() => {
-        speakText('¡Hola! Soy Camila. He notado que estás interesado en Docente PRO. Permíteme contarte cómo puedo transformar tu labor educativa. ¿Te gustaría saber qué puedo hacer por ti?');
-      }, 500);
+        speakText(salesGreeting);
+      }, 800);
     } else {
       setMessages([
         { id: 'welcome', role: 'model', text: '¡Hola! Soy Camila, tu asistente pedagógica avanzada de Docente PRO. ¿En qué te puedo ayudar a planificar hoy?' }
@@ -669,156 +670,210 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
         </div>
       </div>
 
-      {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-orange-50/30 relative scroll-smooth">
-        <div className="space-y-6">
-          {messages.map((message) => (
-            <div 
-              key={message.id} 
-              className={`flex ${message.role === 'model' ? 'justify-start' : 'justify-end'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
-            >
-              <div className={`flex gap-3 max-w-[90%] sm:max-w-[85%] ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                {/* Avatar */}
-                <div className={`flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-sm mt-1
-                  ${message.role === 'model' ? 'bg-gradient-to-br from-amber-500 to-yellow-600 border border-amber-400' : 'bg-gray-200 border border-gray-300'}`}
-                >
-                  {message.role === 'model' ? (
-                    <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                  ) : (
-                    <User className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" />
-                  )}
+      {/* Messages Area - Modified for Sales Mode */}
+      <div className={`flex-1 overflow-y-auto p-4 sm:p-6 relative scroll-smooth ${mode === 'sales' ? 'bg-gradient-to-b from-amber-50 to-white flex items-center justify-center' : 'bg-orange-50/30'}`}>
+        {mode === 'sales' ? (
+          <div className="max-w-md w-full space-y-12 text-center animate-in fade-in zoom-in duration-700">
+            <div className="relative inline-block">
+              <div className="absolute inset-0 bg-amber-400/30 blur-3xl rounded-full animate-pulse"></div>
+              <div className="relative bg-white p-8 sm:p-10 rounded-[3rem] shadow-2xl border-2 border-amber-100 flex flex-col items-center">
+                <div className="w-20 h-20 bg-amber-500 rounded-full flex items-center justify-center mb-6 shadow-lg shadow-amber-500/20">
+                  <Bot className="w-12 h-12 text-white" />
                 </div>
-                
-                {/* Bubble */}
-                <div 
-                  className={`px-4 py-3 sm:px-5 sm:py-4 rounded-2xl shadow-sm text-sm sm:text-base leading-relaxed
-                    ${message.role === 'user' 
-                      ? 'bg-amber-600 text-white rounded-tr-sm' 
-                      : 'bg-white border border-amber-100/50 text-gray-800 rounded-tl-sm shadow-md'}`}
-                >
-                  {message.role === 'user' ? (
-                     <p className="whitespace-pre-wrap">{typeof message.text === 'string' ? message.text : ""}</p>
-                  ) : (
-                     <div className="markdown-body text-sm sm:text-base prose prose-amber max-w-none prose-headings:text-amber-900 prose-a:text-amber-600">
-                       {message.text && typeof message.text === 'string' ? (
-                         <Markdown>{message.text}</Markdown>
-                       ) : null}
-                     </div>
-                  )}
+                <div className="prose prose-amber text-lg font-medium text-amber-900 leading-relaxed italic">
+                  "{messages[messages.length - 1]?.text}"
                 </div>
               </div>
             </div>
-          ))}
 
-          {/* Sales Conversion Button */}
-          {mode === 'sales' && messages.length > 2 && (
-            <div className="flex justify-center py-4 animate-in fade-in zoom-in duration-500">
-              <a
-                href="https://wa.me/584262953484?text=Hola%20Camila,%20estoy%20convencido.%20Quiero%20comprar%20mi%20código%20PRO."
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white font-bold px-6 py-3 rounded-full shadow-lg transform transition-transform hover:scale-105 active:scale-95"
-              >
-                <MessageCircle size={20} className="fill-white" />
-                Comprar Código PRO ahora
-              </a>
+            <div className="space-y-6">
+              <div className="flex items-center justify-center gap-4">
+                <div className={`w-4 h-4 rounded-full bg-amber-500 ${isSpeaking ? 'animate-ping' : ''}`}></div>
+                <span className="font-black text-amber-700 uppercase tracking-[0.2em] text-sm">Camila está hablando</span>
+              </div>
+              
+              <div className="flex flex-col items-center gap-4 pt-4">
+                <a
+                  href="https://wa.me/584262953484?text=Hola%20Camila,%20estoy%20convencido.%20Quiero%20comprar%20mi%20código%20PRO."
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 bg-green-500 hover:bg-green-600 text-white font-black px-12 py-5 rounded-full shadow-2xl transform transition-all hover:scale-105 active:scale-95 text-xl"
+                >
+                  <MessageCircle size={28} className="fill-white" />
+                  Comprar Acceso PRO
+                </a>
+                <p className="text-green-600 font-bold text-base px-6 py-2 bg-green-50 rounded-full border border-green-100">
+                  ¡Solo $2 por 30 días!
+                </p>
+              </div>
             </div>
-          )}
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {messages.map((message) => (
+              <div 
+                key={message.id} 
+                className={`flex ${message.role === 'model' ? 'justify-start' : 'justify-end'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
+              >
+                <div className={`flex gap-3 max-w-[90%] sm:max-w-[85%] ${message.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                  {/* Avatar */}
+                  <div className={`flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-sm mt-1
+                    ${message.role === 'model' ? 'bg-gradient-to-br from-amber-500 to-yellow-600 border border-amber-400' : 'bg-gray-200 border border-gray-300'}`}
+                  >
+                    {message.role === 'model' ? (
+                      <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                    ) : (
+                      <User className="w-5 h-5 sm:w-6 sm:h-6 text-gray-500" />
+                    )}
+                  </div>
+                  
+                  {/* Bubble */}
+                  <div 
+                    className={`px-4 py-3 sm:px-5 sm:py-4 rounded-2xl shadow-sm text-sm sm:text-base leading-relaxed
+                      ${message.role === 'user' 
+                        ? 'bg-amber-600 text-white rounded-tr-sm' 
+                        : 'bg-white border border-amber-100/50 text-gray-800 rounded-tl-sm shadow-md'}`}
+                  >
+                    {message.role === 'user' ? (
+                       <p className="whitespace-pre-wrap">{typeof message.text === 'string' ? message.text : ""}</p>
+                    ) : (
+                       <div className="markdown-body text-sm sm:text-base prose prose-amber max-w-none prose-headings:text-amber-900 prose-a:text-amber-600">
+                         {message.text && typeof message.text === 'string' ? (
+                           <Markdown>{message.text}</Markdown>
+                         ) : null}
+                       </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
 
-          {/* Loading Indicator */}
-          {isLoading && (
-            <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2">
-               <div className="flex gap-3 max-w-[85%] flex-row">
-                 <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-sm mt-1 bg-gradient-to-br from-amber-500 to-yellow-600 border border-amber-400">
-                    <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                 </div>
-                 <div className="px-5 py-4 rounded-2xl bg-white border border-amber-100/50 rounded-tl-sm shadow-md flex items-center gap-2">
-                   <div className="flex space-x-1.5">
-                     <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
-                     <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-bounce" style={{ animationDelay: '150ms' }} />
-                     <div className="w-2.5 h-2.5 rounded-full bg-amber-600 animate-bounce" style={{ animationDelay: '300ms' }} />
+            {/* Loading Indicator */}
+            {isLoading && (
+              <div className="flex justify-start animate-in fade-in slide-in-from-bottom-2">
+                 <div className="flex gap-3 max-w-[85%] flex-row">
+                   <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shadow-sm mt-1 bg-gradient-to-br from-amber-500 to-yellow-600 border border-amber-400">
+                      <Sparkles className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                   </div>
+                   <div className="px-5 py-4 rounded-2xl bg-white border border-amber-100/50 rounded-tl-sm shadow-md flex items-center gap-2">
+                     <div className="flex space-x-1.5">
+                       <div className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                       <div className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+                       <div className="w-2.5 h-2.5 rounded-full bg-amber-600 animate-bounce" style={{ animationDelay: '300ms' }} />
+                     </div>
                    </div>
                  </div>
-               </div>
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        )}
       </div>
 
       {/* Input Area */}
-      <div className="p-4 bg-white border-t border-amber-100 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.05)] relative z-10 rounded-b-2xl sm:rounded-b-3xl">
+      <div className={`p-4 bg-white border-t border-amber-100 shadow-[0_-10px_20px_-10px_rgba(0,0,0,0.05)] relative z-10 rounded-b-2xl sm:rounded-b-3xl ${mode === 'sales' ? 'bg-amber-50/50' : ''}`}>
         <div className="flex flex-col gap-3 max-w-4xl mx-auto">
           
-          {!isLiveMode ? (
-            <>
-              {/* Modo Live Toggle */}
-              <div className="flex justify-center transition-opacity">
-                <button
-                  type="button"
-                  onClick={startLiveAPI}
-                  className="flex items-center gap-2 px-6 py-2.5 rounded-full font-bold shadow-md transform active:scale-95 bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
-                >
-                  <Radio className="w-5 h-5 mr-1 text-amber-500" />
-                  Modo Live
-                </button>
-              </div>
-
-              <form onSubmit={handleFormSubmit} className="flex gap-2 relative items-end sm:items-center">
-                {/* Single Mic Listen */}
-                <button
-                  type="button"
-                  onClick={handleSingleListen}
-                  disabled={isLoading}
-                  className={`p-3 sm:p-4 rounded-full flex shrink-0 items-center justify-center shadow-sm ${
-                    isListening 
-                      ? 'bg-red-100 text-red-600' 
-                      : 'bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-600 disabled:opacity-50'
-                  }`}
-                  title="Escuchar por micrófono (1 mensaje)"
-                >
-                  {isListening ? <MicOff className="w-5 h-5 sm:w-6 sm:h-6" /> : <Mic className="w-5 h-5 sm:w-6 sm:h-6" />}
-                </button>
-
-                <textarea
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  placeholder={isListening ? "Escuchando..." : "Pídele a Camila una planificación, idea o proyecto..."}
-                  className="flex-1 px-5 py-3 sm:py-4 rounded-3xl border border-gray-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none transition-all text-sm sm:text-base bg-gray-50 focus:bg-white resize-none shadow-inner"
-                  rows={1}
-                  disabled={isLoading}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      if (input.trim() && !isLoading) handleFormSubmit(e as any);
-                    }
-                  }}
-                />
-
-                <button
-                  type="submit"
-                  disabled={!input.trim() || isLoading}
-                  className="bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-700 hover:to-yellow-600 text-white rounded-full p-3 sm:px-6 sm:py-4 transition-all flex shrink-0 items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg active:scale-95"
-                >
-                  <span className="hidden sm:inline font-bold">Enviar</span>
-                  <Send className="w-5 h-5 sm:w-6 sm:h-6" />
-                </button>
-              </form>
-            </>
-          ) : (
-            <div className="flex flex-col items-center justify-center p-2 pb-4 animate-in fade-in zoom-in-95 duration-300">
-              <div className="text-red-600 font-bold mb-4 flex items-center gap-2 bg-red-50 px-5 py-2.5 rounded-full border border-red-100 shadow-sm animate-pulse">
-                <Radio className="w-5 h-5" /> En Modo Live...
-              </div>
-              <button
-                type="button"
-                onClick={stopLiveAPI}
-                className="bg-red-600 hover:bg-red-700 text-white rounded-full font-bold px-16 py-4 shadow-xl shadow-red-500/40 flex items-center justify-center gap-3 text-xl active:scale-95 transition-all"
-              >
-                <VolumeX className="w-7 h-7" />
-                Parar
-              </button>
+          {mode === 'sales' ? (
+            <div className="flex justify-center py-2">
+               {!isLiveMode ? (
+                 <button
+                   type="button"
+                   onClick={startLiveAPI}
+                   className="flex items-center gap-3 px-10 py-5 rounded-full font-black shadow-2xl transform active:scale-95 bg-amber-500 text-white hover:bg-amber-600 ring-8 ring-amber-100 transition-all group"
+                 >
+                   <Radio className="w-8 h-8 group-hover:rotate-12 transition-transform" />
+                   <span className="text-xl uppercase tracking-tighter">Hablar con Camila (Live)</span>
+                 </button>
+               ) : (
+                 <div className="flex flex-col items-center justify-center p-2 animate-in fade-in zoom-in-95 duration-300">
+                  <div className="text-red-600 font-bold mb-6 flex items-center gap-2 bg-red-50 px-6 py-3 rounded-full border border-red-100 shadow-sm animate-pulse">
+                    <Radio className="w-6 h-6" /> Escuchando...
+                  </div>
+                  <button
+                    type="button"
+                    onClick={stopLiveAPI}
+                    className="bg-red-600 hover:bg-red-700 text-white rounded-full font-black px-16 py-5 shadow-2xl shadow-red-500/40 flex items-center justify-center gap-4 text-xl active:scale-95 transition-all ring-8 ring-red-100"
+                  >
+                    <VolumeX className="w-8 h-8" />
+                    Finalizar Voz
+                  </button>
+                </div>
+               )}
             </div>
+          ) : (
+            <>
+              {!isLiveMode ? (
+                <>
+                  {/* Modo Live Toggle */}
+                  <div className="flex justify-center transition-opacity">
+                    <button
+                      type="button"
+                      onClick={startLiveAPI}
+                      className="flex items-center gap-2 px-6 py-2.5 rounded-full font-bold shadow-md transform active:scale-95 bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
+                    >
+                      <Radio className="w-5 h-5 mr-1 text-amber-500" />
+                      Modo Live
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleFormSubmit} className="flex gap-2 relative items-end sm:items-center">
+                    {/* Single Mic Listen */}
+                    <button
+                      type="button"
+                      onClick={handleSingleListen}
+                      disabled={isLoading}
+                      className={`p-3 sm:p-4 rounded-full flex shrink-0 items-center justify-center shadow-sm ${
+                        isListening 
+                          ? 'bg-red-100 text-red-600' 
+                          : 'bg-gray-100 text-gray-500 hover:bg-amber-100 hover:text-amber-600 disabled:opacity-50'
+                      }`}
+                      title="Escuchar por micrófono (1 mensaje)"
+                    >
+                      {isListening ? <MicOff className="w-5 h-5 sm:w-6 sm:h-6" /> : <Mic className="w-5 h-5 sm:w-6 sm:h-6" />}
+                    </button>
+
+                    <textarea
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      placeholder={isListening ? "Escuchando..." : "Pídele a Camila una planificación, idea o proyecto..."}
+                      className="flex-1 px-5 py-3 sm:py-4 rounded-3xl border border-gray-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none transition-all text-sm sm:text-base bg-gray-50 focus:bg-white resize-none shadow-inner"
+                      rows={1}
+                      disabled={isLoading}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          if (input.trim() && !isLoading) handleFormSubmit(e as any);
+                        }
+                      }}
+                    />
+
+                    <button
+                      type="submit"
+                      disabled={!input.trim() || isLoading}
+                      className="bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-700 hover:to-yellow-600 text-white rounded-full p-3 sm:px-6 sm:py-4 transition-all flex shrink-0 items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg active:scale-95"
+                    >
+                      <span className="hidden sm:inline font-bold">Enviar</span>
+                      <Send className="w-5 h-5 sm:w-6 sm:h-6" />
+                    </button>
+                  </form>
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-2 pb-4 animate-in fade-in zoom-in-95 duration-300">
+                  <div className="text-red-600 font-bold mb-4 flex items-center gap-2 bg-red-50 px-5 py-2.5 rounded-full border border-red-100 shadow-sm animate-pulse">
+                    <Radio className="w-5 h-5" /> En Modo Live...
+                  </div>
+                  <button
+                    type="button"
+                    onClick={stopLiveAPI}
+                    className="bg-red-600 hover:bg-red-700 text-white rounded-full font-bold px-16 py-4 shadow-xl shadow-red-500/40 flex items-center justify-center gap-3 text-xl active:scale-95 transition-all"
+                  >
+                    <VolumeX className="w-7 h-7" />
+                    Parar
+                  </button>
+                </div>
+              )}
+            </>
           )}
 
           <p className="text-center text-xs text-gray-400 mt-1 font-medium bg-white/80 rounded-full px-4 py-1 mx-auto">
