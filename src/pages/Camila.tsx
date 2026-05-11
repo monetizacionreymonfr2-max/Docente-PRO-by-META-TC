@@ -37,10 +37,6 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat' }: {
       setMessages([
         { id: 'welcome', role: 'model', text: salesGreeting }
       ]);
-      // Auto-speak welcome in sales mode
-      setTimeout(() => {
-        speakText(salesGreeting);
-      }, 800);
     } else {
       setMessages([
         { id: 'welcome', role: 'model', text: '¡Hola! Soy Camila, tu asistente pedagógica avanzada de Docente PRO. ¿En qué te puedo ayudar a planificar hoy?' }
@@ -213,15 +209,18 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat' }: {
       const actx = audioContextRef.current;
       nextPlaybackTimeRef.current = 0; // Reset scheduling
 
-      // 2. ESPERAMOS que la sesión se conecte completamente.
-      const session = await (ai as any).live.connect({
-        model: "gemini-3.1-flash-live-preview",
-        config: { 
-          responseModalities: ["AUDIO"],
-          speechConfig: {
-            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } },
-          },
-          systemInstruction: `Tú eres Camila, la asistente virtual y pedagógica avanzada de la plataforma DOCENTE PRO. Debes seguir estas directrices estrictas:
+      const salesSystemInstruction = `Tú eres Camila, la asistente virtual de DOCENTE PRO. Tu objetivo actual es INFORMAR y VENDER la suscripción PRO a un docente interesado.
+Directrices:
+1. INFORMACIÓN CLAVE:
+   - Docente PRO es una plataforma con IA avanzada para crear planificaciones, proyectos (PPA), rúbricas, boletines y más en segundos.
+   - Ayuda a ahorrar horas de trabajo administrativo y mejora la calidad pedagógica.
+   - Ventajas: Rapidez, precisión, adaptabilidad a cualquier grado y nivel.
+   - COSTO: Solo $2 por 30 días de acceso total.
+2. ESTILO: Sé muy amable, entusiasta y convincente. Usa voz de chica joven y empática.
+3. CIERRE: Si el usuario parece convencido, menciona que puede comprar su código contactando por WhatsApp con el botón que aparece debajo.
+4. VOZ: Mantén tus respuestas concisas pero informativas para que la interacción por voz sea fluida.`;
+
+      const standardSystemInstruction = `Tú eres Camila, la asistente virtual y pedagógica avanzada de la plataforma DOCENTE PRO. Debes seguir estas directrices estrictas:
 1. IDENTIDAD Y CREADOR:
 - Tono y Estilo: Mantén un lenguaje profesional, empático y motivador, con la voz y personalidad de una chica joven.
 - Sobre tu creador: Si preguntan quién te creó o piden información del responsable, responde con orgullo: 'Mi creador y el de la plataforma es Reymon Castillo, un joven emprendedor nacido en el Estado Apure, Venezuela. Es un desarrollador y profesional enfocado en la tecnología, fundador de META TC, la empresa TMC Tecno Mundo Castillo y DOCENTE PRO.'
@@ -230,7 +229,17 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat' }: {
 - OBLIGATORIO: Cuando el profesor te pida crear o generar un proyecto o planificación larga, NO la respondas en voz alta ni la narres porque sería interminable y molesto para el profesor.
 - En cambio, debes reflexionar internamente y crear el proyecto más extenso, estructurado, detallado y maravilloso que puedas generar. Y luego GUARDARLO MUDAMENTE enviándolo EXCLUSIVAMENTE a la herramienta 'guardar_documento' en la propiedad 'contenido_completo'.
 - Asegúrate de llenar 'contenido_completo' con docenas de líneas de planificación de aula, objetivos, métodos y evaluación profunda.
-- Después de usar la herramienta, confírmale al profesor de forma MUY breve y hablada: '¡Listo! He generado un proyecto largo y estructurado, y lo guardé en tu gestor para que lo leas.'`,
+- Después de usar la herramienta, confírmale al profesor de forma MUY breve y hablada: '¡Listo! He generado un proyecto largo y estructurado, y lo guardé en tu gestor para que lo leas.'`;
+
+      // 2. ESPERAMOS que la sesión se conecte completamente.
+      const session = await (ai as any).live.connect({
+        model: "gemini-3.1-flash-live-preview",
+        config: { 
+          responseModalities: ["AUDIO"],
+          speechConfig: {
+            voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } },
+          },
+          systemInstruction: mode === 'sales' ? salesSystemInstruction : standardSystemInstruction,
           tools: [{
             functionDeclarations: [{
               name: "guardar_documento",
@@ -474,6 +483,13 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat' }: {
       stopListening(); // Ensure traditional speech recog is off
       window.speechSynthesis.cancel();
       startLiveAPI();
+
+      // Greeting for sales mode when starting live mode
+      if (mode === 'sales') {
+        setTimeout(() => {
+          speakText('¡Hola! Soy Camila. Es un gusto saludarte. He notado que estás explorando Docente PRO y me encantaría contarte cómo puedo revolucionar tu labor educativa. Soy una inteligencia artificial diseñada específicamente para docentes, capaz de crear planificaciones, proyectos de aprendizaje, rúbricas y mucho más en cuestión de segundos. El acceso total por 30 días cuesta solo $2 dólares. ¿Tienes alguna duda sobre cómo puedo ayudarte o te gustaría que te explique más?');
+        }, 1200);
+      }
     }
   };
 
@@ -648,7 +664,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
         </div>
         
         <div className="flex items-center gap-2">
-          {isSpeaking && (
+          {mode !== 'sales' && isSpeaking && (
             <button 
               onClick={toggleSpeech}
               title="Detener voz"
@@ -657,7 +673,7 @@ Cada vez que generes un 'Proyecto' o una 'Planificación', añade al final de tu
               <VolumeX className="w-5 h-5" />
             </button>
           )}
-          {!isSpeaking && 'speechSynthesis' in window && (
+          {mode !== 'sales' && !isSpeaking && 'speechSynthesis' in window && (
              <div title="Voz habilitada" className="p-2 text-amber-100">
                <Volume2 className="w-5 h-5 opacity-80" />
              </div>
