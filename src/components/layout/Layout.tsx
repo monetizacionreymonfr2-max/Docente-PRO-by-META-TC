@@ -5,6 +5,7 @@ import { auth } from '../../lib/firebase';
 import AccessProtection from '../AccessProtection';
 import { CamilaInner } from '../../pages/Camila';
 import { 
+  Home as HomeIcon,
   Users, 
   BookOpen, 
   CalendarCheck, 
@@ -37,6 +38,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
   const usagePercentage = Math.min((generationsCount / GUEST_LIMIT) * 100, 100);
 
   const navItems = [
+    { path: '/home', icon: <HomeIcon size={20} />, label: 'Inicio' },
     { path: '/students', icon: <Users size={20} />, label: 'Panel de Estudiantes' },
     { path: '/ppa', icon: <BookOpen size={20} />, label: 'Gestor de PPA' },
     { path: '/attendance', icon: <CalendarCheck size={20} />, label: 'Control de Asistencia' },

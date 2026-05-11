@@ -5,6 +5,7 @@ import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
+import Home from './pages/Home';
 import Students from './pages/Students';
 import PPA from './pages/PPA';
 import Attendance from './pages/Attendance';
@@ -62,8 +63,8 @@ export default function App() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+      <div className="min-h-screen flex items-center justify-center hex-bg">
+        <Loader2 className="w-8 h-8 animate-spin text-futuristic-accent" />
       </div>
     );
   }
@@ -111,7 +112,8 @@ export default function App() {
       {user && !isActive && <ActivationModal userId={user.uid} email={user.email} />}
       <Routes>
         <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} codeId={codeId} generationsCount={generationsCount} teacherId={user.uid} />}>
-          <Route index element={<Navigate to="/students" replace />} />
+          <Route index element={<Navigate to="/home" replace />} />
+          <Route path="home" element={<Home />} />
           <Route path="students" element={<Students />} />
           <Route path="ppa" element={<PPA />} />
           <Route path="attendance" element={<Attendance />} />
