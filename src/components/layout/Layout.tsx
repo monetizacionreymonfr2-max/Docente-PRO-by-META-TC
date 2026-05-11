@@ -18,7 +18,8 @@ import {
   X,
   ShieldAlert,
   Sparkles,
-  MessageCircle
+  MessageCircle,
+  TrendingUp
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -143,6 +144,20 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
             <MessageCircle size={20} className="group-hover:scale-110 transition-transform" />
             <span className="font-medium text-sm">Compartir con un Colega</span>
           </button>
+
+          {/* Botón Ganar Dinero con Docentes */}
+          <Link
+            to="/earn-money"
+            onClick={closeMobileMenu}
+            className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 mt-2 border border-white/5 group ${
+              location.pathname === '/earn-money' 
+                ? 'bg-futuristic-purple/20 text-white font-medium border border-futuristic-purple/50 shadow-[0_0_15px_rgba(112,0,255,0.2)]' 
+                : 'text-slate-400 hover:bg-futuristic-purple/10 hover:text-futuristic-accent'
+            }`}
+          >
+            <TrendingUp size={20} className="group-hover:scale-110 transition-transform" />
+            <span className="font-medium text-sm">Ganar dinero con docentes</span>
+          </Link>
         </nav>
 
         {isGuest && (

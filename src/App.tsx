@@ -6,6 +6,7 @@ import { auth, db } from './lib/firebase';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
 import Home from './pages/Home';
+import EarnMoney from './pages/EarnMoney';
 import Students from './pages/Students';
 import PPA from './pages/PPA';
 import Attendance from './pages/Attendance';
@@ -114,6 +115,7 @@ export default function App() {
         <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} codeId={codeId} generationsCount={generationsCount} teacherId={user.uid} />}>
           <Route index element={<Navigate to="/home" replace />} />
           <Route path="home" element={<Home />} />
+          <Route path="earn-money" element={<EarnMoney />} />
           <Route path="students" element={<Students />} />
           <Route path="ppa" element={<PPA />} />
           <Route path="attendance" element={<Attendance />} />
