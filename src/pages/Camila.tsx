@@ -12,10 +12,13 @@ import Markdown from 'react-markdown';
 // 3. Si ambas fallan, usamos la llave de respaldo
 const API_KEY = 
   (import.meta as any).env?.VITE_GEMINI_API_KEY || 
-  (process as any).env?.GEMINI_API_KEY || 
-  'AIzaSyBR2k22CAT-1q0ywdyZlgHj1jphap0-XHM';
+  (process as any).env?.GEMINI_API_KEY;
 
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+if (!API_KEY) {
+  console.warn("No se encontró GEMINI_API_KEY. El asistente virtual no funcionará correctamente.");
+}
+
+const ai = new GoogleGenAI({ apiKey: API_KEY as string });
 
 interface Message {
   id: string;
@@ -193,8 +196,12 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat' }: {
 
   const startLiveAPI = async () => {
     try {
-      // 1. Pedir permiso del micrófono ANTES para que la UI no intente hacer render 
-      // y esconderse bajo el modal del sistema operativo, previniendo el crasheo "Pantalla Blanca" en WebView.
+      if (!API_KEY) {
+        alert("No se ha configurado la API Key de Gemini. Por favor, asegúrate de que la variable de entorno GEMINI_API_KEY esté configurada en el servidor.");
+        setIsLiveMode(false);
+        return;
+      }
+      // 1. Pedir permiso del micrófono ANTES...
       const stream = await navigator.mediaDevices.getUserMedia({ audio: {
         echoCancellation: true,
         noiseSuppression: true,
@@ -457,7 +464,13 @@ Directrices de Ventas:
     } catch (err: any) {
       console.error("Live API Error:", err);
       setIsLiveMode(false);
-      alert("Hubo un error conectando a la API en vivo: " + err.message);
+      
+      let errorMsg = err.message || JSON.stringify(err);
+      if (errorMsg.includes("Permission denied")) {
+        errorMsg = "Acceso Denegado (Permission Denied). Esto puede deberse a que tu API Key no tiene permisos para el modelo Live o estás en una región no soportada.";
+      }
+      
+      alert("Hubo un error conectando a la API en vivo: " + errorMsg);
     }
   };
 
