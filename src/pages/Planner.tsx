@@ -10,7 +10,7 @@ import LimitReachedModal from '../components/LimitReachedModal';
 interface PPAProject {
   id: string;
   tema: string;
-  nivel?: 'Primaria' | 'Maternal';
+  nivel?: 'Primaria' | 'Maternal' | 'Preescolar' | 'Media';
   contenido: string;
 }
 
@@ -148,38 +148,32 @@ export default function Planner() {
     setIsGenerating(true);
     try {
       let prompt = '';
-      const systemInstruction = "Eres un docente venezolano experto en planificación diaria. Tu objetivo es crear planes de clase prácticos, creativos y efectivos basados en Proyectos Pedagógicos de Aula (PPA).";
+      const systemInstruction = "Eres un docente senior del MPPE (Venezuela). Tu objetivo es crear planes diarios de clase basados en la 'GUÍA ORGANIZATIVA 2025-2026'. Los planes deben ser prácticos y estar perfectamente alineados con el PPA base.";
       
       if (selectedPpa.nivel === 'Maternal') {
-        prompt = `Genera una planificación diaria para el tema indicado, adaptada para niños de etapa maternal (1-3 años).
+        prompt = `Genera una planificación diaria para etapa MATERNAL (1-3 años) bajo el formato 2025-2026.
+DATOS: Fecha: ${fecha}, Actividad: ${temaDia}.
+PPA BASE: ${selectedPpa.contenido}
 
-Estructura requerida:
-1. Recibimiento (10 min): Actividad de apego y bienvenida.
-2. Ronda / Asamblea (10 min): Introducción visual o musical.
-3. Actividad Central Sensorial (15-20 min): Actividad de exploración o juego guiado. Detalla los materiales.
-4. Rutina de Higiene/Alimentación: Cómo integrar el aprendizaje.
-5. Despedida / Relajación (10 min): Vuelta a la calma.
-
-DATOS:
-- Fecha: ${fecha}
-- Tema del Día: ${temaDia}
----
-PROYECTO BASE:
-${selectedPpa.contenido}`;
+ESTRUCTURA REQUERIDA (MARKDOWN):
+1. RECIBIMIENTO (Identidad y Afecto).
+2. MOMENTO DE EXPLORACIÓN: Actividad sensorial o motor grueso/fino motivadora.
+3. MOMENTO DE DESARROLLO: Experiencia central de aprendizaje (Juego guiado).
+4. MOMENTO DE REFLEXIÓN/CIERRE: Orden, limpieza y recuento de lo aprendido.
+5. RUTINAS INTEGRAL (Higiene y alimentación como actos pedagógicos).
+6. INTENCIONALIDADES (Aprender a Crear, Convivir, Valorar, Reflexionar).`;
       } else {
-        prompt = `Redacta una planificación de clase diaria estructurada.
+        const nivelText = selectedPpa.nivel === 'Media' ? 'MEDIA' : 'PRIMARIA';
+        prompt = `Genera un Plan de Clase Diario para ${nivelText} siguiendo la "GUÍA ORGANIZATIVA 2025-2026".
+DATOS: Fecha: ${fecha}, Tema del Día: ${temaDia}.
+PPA BASE: ${selectedPpa.contenido}
 
-Estructura requerida:
-1. Inicio (Actividad motivacional o rompehielo)
-2. Desarrollo (Explicación del contenido central con ejemplos)
-3. Cierre (Actividad de evaluación rápida o reflexión)
-
-DATOS:
-- Fecha: ${fecha}
-- Tema del Día: ${temaDia}
----
-PROYECTO BASE:
-${selectedPpa.contenido}`;
+ESTRUCTURA OBLIGATORIA:
+1. MOMENTO DE EXPLORACIÓN (Inicio): Actividad motivacional, rescate de conocimientos previos.
+2. MOMENTO DE DESARROLLO: Explicación mediante el Tejido Temático y Referentes Teóricos del proyecto. Actividades prácticas.
+3. MOMENTO DE REFLEXIÓN (Cierre): Sistematización de la experiencia, autoevaluación o coevaluación.
+4. INTENCIONALIDADES: (Incluir explícitamente cómo se aborda: Aprender a Crear, Aprender a Convivir y Participar, Aprender a Valorar, Aprender a Reflexionar).
+5. RECURSOS E INDICADORES DE LOGRO.`;
       }
 
       const response = await generateContentWithRetry({

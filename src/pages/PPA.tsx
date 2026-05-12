@@ -120,79 +120,89 @@ export default function PPA() {
     setErrorMsg(null);
     try {
       let prompt = '';
-      const systemInstruction = "Eres un especialista senior en planificación educativa del MPPE (Venezuela). Tu objetivo es generar Proyectos Pedagógicos de Aula (PPA) bajo el NUEVO FORMATO VIGENTE. Usa un tono técnico-pedagógico impecable.";
+      const systemInstruction = `Eres un especialista senior en planificación educativa del MPPE (Venezuela), con profundo conocimiento de la "GUÍA ORGANIZATIVA EN PLANIFICACIÓN NIVEL DE EDUCACIÓN PRIMARIA 2025-2026". 
+
+Tu misión es generar Proyectos Pedagógicos de Aula (PPA) bajo el NUEVO FORMATO VIGENTE. Debes seguir estrictamente estos parámetros:
+
+1. ESTRUCTURA DEL P.A.:
+   - Identificación completa (Código plantel, Logo, Docente, Matrícula M/F/T, Año Escolar 2025-2026, Duración).
+   - Identificación de PEIC relacionado.
+   - Línea de Investigación (seleccionar de las oficiales: Currículo, Gestión, Clima Escolar, etc.).
+   - Diagnóstico Integral (Cognitivo, socio-emocional, familiar y social).
+   - Propósito (Verbos en infinitivo).
+
+2. ELEMENTOS INTEGRADORES (TABLA):
+   - Áreas de Formación correlacionadas con Énfasis Curriculares.
+   - Temas Indispensables (Seleccionar de los 14 oficiales).
+   - Tema Generador / Componente.
+   - Tejido Temático / Contenido.
+   - Énfasis Curricular.
+   - Vértices del Plan Educativo (Seleccionar del 1 al 10).
+
+3. MOMENTOS DE LA CLASE: 
+   - Exploración, Desarrollo y Reflexión.
+
+4. INTENCIONALIDADES:
+   - Aprender a Crear, Conviver y Participar, Valorar y Reflexionar.
+
+Usa un tono técnico-pedagógico impecable y lenguaje oficial actualizado.`;
 
       if (nivel === 'Maternal') {
-        prompt = `Actúa como un docente experto en Educación Inicial (Maternal). Genera un PPA bajo el nuevo formato venezolano.
-DATOS: Tema: ${tema}, Sala: ${gradoSeccion}, Duración: ${duracion}, Diagnóstico: ${diagnostico}.
+        prompt = `Genera un PPA para el nivel MATERNAL bajo el nuevo formato MPPE 2025-2026.
+DATOS: Tema: ${tema}, Sala/Edad: ${gradoSeccion}, Duración: ${duracion}, Diagnóstico: ${diagnostico}.
 
-ESTRUCTURA OBLIGATORIA:
-1. MEMBRETE: (Incluye Código plantel, Logo [Logo], Docente, Nombre del Proyecto, Matrícula, Grado/Sección, Año Escolar 2025-2026, Tiempo de ejecución: ${duracion}).
-2. IDENTIFICACIÓN DE PEIC: (Relaciona el proyecto con el Proyecto Educativo Integral Comunitario).
-3. LÍNEA DE INVESTIGACIÓN: (Selecciona una pertinente según el currículo venezolano).
-4. DIAGNÓSTICO: (Detallado y descriptivo basado en: ${diagnostico}).
-5. PROPÓSITO: (Objetivo central del proyecto).
-6. TABLA DE CORRELACIÓN CURRICULAR (NUEVA):
-   - Áreas de aprendizaje (Maternal).
-   - Ejes integradores.
-   - Tema indispensable (de los 14 temas nacionales).
-   - Tema generador / Componente.
-   - Tejido temático.
-   - Énfasis curricular.
-   - Vértices de educación (Menciona al menos 3 pertinentes del Plan Educativo Nacional).
-7. PLANIFICACIÓN DE ESTRATEGIAS Y ACTIVIDADES: (Dividido en Inicio, Desarrollo y Cierre).
-8. INTENCIONALIDADES Y RECURSOS.
-9. INDICADORES DE EVALUACIÓN.`;
+ESTRUCTURA TÉCNICA:
+1. MEMBRETE: Incluir Año Escolar 2025-2026 y Matrícula proyectada.
+2. CONTEXTO: PEIC y Línea de Investigación pertinente.
+3. DIAGNÓSTICO Y PROPÓSITO: Basados en las necesidades de desarrollo infantil.
+4. TABLA DE CORRELACIÓN CURRICULAR:
+   - Áreas de Aprendizaje (Formación Personal y Social, Relación con los Componentes del Ambiente, Comunicación y Representación).
+   - Componentes y Énfasis correspondientes.
+   - Temas Indispensables pertinentes (Ej: Preservación de la vida, Soberanía Alimentaria).
+   - Vértices del Plan Educativo (1 al 10).
+5. ESTRATEGIAS Y ACTIVIDADES (Divididas en: Bienvenida, Trabajo Libre en Espacios, Pequeños Grupos, Despedida).
+6. INTENCIONALIDADES (Aprender a Crear, Convivir, Valorar, Reflexionar).
+7. RECURSOS E INDICADORES DE EVALUACIÓN (Cualitativos).`;
       } else if (nivel === 'Preescolar') {
-        prompt = `Genera un Proyecto de Aprendizaje para Preescolar bajo el nuevo formato MPPE.
+        prompt = `Genera un PPA para el nivel PREESCOLAR/INICIAL bajo el nuevo formato MPPE 2025-2026.
 DATOS: Tema: ${tema}, Sección: ${gradoSeccion}, Duración: ${duracion}, Diagnóstico: ${diagnostico}.
 
-ESTRUCTURA OBLIGATORIA:
-1. MEMBRETE COMPLETO (Incluye placeholders para logo y código).
-2. IDENTIFICACIÓN PEIC Y LÍNEA DE INVESTIGACIÓN.
-3. DIAGNÓSTICO Y PROPÓSITO.
-4. CUADRO DE PLANIFICACIÓN INTEGRAL:
-   - Áreas de Formación.
-   - Énfasis Curricular.
-   - Tema Indispensable.
-   - Tema Generador.
-   - Tejido Temático.
-   - Vértices del Plan Educativo (1 al 10).
-5. ESTRATEGIAS (ABP, Juegos, etc.) Y ACTIVIDADES.
+ESTRUCTURA TÉCNICA OBLIGATORIA:
+1. MEMBRETE E IDENTIFICACIÓN: Año Escolar 2025-2026, Matrícula detallada.
+2. PEIC Y LÍNEAS DE INVESTIGACIÓN (Selecciona de las oficiales del MPPE).
+3. DIAGNÓSTICO INTEGRAL Y PROPÓSITO GENERAL (en infinitivo).
+4. PLANIFICACIÓN INTEGRAL (TABLA):
+   - Áreas de Formación y Énfasis Curriculares.
+   - Temas Indispensables (Selecciona entre los 14 oficiales).
+   - Tema Generador y Tejido Temático.
+   - Vértices Educativos (Ej: Vértice 5 Cada familia una escuela).
+5. PLANIFICACIÓN DE LA JORNADA (Exploración, Desarrollo y Reflexión).
 6. REFERENTES TEÓRICOS PRÁCTICOS.
-7. RECURSOS E INDICADORES.`;
+7. INTENCIONALIDADES, RECURSOS E INDICADORES.`;
       } else {
-        prompt = `Genera un PPA para ${nivel} siguiendo estrictamente el RECIENTE FORMATO de planificación venezolana.
-DATOS DE ENTRADA: Grado/Sección: ${gradoSeccion}, Tema: ${tema}, Duración: ${duracion}, Diagnóstico: ${diagnostico}.
+        const nivelText = nivel === 'Media' ? 'EDUCACIÓN MEDIA' : 'EDUCACIÓN PRIMARIA';
+        prompt = `Genera un PPA para ${nivelText} siguiendo estrictamente la "GUÍA ORGANIZATIVA 2025-2026".
+DATOS: Grado/Sección: ${gradoSeccion}, Tema: ${tema}, Duración: ${duracion}, Diagnóstico: ${diagnostico}.
 
-ESTRUCTURA REQUERIDA (MARKDOWN):
-1. **MEMBRETE E IDENTIFICACIÓN**: Incluir Código del plantel (____), Docente (____), Matrícula (V:__ H:__ T:__), Año Escolar (2025-2026).
-2. **CONTEXTO PEDAGÓGICO**:
-   - Identificación de PEIC relacionado.
-   - Línea de Investigación (Menciona una específica: Currículo, Gestión, Clima Escolar, etc.).
-   - Diagnóstico (Basado en: ${diagnostico}).
-   - Propósito del Proyecto.
-3. **RELACIÓN ÁREAS DE FORMACIÓN Y ÉNFASIS CURRICULARES**:
-   (Usa estrictamente esta relación en una tabla):
+REQUISITOS DEL FORMATO OFICIAL:
+1. **IDENTIFICACIÓN**: Código del plantel, Logo, Año Escolar 2025-2026, Matrícula proyectada.
+2. **CONTEXTO**: 
+   - PEIC relacionado y Línea de Investigación (Ej: Currículo, Gestión Escolar, Clima Escolar).
+   - Diagnóstico Pedagógico (Integral: cognitivo, socio-emocional y social).
+   - Propósito (Verbos en infinitivo: -ar, -er, -ir).
+3. **TABLA DE CORRELACIÓN CURRICULAR (ESTRICTA)**:
+   Debes usar esta relación:
    - Lenguaje y Comunicación -> Lengua y Escritura.
    - Matemáticas -> Matemáticas.
    - Ciencias Naturales -> Ciencias Naturales.
    - Ciencias Sociales -> Identidad.
-   - Educación Física, Recreación y Deporte -> Deporte.
+   - Educ. Física -> Deporte.
    - Cultura e Idiomas -> Cultura.
-4. **ELEMENTOS INTEGRADORES**:
-   - Tema Indispensable (Selecciona 1 de los 14 oficiales, ej: Democracia participativa, Ideario Bolivariano, Ciencia y Tecnología, etc.).
-   - Tema Generador / Componente.
-   - Tejido Temático / Contenido.
-   - Énfasis Curricular.
-   - Vértices de Educación (Menciona los vértices relevantes del 1 al 10).
-5. **PLANIFICACIÓN DIDÁCTICA**:
-   - Referentes Teóricos Prácticos.
-   - Estrategias (Usa estrategias modernas: ABP, Gamificación, etc.).
-   - Actividades (Inicio, Desarrollo, Cierre).
-   - Intencionalidades.
-   - Recursos.
-   - Indicadores de Evaluación sugeridos.`;
+   Incluir: Tema Indispensable (de los 14 oficiales), Tema Generador, Tejido Temático, Énfasis Curricular y Vértices (1 al 10).
+4. **MOMENTOS DE CLASE**: Exploración, Desarrollo y Reflexión.
+5. **ESTRATEGIAS**: Estrategias activas (ABP, Gamificación, Aprendizaje Cooperativo).
+6. **INTENCIONALIDADES**: Aprender a Crear, Aprender a Convivir y Participar, Aprender a Valorar, Aprender a Reflexionar.
+7. **RECOURSOS E INDICADORES DE EVALUACIÓN CUALITATIVA**.`;
       }
 
       console.log("Generando PPA con prompt:", prompt);
