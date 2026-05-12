@@ -579,7 +579,7 @@ Directrices:
       historyContents.push({ role: 'user', parts: [{ text: userMsg }] });
 
       const response = await generateContentWithRetry({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3.1-flash-lite',
         contents: historyContents,
         config: {
           systemInstruction,

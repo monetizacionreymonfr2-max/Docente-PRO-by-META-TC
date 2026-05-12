@@ -208,7 +208,7 @@ REQUISITOS DEL FORMATO OFICIAL:
       console.log("Generando PPA con prompt:", prompt);
 
       const response = await generateContentWithRetry({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3.1-flash-lite',
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
           systemInstruction,
