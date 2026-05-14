@@ -49,7 +49,7 @@ export default function Home() {
         <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white">
           DOCENTE <span className="text-transparent bg-clip-text bg-gradient-to-r from-futuristic-purple to-futuristic-magenta">PRO</span>
         </h1>
-        <p className="text-slate-400 max-w-2xl mx-auto text-lg">
+        <p className="text-slate-300 max-w-2xl mx-auto text-lg">
           La evolución digital de la pedagogía venezolana. Inteligencia Artificial diseñada para elevar el estándar educativo.
         </p>
       </motion.div>
@@ -61,7 +61,7 @@ export default function Home() {
             <Target size={24} />
           </div>
           <h3 className="text-xl font-bold text-white mb-3">Misión Pedagógica</h3>
-          <p className="text-slate-400 text-sm leading-relaxed">
+          <p className="text-slate-300 text-sm leading-relaxed">
             Nuestra meta es liberar al docente de la carga administrativa pesada, permitiéndole enfocarse plenamente en lo que realmente importa: la formación de sus estudiantes.
           </p>
         </motion.div>
@@ -71,7 +71,7 @@ export default function Home() {
             <Cpu size={24} />
           </div>
           <h3 className="text-xl font-bold text-white mb-3">Poder de la IA</h3>
-          <p className="text-slate-400 text-sm leading-relaxed">
+          <p className="text-slate-300 text-sm leading-relaxed">
             Utilizamos algoritmos de última generación para generar proyectos PPA, planificaciones diarias y boletines que cumplen estrictamente con los estándares curriculares del país.
           </p>
         </motion.div>
@@ -81,7 +81,7 @@ export default function Home() {
             <Rocket size={24} />
           </div>
           <h3 className="text-xl font-bold text-white mb-3">Innovación Constante</h3>
-          <p className="text-slate-400 text-sm leading-relaxed">
+          <p className="text-slate-300 text-sm leading-relaxed">
             Docente PRO no es una herramienta estática. Evolucionamos semanalmente incorporando nuevas funciones basadas en las sugerencias de nuestros más de 1200 usuarios.
           </p>
         </motion.div>
@@ -108,7 +108,7 @@ export default function Home() {
                   </div>
                   <div>
                     <span className="block text-white font-bold">{item.label}</span>
-                    <span className="text-slate-400 text-sm">{item.desc}</span>
+                    <span className="text-slate-300 text-sm">{item.desc}</span>
                   </div>
                 </li>
               ))}
@@ -162,7 +162,7 @@ export default function Home() {
                     <div className="text-futuristic-accent">{stat.icon}</div>
                     <div>
                       <span className="block text-white font-bold text-sm tracking-tight">{stat.label}</span>
-                      <span className="text-slate-400 text-[11px] font-medium uppercase tracking-wider">{stat.desc}</span>
+                      <span className="text-slate-300 text-[11px] font-medium uppercase tracking-wider">{stat.desc}</span>
                     </div>
                   </div>
                 ))}

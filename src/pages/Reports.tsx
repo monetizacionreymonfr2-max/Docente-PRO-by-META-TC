@@ -461,7 +461,7 @@ Palabras clave: ${palabrasClave}`;
                 {/* Observation */}
                 <div className="mb-16">
                   <span className="font-bold text-sm block mb-2">Observación del Docente:</span>
-                  <div className="border border-gray-300 rounded-lg p-4 min-h-[120px] text-justify text-sm leading-relaxed bg-gray-50">
+                  <div className="border border-gray-300 rounded-lg p-4 min-h-[120px] text-justify text-sm leading-relaxed bg-gray-50 text-gray-900 font-medium">
                     {observacion}
                   </div>
                 </div>
@@ -592,7 +592,7 @@ Palabras clave: ${palabrasClave}`;
                   {/* Observation */}
                   <div className="mb-16">
                     <span className="font-bold text-sm block mb-2">Observación del Docente:</span>
-                    <div className="border border-gray-300 rounded-lg p-4 min-h-[120px] text-justify text-sm leading-relaxed bg-gray-50 print:bg-transparent print:border-gray-800">
+                    <div className="border border-gray-300 rounded-lg p-4 min-h-[120px] text-justify text-sm leading-relaxed bg-gray-50 print:bg-transparent print:border-gray-800 text-gray-900 font-medium">
                       {selectedReport.observacion}
                     </div>
                   </div>

@@ -539,7 +539,7 @@ ESTRUCTURA OBLIGATORIA:
               </div>
             )}
             
-            <div className="prose prose-teal max-w-none prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg">
+            <div className="prose prose-teal max-w-none prose-headings:font-bold prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg text-gray-900 prose-p:text-gray-800 prose-li:text-gray-800">
               {isEditing ? (
                  <textarea
                    value={editedContent}

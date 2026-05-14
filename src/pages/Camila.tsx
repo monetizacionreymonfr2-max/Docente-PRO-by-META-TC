@@ -762,13 +762,13 @@ Directrices:
                     className={`px-6 py-4 sm:px-7 sm:py-5 rounded-3xl text-sm sm:text-base leading-relaxed relative
                       ${message.role === 'user' 
                         ? 'bg-gradient-to-br from-futuristic-purple to-blue-600 text-white rounded-tr-none shadow-[0_10px_20px_rgba(112,0,255,0.2)]' 
-                        : 'glass-effect text-slate-100 rounded-tl-none neon-border'}`}
+                        : 'glass-effect text-white rounded-tl-none neon-border'}`}
                   >
                     <div className={`absolute top-0 ${message.role === 'user' ? '-right-2' : '-left-2'} w-4 h-4`}></div>
                     {message.role === 'user' ? (
                        <p className="whitespace-pre-wrap font-medium">{typeof message.text === 'string' ? message.text : ""}</p>
                     ) : (
-                       <div className="markdown-body text-sm sm:text-base prose prose-invert max-w-none prose-p:text-slate-300 prose-headings:text-futuristic-accent prose-strong:text-white prose-code:text-futuristic-magenta">
+                       <div className="text-sm sm:text-base prose prose-invert max-w-none prose-p:text-white prose-headings:text-futuristic-accent prose-strong:text-white prose-code:text-futuristic-magenta">
                          {message.text && typeof message.text === 'string' ? (
                            <Markdown>{message.text}</Markdown>
                          ) : null}
