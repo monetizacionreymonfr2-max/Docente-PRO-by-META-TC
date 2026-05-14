@@ -19,7 +19,8 @@ import {
   ShieldAlert,
   Sparkles,
   MessageCircle,
-  TrendingUp
+  TrendingUp,
+  Clock
 } from 'lucide-react';
 
 interface LayoutProps {
@@ -28,15 +29,41 @@ interface LayoutProps {
   codeId?: string;
   generationsCount?: number;
   teacherId?: string;
+  expiresAt?: any;
 }
 
-export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', generationsCount = 0, teacherId = '' }: LayoutProps) {
+export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', generationsCount = 0, teacherId = '', expiresAt }: LayoutProps) {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isCamilaWidgetOpen, setIsCamilaWidgetOpen] = useState(false);
   const isGuest = accessLevel === 'guest';
   const GUEST_LIMIT = 3;
   const usagePercentage = Math.min((generationsCount / GUEST_LIMIT) * 100, 100);
+
+  const calculateDaysRemaining = (exp: any) => {
+    if (!exp) return null;
+    try {
+      const now = new Date();
+      let expiry: Date;
+      if (exp?.toDate) {
+        expiry = exp.toDate();
+      } else if (exp instanceof Date) {
+        expiry = exp;
+      } else if (exp?.seconds) {
+        expiry = new Date(exp.seconds * 1000);
+      } else {
+        expiry = new Date(exp);
+      }
+      
+      const diffTime = expiry.getTime() - now.getTime();
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays > 0 ? diffDays : 0;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const daysRemaining = calculateDaysRemaining(expiresAt);
 
   const navItems = [
     { path: '/home', icon: <HomeIcon size={20} />, label: 'Inicio' },
@@ -179,6 +206,20 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
                 ? 'Límite alcanzado. Actualiza a PRO.' 
                 : 'Proyectos generados en modo invitado.'}
             </p>
+          </div>
+        )}
+
+        {daysRemaining !== null && !isAdmin && (
+          <div className="px-6 py-4 border-t border-white/10 bg-gradient-to-r from-amber-500/10 to-transparent">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-amber-500/20 rounded-lg text-amber-500">
+                <Clock size={16} />
+              </div>
+              <div>
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-amber-500/70">Código PRO</span>
+                <span className="text-xs font-black text-white">Vence en {daysRemaining} días</span>
+              </div>
+            </div>
           </div>
         )}
 

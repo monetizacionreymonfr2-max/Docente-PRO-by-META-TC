@@ -107,12 +107,13 @@ export default function App() {
   const accessLevel = profile?.access_level || 'pro';
   const codeId = profile?.activationCode || '';
   const generationsCount = profile?.generationsCount || 0;
+  const expiresAt = profile?.expiresAt;
 
   return (
     <BrowserRouter>
       {user && !isActive && <ActivationModal userId={user.uid} email={user.email} />}
       <Routes>
-        <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} codeId={codeId} generationsCount={generationsCount} teacherId={user.uid} />}>
+        <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} codeId={codeId} generationsCount={generationsCount} teacherId={user.uid} expiresAt={expiresAt} />}>
           <Route index element={<Navigate to="/home" replace />} />
           <Route path="home" element={<Home />} />
           <Route path="earn-money" element={<EarnMoney />} />
