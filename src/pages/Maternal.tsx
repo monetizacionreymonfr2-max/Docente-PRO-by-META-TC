@@ -54,6 +54,9 @@ export default function Maternal() {
       });
       setStudents(studentsData);
       setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching maternal students:", error);
+      setIsLoading(false);
     });
     return () => unsubscribe();
   }, [teacherId]);
@@ -72,6 +75,8 @@ export default function Maternal() {
         routineData.push({ id: doc.id, ...doc.data() } as RoutineRecord);
       });
       setRoutines(routineData);
+    }, (error) => {
+      console.error("Error fetching maternal routines:", error);
     });
     return () => unsubscribe();
   }, [teacherId, selectedDate, activeTab]);

@@ -57,6 +57,9 @@ export default function Attendance() {
         });
       setStudents(sorted);
       setIsLoading(false);
+    }, (error) => {
+      console.error("Error fetching students for attendance:", error);
+      setIsLoading(false);
     });
     return () => unsubscribe();
   }, [teacherId]);
