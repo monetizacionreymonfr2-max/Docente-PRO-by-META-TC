@@ -22,13 +22,13 @@ export default function AdminPanel() {
   useEffect(() => {
     let isMounted = true;
     
-    // Fallback timer: if onSnapshot doesn't respond in 10 seconds, stop loading
+    // Fallback timer: if onSnapshot doesn't respond in 20 seconds, stop loading
     const timer = setTimeout(() => {
       if (isMounted && isLoading) {
         setIsLoading(false);
-        console.warn("onSnapshot timed out for activation_codes");
+        console.error("Timeout: activation_codes connection taking too long");
       }
-    }, 10000);
+    }, 20000);
 
     const q = collection(db, 'activation_codes');
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -53,10 +53,11 @@ export default function AdminPanel() {
       });
       setCodes(codesData);
       setIsLoading(false);
-    }, (error) => {
+    }, (error: any) => {
       if (!isMounted) return;
       clearTimeout(timer);
-      console.error("Critical: Error fetching activation codes:", error);
+      console.error("FIREBASE SQL ERROR:", error);
+      alert(`Error de conexión con la base de datos: ${error.message || error}`);
       setIsLoading(false);
       try {
         handleFirestoreError(error, OperationType.LIST, 'activation_codes');
@@ -80,6 +81,7 @@ export default function AdminPanel() {
       const codeId = `META-${randomPart()}-${randomPart()}`;
       
       await setDoc(doc(db, 'activation_codes', codeId), {
+        code: codeId,
         status: 'disponible',
         access_level: level,
         createdAt: serverTimestamp()

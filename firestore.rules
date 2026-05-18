@@ -16,11 +16,7 @@ service cloud.firestore {
     }
     
     function isAdmin() {
-      return isSignedIn() && (
-        request.auth.token.email == "monetizacionreymonfr2@gmail.com" ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
-      );
+      return isSignedIn() && request.auth.token.email == "monetizacionreymonfr2@gmail.com";
     }
 
     function isValidId(id) {
@@ -34,8 +30,7 @@ service cloud.firestore {
     function isValidCode(data) {
       return data.keys().hasAll(['status', 'access_level', 'createdAt']) &&
              data.status in ['disponible', 'usado'] &&
-             data.access_level in ['guest', 'pro'] &&
-             data.createdAt == request.time;
+             data.access_level in ['guest', 'pro'];
     }
 
     // Check ownership for any document that has a 'docenteId' or 'uid' field
@@ -72,20 +67,17 @@ service cloud.firestore {
 
     // Activation Codes
     match /activation_codes/{codeId} {
+      allow read, write: if request.auth.token.email == "monetizacionreymonfr2@gmail.com";
       allow get: if isSignedIn();
       allow list: if isAdmin();
-      allow create: if isAdmin() && isValidCode(incoming()) && isValidId(codeId);
-      allow delete: if isAdmin();
-      allow update: if (isAdmin() && isValidCode(incoming())) || (
-                      isSignedIn() && 
+      allow update: if isSignedIn() && 
                       existing().status == 'disponible' && 
                       incoming().status == 'usado' &&
                       incoming().usedBy == request.auth.uid &&
                       incoming().usedByEmail == request.auth.token.email &&
                       incoming().expiresAt is timestamp &&
                       incoming().usedAt == request.time &&
-                      incoming().diff(existing()).affectedKeys().hasOnly(['status', 'usedBy', 'usedByEmail', 'usedAt', 'expiresAt'])
-                    );
+                      incoming().diff(existing()).affectedKeys().hasOnly(['status', 'usedBy', 'usedByEmail', 'usedAt', 'expiresAt']);
     }
 
     // App Data Collections
