@@ -26,32 +26,48 @@ export default function App() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    let unsubscribeProfile: (() => void) | null = null;
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (authUser) => {
+      // Clean up previous profile subscription if any
+      if (unsubscribeProfile) {
+        unsubscribeProfile();
+        unsubscribeProfile = null;
+      }
+
       if (authUser) {
         setUser(authUser);
         
         // Listen to User Profile in Firestore
         const userRef = doc(db, 'users', authUser.uid);
         
-        const unsubscribeProfile = onSnapshot(userRef, async (docSnap) => {
-          if (docSnap.exists()) {
-            setProfile(docSnap.data());
-          } else {
-            // Create profile if missing
-            const newProfile = {
-              email: authUser.email,
-              isActive: authUser.email === ADMIN_EMAIL, // Admin is auto-active
-              role: authUser.email === ADMIN_EMAIL ? 'admin' : 'teacher',
-              generationsCount: 0,
-              createdAt: serverTimestamp()
-            };
-            await setDoc(userRef, newProfile);
-            setProfile(newProfile);
+        unsubscribeProfile = onSnapshot(userRef, 
+          async (docSnap) => {
+            if (docSnap.exists()) {
+              setProfile(docSnap.data());
+            } else {
+              // Create profile if missing
+              try {
+                const newProfile = {
+                  email: authUser.email,
+                  isActive: authUser.email === ADMIN_EMAIL, // Admin is auto-active
+                  role: authUser.email === ADMIN_EMAIL ? 'admin' : 'teacher',
+                  generationsCount: 0,
+                  createdAt: serverTimestamp()
+                };
+                await setDoc(userRef, newProfile);
+                // setProfile will be triggered by onSnapshot when setDoc completes
+              } catch (error) {
+                console.error("Error creating profile:", error);
+              }
+            }
+            setIsLoading(false);
+          },
+          (error) => {
+            console.error("Profile connection error:", error);
+            setIsLoading(false); // Ensure loading stops even on error
           }
-          setIsLoading(false);
-        });
-
-        return () => unsubscribeProfile();
+        );
       } else {
         setUser(null);
         setProfile(null);
@@ -59,7 +75,10 @@ export default function App() {
       }
     });
 
-    return () => unsubscribeAuth();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
+    };
   }, []);
 
   if (isLoading) {
