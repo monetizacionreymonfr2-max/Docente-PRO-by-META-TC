@@ -20,26 +20,49 @@ export default function AdminPanel() {
   const [isGenerating, setIsGenerating] = useState<string | false>(false);
 
   useEffect(() => {
-    const q = query(collection(db, 'activation_codes'), orderBy('createdAt', 'desc'));
+    let isMounted = true;
+    
+    // Fallback timer: if onSnapshot doesn't respond in 10 seconds, stop loading
+    const timer = setTimeout(() => {
+      if (isMounted && isLoading) {
+        setIsLoading(false);
+        console.warn("onSnapshot timed out for activation_codes");
+      }
+    }, 10000);
+
+    const q = collection(db, 'activation_codes');
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!isMounted) return;
+      clearTimeout(timer);
       const codesData: Code[] = [];
       snapshot.forEach((doc) => {
         codesData.push({ id: doc.id, ...doc.data() } as Code);
       });
+      // Sort in memory instead of query to avoid index issues/missing fields
+      codesData.sort((a, b) => {
+        const timeA = a.createdAt?.seconds || (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0);
+        const timeB = b.createdAt?.seconds || (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0);
+        return Number(timeB) - Number(timeA);
+      });
       setCodes(codesData);
       setIsLoading(false);
     }, (error) => {
+      if (!isMounted) return;
+      clearTimeout(timer);
       console.error("Error fetching codes:", error);
       setIsLoading(false);
-      // Call handleFirestoreError after setting loading to false
       try {
         handleFirestoreError(error, OperationType.LIST, 'activation_codes');
       } catch (e) {
-        // Error is expected to be thrown by handleFirestoreError per instructions, 
-        // we just catch it here to prevent it from breaking the component's state update cycle
+        // Error reported
       }
     });
-    return () => unsubscribe();
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+      clearTimeout(timer);
+    };
   }, []);
 
   const generateCode = async (level: 'guest' | 'pro') => {
