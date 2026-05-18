@@ -16,15 +16,31 @@ service cloud.firestore {
     }
     
     function isAdmin() {
-      return isAuthenticated() && 
-             (request.auth.token.email == "monetizacionreymonfr2@gmail.com" || 
-              (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
-               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'));
+      return isSignedIn() && (
+        request.auth.token.email == "monetizacionreymonfr2@gmail.com" ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
     }
-    
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    function isSignedIn() { return request.auth != null; }
+
+    function isValidCode(data) {
+      return data.keys().hasAll(['status', 'access_level', 'createdAt']) &&
+             data.status in ['disponible', 'usado'] &&
+             data.access_level in ['guest', 'pro'] &&
+             data.createdAt == request.time;
+    }
+
     // Check ownership for any document that has a 'docenteId' or 'uid' field
     function isDocOwner() {
-      return isAuthenticated() && (
+      return isSignedIn() && (
         (resource != null && (
           resource.data.docenteId == request.auth.uid || 
           resource.data.teacher_id == request.auth.uid || 
@@ -56,13 +72,19 @@ service cloud.firestore {
 
     // Activation Codes
     match /activation_codes/{codeId} {
-      allow get: if isAuthenticated();
-      allow list, create, delete: if isAdmin();
-      allow update: if isAdmin() || (
-                      isAuthenticated() && 
-                      resource.data.status == 'disponible' && 
-                      request.resource.data.status == 'usado' &&
-                      request.resource.data.usedBy == request.auth.uid
+      allow get: if isSignedIn();
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidCode(incoming()) && isValidId(codeId);
+      allow delete: if isAdmin();
+      allow update: if (isAdmin() && isValidCode(incoming())) || (
+                      isSignedIn() && 
+                      existing().status == 'disponible' && 
+                      incoming().status == 'usado' &&
+                      incoming().usedBy == request.auth.uid &&
+                      incoming().usedByEmail == request.auth.token.email &&
+                      incoming().expiresAt is timestamp &&
+                      incoming().usedAt == request.time &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['status', 'usedBy', 'usedByEmail', 'usedAt', 'expiresAt'])
                     );
     }
 
@@ -104,11 +126,6 @@ service cloud.firestore {
       allow read, write: if isAdmin() || isDocOwner();
     }
 
-    // Codes Management (handled above but repeated for safety)
-    match /activation_codes/{document} {
-      allow read, write: if isAdmin();
-    }
-    
     match /activation_codes_admin/{document} {
       allow read, write: if isAdmin();
     }

@@ -40,21 +40,28 @@ export default function AdminPanel() {
       });
       // Sort in memory instead of query to avoid index issues/missing fields
       codesData.sort((a, b) => {
-        const timeA = a.createdAt?.seconds || (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0);
-        const timeB = b.createdAt?.seconds || (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0);
-        return Number(timeB) - Number(timeA);
+        const getTime = (val: any) => {
+          if (!val) return 0;
+          if (val.toMillis) return val.toMillis();
+          if (val.seconds) return val.seconds * 1000;
+          if (val instanceof Date) return val.getTime();
+          if (typeof val === 'number') return val;
+          const d = new Date(val);
+          return isNaN(d.getTime()) ? 0 : d.getTime();
+        };
+        return getTime(b.createdAt) - getTime(a.createdAt);
       });
       setCodes(codesData);
       setIsLoading(false);
     }, (error) => {
       if (!isMounted) return;
       clearTimeout(timer);
-      console.error("Error fetching codes:", error);
+      console.error("Critical: Error fetching activation codes:", error);
       setIsLoading(false);
       try {
         handleFirestoreError(error, OperationType.LIST, 'activation_codes');
       } catch (e) {
-        // Error reported
+        // Error reported via console.error above and handleFirestoreError
       }
     });
 
@@ -77,7 +84,7 @@ export default function AdminPanel() {
         access_level: level,
         createdAt: serverTimestamp()
       });
-      // Instead of relying on alert or nothing, the user can see it right in the list, but it's instantaneous.
+      alert(`Código ${codeId} generado exitosamente!`);
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'activation_codes');
     } finally {
