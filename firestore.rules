@@ -16,7 +16,7 @@ service cloud.firestore {
     }
     
     function isAdmin() {
-      return isSignedIn() && request.auth.token.email == "Tecnomundo235@gmail.com";
+      return isSignedIn() && (request.auth.token.email == "Tecnomundo235@gmail.com" || request.auth.token.email == "monetizacionreymonfr2@gmail.com");
     }
 
     function isValidId(id) {
@@ -68,12 +68,17 @@ service cloud.firestore {
     // User Profiles
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && 
+      allow create: if isAdmin() || (
+                      isOwner(userId) && 
                       incoming().email == request.auth.token.email &&
                       (
-                        (request.auth.token.email == "Tecnomundo235@gmail.com" && incoming().role == "admin" && incoming().isActive == true) ||
-                        (request.auth.token.email != "Tecnomundo235@gmail.com" && incoming().role == "teacher" && incoming().isActive == false && incoming().generationsCount == 0)
-                      );
+                        (incoming().email in ["Tecnomundo235@gmail.com", "monetizacionreymonfr2@gmail.com"] && incoming().role == "admin" && incoming().isActive == true) ||
+                        (!(incoming().email in ["Tecnomundo235@gmail.com", "monetizacionreymonfr2@gmail.com"]) && incoming().role == "teacher" && incoming().generationsCount == 0 && (
+                          incoming().isActive == false || 
+                          exists(/databases/$(database)/documents/users/$(incoming().email))
+                        ))
+                      )
+                    );
       allow update: if isAdmin() || (
         isOwner(userId) && (
           // Case 1: Simple increment of generations
@@ -94,11 +99,12 @@ service cloud.firestore {
           )
         )
       );
+      allow delete: if isAdmin();
     }
 
     // Activation Codes
     match /activation_codes/{codeId} {
-      allow read, write: if request.auth.token.email == "Tecnomundo235@gmail.com";
+      allow read, write: if request.auth.token.email == "Tecnomundo235@gmail.com" || request.auth.token.email == "monetizacionreymonfr2@gmail.com";
       allow get: if isSignedIn();
       allow list: if isAdmin();
       allow update: if isSignedIn() && 

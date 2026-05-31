@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, serverTimestamp, getDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
@@ -18,7 +18,8 @@ import Camila from './pages/Camila';
 import ActivationModal from './components/ActivationModal';
 import { Loader2 } from 'lucide-react';
 
-const ADMIN_EMAIL = 'Tecnomundo235@gmail.com';
+const ADMIN_EMAILS = ['monetizacionreymonfr2@gmail.com', 'Tecnomundo235@gmail.com'];
+const isAdminEmail = (email: string | null | undefined) => email ? ADMIN_EMAILS.includes(email) : false;
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -46,16 +47,31 @@ export default function App() {
             if (docSnap.exists()) {
               setProfile(docSnap.data());
             } else {
-              // Create profile if missing
+              // Create profile if missing. Check prepopulated email doc first
               try {
-                const newProfile = {
-                  email: authUser.email,
-                  isActive: authUser.email === ADMIN_EMAIL, // Admin is auto-active
-                  role: authUser.email === ADMIN_EMAIL ? 'admin' : 'teacher',
-                  generationsCount: 0,
-                  createdAt: serverTimestamp()
-                };
-                await setDoc(userRef, newProfile);
+                let initialProfile: any = null;
+                const emailDocRef = doc(db, 'users', authUser.email || '');
+                const emailSnap = await getDoc(emailDocRef);
+                
+                if (emailSnap.exists()) {
+                  const preConfig = emailSnap.data();
+                  initialProfile = {
+                    ...preConfig,
+                    createdAt: preConfig.createdAt || serverTimestamp()
+                  };
+                  // Write to the actual uid and delete the temporary email document
+                  await setDoc(userRef, initialProfile);
+                  await deleteDoc(emailDocRef);
+                } else {
+                  initialProfile = {
+                    email: authUser.email,
+                    isActive: isAdminEmail(authUser.email), // Admin is auto-active
+                    role: isAdminEmail(authUser.email) ? 'admin' : 'teacher',
+                    generationsCount: 0,
+                    createdAt: serverTimestamp()
+                  };
+                  await setDoc(userRef, initialProfile);
+                }
                 // setProfile will be triggered by onSnapshot when setDoc completes
               } catch (error) {
                 console.error("Error creating profile:", error);
@@ -93,7 +109,7 @@ export default function App() {
     return <Login />;
   }
 
-  const isAdmin = user?.email === ADMIN_EMAIL;
+  const isAdmin = isAdminEmail(user?.email);
   
   // Subscription check: Must be active AND not expired (if teacher)
   const isSubscriptionValid = () => {
