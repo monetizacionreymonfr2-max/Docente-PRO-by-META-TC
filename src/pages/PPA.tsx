@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { generateContentWithRetry } from '../lib/gemini';
-import { Sparkles, Loader2, FileText, Copy, Printer, X, History, Trash2, Edit3, Save } from 'lucide-react';
+import { Sparkles, Loader2, FileText, Copy, Printer, X, History, Trash2, Edit3, Save, GraduationCap } from 'lucide-react';
 import Markdown from 'react-markdown';
 import LimitReachedModal from '../components/LimitReachedModal';
 
@@ -586,7 +586,16 @@ REQUISITOS DEL FORMATO OFICIAL:
           </div>
 
           {/* Project Content */}
-          <div className="p-8 sm:p-12">
+          <div className="p-8 sm:p-12 relative">
+            {!isEditing && (
+              <div className="absolute top-6 right-8 text-right flex flex-col items-end">
+                <div className="flex items-center gap-1.5 text-blue-600 font-bold text-sm tracking-tight">
+                  <GraduationCap className="w-4 h-4 text-blue-500" />
+                  <span>Docente<span className="text-blue-500"> PRO</span></span>
+                </div>
+                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest -mt-0.5">by META TC</span>
+              </div>
+            )}
             {isEditing ? (
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Título del Proyecto</label>
@@ -598,7 +607,7 @@ REQUISITOS DEL FORMATO OFICIAL:
                 />
               </div>
             ) : (
-              <div className="mb-8 pb-6 border-b border-gray-200">
+              <div className="mb-8 pb-6 border-b border-gray-200 pr-24">
                 <h2 className="text-3xl font-bold text-gray-900 mb-4">{selectedProject.tema}</h2>
                 <div className="flex flex-wrap gap-4 text-sm text-gray-600">
                   <p><strong>Nivel:</strong> {selectedProject.nivel || 'Primaria'}</p>

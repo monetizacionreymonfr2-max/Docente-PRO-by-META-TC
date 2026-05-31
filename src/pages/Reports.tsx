@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { generateContentWithRetry } from '../lib/gemini';
-import { FileBadge, Loader2, Sparkles, Printer, History, X, Save, Trash2 } from 'lucide-react';
+import { FileBadge, Loader2, Sparkles, Printer, History, X, Save, Trash2, GraduationCap } from 'lucide-react';
 import LimitReachedModal from '../components/LimitReachedModal';
 
 interface Student {
@@ -554,13 +554,22 @@ Palabras clave: ${palabrasClave}`;
           </div>
 
           {/* Report Content (Printable) */}
-          <div className="p-8 sm:p-12 print:p-0 print:m-0">
+          <div className="p-8 sm:p-12 print:p-0 print:m-0 relative">
             {(() => {
               const student = getStudentForPrint(selectedReport.estudianteId);
               return (
-                <div className="bg-white border-2 border-gray-200 p-10 print:border-none print:p-0">
+                <div className="bg-white border-2 border-gray-200 p-10 print:border-none print:p-0 relative">
+                  {/* Logo de Docente PRO en la esquina superior derecha */}
+                  <div className="absolute top-6 right-8 text-right flex flex-col items-end print:top-1 print:right-1">
+                    <div className="flex items-center gap-1 text-indigo-600 font-bold text-[11px] tracking-tight">
+                      <GraduationCap className="w-3.5 h-3.5 text-indigo-500" />
+                      <span>Docente<span className="text-indigo-500"> PRO</span></span>
+                    </div>
+                    <span className="text-[6.5px] font-bold text-gray-400 uppercase tracking-widest -mt-1">by META TC</span>
+                  </div>
+
                   {/* Header */}
-                  <div className="text-center mb-8 border-b-2 border-gray-800 pb-4">
+                  <div className="text-center mb-8 border-b-2 border-gray-800 pb-4 px-20">
                     <h2 className="font-bold text-lg uppercase">Ministerio del Poder Popular para la Educación</h2>
                     <h3 className="font-semibold text-md uppercase mt-1">Boletín Informativo de Rendimiento Estudiantil</h3>
                   </div>

@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { generateContentWithRetry } from '../lib/gemini';
-import { BookOpen, Loader2, FileText, Copy, Printer, X, History, Calendar, Trash2, Edit3, Save } from 'lucide-react';
+import { BookOpen, Loader2, FileText, Copy, Printer, X, History, Calendar, Trash2, Edit3, Save, GraduationCap } from 'lucide-react';
 import Markdown from 'react-markdown';
 import LimitReachedModal from '../components/LimitReachedModal';
 
@@ -510,7 +510,16 @@ ESTRUCTURA OBLIGATORIA:
           </div>
 
           {/* Plan Content */}
-          <div className="p-8 sm:p-12">
+          <div className="p-8 sm:p-12 relative">
+            {!isEditing && (
+              <div className="absolute top-6 right-8 text-right flex flex-col items-end">
+                <div className="flex items-center gap-1.5 text-teal-600 font-bold text-sm tracking-tight">
+                  <GraduationCap className="w-4 h-4 text-teal-500" />
+                  <span>Docente<span className="text-teal-500"> PRO</span></span>
+                </div>
+                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest -mt-0.5">by META TC</span>
+              </div>
+            )}
             {isEditing ? (
               <div className="mb-8 pb-6 border-b border-gray-200">
                 <div className="flex items-center gap-2 text-teal-600 font-semibold mb-2">
@@ -526,7 +535,7 @@ ESTRUCTURA OBLIGATORIA:
                 />
               </div>
             ) : (
-              <div className="mb-8 pb-6 border-b border-gray-200">
+              <div className="mb-8 pb-6 border-b border-gray-200 pr-24">
                 <div className="flex items-center gap-2 text-teal-600 font-semibold mb-2">
                   <Calendar className="w-5 h-5" />
                   {selectedPlan.fecha}

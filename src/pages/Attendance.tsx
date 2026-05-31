@@ -3,7 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { collection, query, orderBy, onSnapshot, doc, setDoc, getDocs, where } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { Student } from './Students';
-import { Calendar as CalendarIcon, Check, X, Loader2, Printer, BarChart3, ClipboardList } from 'lucide-react';
+import { Calendar as CalendarIcon, Check, X, Loader2, Printer, BarChart3, ClipboardList, GraduationCap } from 'lucide-react';
 
 export default function Attendance() {
   const { isGuest, generationsCount, teacherId } = useOutletContext<{ isGuest: boolean, generationsCount: number, teacherId: string }>();
@@ -391,7 +391,13 @@ export default function Attendance() {
                   </div>
                 </div>
                 <h1 className="text-2xl font-bold uppercase tracking-wider">Estadística Mensual</h1>
-                <div className="w-32"></div> {/* Spacer for balance */}
+                <div className="text-right flex flex-col items-end">
+                  <div className="flex items-center gap-1.5 text-blue-600 font-bold text-sm tracking-tight">
+                    <GraduationCap className="w-4 h-4 text-blue-500" />
+                    <span>Docente<span className="text-blue-500"> PRO</span></span>
+                  </div>
+                  <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest -mt-0.5">by META TC</span>
+                </div>
               </div>
 
               {/* Info Row */}
