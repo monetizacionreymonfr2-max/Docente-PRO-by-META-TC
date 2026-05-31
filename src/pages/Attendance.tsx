@@ -231,18 +231,18 @@ export default function Attendance() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8 no-print">
-        <h1 className="text-2xl font-bold text-gray-900">Control de Asistencia</h1>
-        <p className="text-gray-600 mt-1">Registra la asistencia diaria y genera la estadística mensual.</p>
+        <h1 className="text-2xl font-bold text-white">Control de Asistencia</h1>
+        <p className="text-slate-300 mt-1">Registra la asistencia diaria y genera la estadística mensual.</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 no-print border-b border-gray-200">
+      <div className="flex gap-2 mb-6 no-print border-b border-white/10">
         <button
           onClick={() => setActiveTab('daily')}
           className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 ${
             activeTab === 'daily' 
-              ? 'border-blue-600 text-blue-600' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-blue-400 text-blue-400 font-bold' 
+              : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           <ClipboardList className="w-4 h-4" />
@@ -252,8 +252,8 @@ export default function Attendance() {
           onClick={() => setActiveTab('monthly')}
           className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 ${
             activeTab === 'monthly' 
-              ? 'border-blue-600 text-blue-600' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-blue-400 text-blue-400 font-bold' 
+              : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           <BarChart3 className="w-4 h-4" />

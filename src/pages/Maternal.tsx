@@ -121,21 +121,21 @@ export default function Maternal() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
           <Baby className="text-orange-500" />
           Sección Maternal
         </h1>
-        <p className="text-gray-600 mt-1">Gestión de rutinas y hitos del desarrollo para los más pequeños.</p>
+        <p className="text-slate-300 mt-1">Gestión de rutinas y hitos del desarrollo para los más pequeños.</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-gray-200 overflow-x-auto">
+      <div className="flex gap-2 mb-6 border-b border-white/10 overflow-x-auto">
         <button
           onClick={() => setActiveTab('routine')}
           className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
             activeTab === 'routine' 
-              ? 'border-orange-600 text-orange-600' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-orange-400 text-orange-400 font-bold' 
+              : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           <Utensils className="w-4 h-4" />
@@ -145,8 +145,8 @@ export default function Maternal() {
           onClick={() => setActiveTab('milestones')}
           className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
             activeTab === 'milestones' 
-              ? 'border-orange-600 text-orange-600' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-orange-400 text-orange-400 font-bold' 
+              : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           <LineChart className="w-4 h-4" />

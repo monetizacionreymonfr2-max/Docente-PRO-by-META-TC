@@ -120,32 +120,41 @@ export default function PPA() {
     setErrorMsg(null);
     try {
       let prompt = '';
-      const systemInstruction = `Eres un especialista senior en planificación educativa del MPPE (Venezuela), con profundo conocimiento de la "GUÍA ORGANIZATIVA EN PLANIFICACIÓN NIVEL DE EDUCACIÓN PRIMARIA 2025-2026". 
+      
+      let levelTitleStr = "EDUCACIÓN PRIMARIA";
+      if (nivel === 'Maternal') levelTitleStr = "MATERNAL";
+      else if (nivel === 'Preescolar') levelTitleStr = "EDUCACIÓN INICIAL / PREESCOLAR";
+      else if (nivel === 'Media') levelTitleStr = "EDUCACIÓN MEDIA";
 
-Tu misión es generar Proyectos Pedagógicos de Aula (PPA) bajo el NUEVO FORMATO VIGENTE. Debes seguir estrictamente estos parámetros:
+      const systemInstruction = `Eres un especialista senior en planificación educativa del MPPE (Venezuela), con profundo conocimiento del currículo y de la guía organizativa oficial para el nivel de ${levelTitleStr} 2025-2026. 
+
+Tu misión es generar Proyectos Pedagógicos de Aula (PPA) para el nivel de ${levelTitleStr} bajo el NUEVO FORMATO VIGENTE. Debes seguir estrictamente estos parámetros respetando el nivel educativo seleccionado por el usuario en todos los elementos teóricos y prácticos:
+
+Respetar SIEMPRE y sin excepciones el nivel educativo (${nivel}) y el grado o sala especificado por el usuario (${gradoSeccion.trim()}). No asumas ni fuerces cambios a otros niveles o grados (como Primaria o Cuarto Grado) a menos que sea explícitamente solicitado. Coloca de manera clara e inequívoca el nivel y grado indicados.
 
 1. ESTRUCTURA DEL P.A.:
-   - Identificación completa (Código plantel, Logo, Docente, Matrícula M/F/T, Año Escolar 2025-2026, Duración).
+   - Identificación completa (Código plantel, Logo, Docente, Matrícula M/F/T, Año Escolar 2025-2026, Duración, Nivel Educativo: ${nivel}, Grado/Sección/Sala: ${gradoSeccion.trim()}).
    - Identificación de PEIC relacionado.
    - Línea de Investigación (seleccionar de las oficiales: Currículo, Gestión, Clima Escolar, etc.).
    - Diagnóstico Integral (Cognitivo, socio-emocional, familiar y social).
    - Propósito (Verbos en infinitivo).
 
 2. ELEMENTOS INTEGRADORES (TABLA):
-   - Áreas de Formación correlacionadas con Énfasis Curriculares.
+   - Áreas de Formación o Áreas de Aprendizaje correlacionadas con Énfasis Curriculares. (Para Maternal y Preescolar usar áreas de aprendizaje de Educación Inicial: Formación Personal y Social, Relación con los Componentes del Ambiente, Comunicación y Representación).
    - Temas Indispensables (Seleccionar de los 14 oficiales).
    - Tema Generador / Componente.
-   - Tejido Temático / Contenido.
+   - Tejido Temático / Contenido / Aprendizaje Esperado.
    - Énfasis Curricular.
    - Vértices del Plan Educativo (Seleccionar del 1 al 10).
 
-3. MOMENTOS DE LA CLASE: 
-   - Exploración, Desarrollo y Reflexión.
+3. MOMENTOS DE LA CLASE / PLANIFICACIÓN DE LA JORNADA: 
+   - Para Primaria/Media: Exploración, Desarrollo y Reflexión.
+   - Para Maternal/Preescolar: Inicio (Recibimiento), Trabajo Libre en los Espacios, Pequeños Grupos y Cierre.
 
 4. INTENCIONALIDADES:
-   - Aprender a Crear, Conviver y Participar, Valorar y Reflexionar.
+   - Aprender a Crear, Conviver y Participar (o Aprender a Convivir en Inicial/Maternal), Valorar y Reflexionar.
 
-Usa un tono técnico-pedagógico impecable y lenguaje oficial actualizado.`;
+Usa un tono técnico-pedagógico impecable, lenguaje oficial actualizado, y asegúrate de estructurar y etiquetar el proyecto basándote enteramente en el nivel (${nivel}) y grado/sección (${gradoSeccion.trim()}) seleccionados por el docente. Jamás insertes notas aclaratorias indicando falsamente que se asume otro grado o nivel.`;
 
       if (nivel === 'Maternal') {
         prompt = `Genera un PPA para el nivel MATERNAL bajo el nuevo formato MPPE 2025-2026.
@@ -315,18 +324,18 @@ REQUISITOS DEL FORMATO OFICIAL:
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8 no-print">
-        <h1 className="text-2xl font-bold text-gray-900">Gestor de PPA con IA</h1>
-        <p className="text-gray-600 mt-1">Genera Proyectos Pedagógicos de Aula estructurados automáticamente.</p>
+        <h1 className="text-2xl font-bold text-white">Gestor de PPA con IA</h1>
+        <p className="text-slate-300 mt-1">Genera Proyectos Pedagógicos de Aula estructurados automáticamente.</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-gray-200 overflow-x-auto no-print">
+      <div className="flex gap-2 mb-6 border-b border-white/10 overflow-x-auto no-print">
         <button
           onClick={() => { setActiveTab('generate'); setSelectedProject(null); }}
           className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
             activeTab === 'generate' 
-              ? 'border-blue-600 text-blue-600' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-blue-400 text-blue-400 font-bold' 
+              : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           <Sparkles className="w-4 h-4" />
@@ -336,8 +345,8 @@ REQUISITOS DEL FORMATO OFICIAL:
           onClick={() => setActiveTab('history')}
           className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
             activeTab === 'history' 
-              ? 'border-blue-600 text-blue-600' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-blue-400 text-blue-400 font-bold' 
+              : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           <History className="w-4 h-4" />
@@ -377,7 +386,15 @@ REQUISITOS DEL FORMATO OFICIAL:
                     type="text"
                     id="gradoSeccion"
                     required
-                    placeholder={nivel === 'Maternal' ? 'Ej: Lactantes II' : 'Ej: 4to Grado A'}
+                    placeholder={
+                      nivel === 'Maternal' 
+                        ? 'Ej: Lactantes II' 
+                        : nivel === 'Preescolar' 
+                        ? 'Ej: 2do Grupo Sección A' 
+                        : nivel === 'Media' 
+                        ? 'Ej: 3er Año Sección B' 
+                        : 'Ej: 4to Grado A'
+                    }
                     value={gradoSeccion}
                     onChange={(e) => setGradoSeccion(e.target.value)}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"

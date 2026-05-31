@@ -277,18 +277,18 @@ ESTRUCTURA OBLIGATORIA:
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8 no-print">
-        <h1 className="text-2xl font-bold text-gray-900">Planificador Diario</h1>
-        <p className="text-gray-600 mt-1">Genera clases diarias estructuradas basadas en tus Proyectos Pedagógicos.</p>
+        <h1 className="text-2xl font-bold text-white">Planificador Diario</h1>
+        <p className="text-slate-300 mt-1">Genera clases diarias estructuradas basadas en tus Proyectos Pedagógicos.</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-gray-200 overflow-x-auto no-print">
+      <div className="flex gap-2 mb-6 border-b border-white/10 overflow-x-auto no-print">
         <button
           onClick={() => { setActiveTab('generate'); setSelectedPlan(null); }}
           className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
             activeTab === 'generate' 
-              ? 'border-blue-600 text-blue-600' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-blue-400 text-blue-400 font-bold' 
+              : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           <BookOpen className="w-4 h-4" />
@@ -298,8 +298,8 @@ ESTRUCTURA OBLIGATORIA:
           onClick={() => setActiveTab('history')}
           className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
             activeTab === 'history' 
-              ? 'border-blue-600 text-blue-600' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-blue-400 text-blue-400 font-bold' 
+              : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           <History className="w-4 h-4" />

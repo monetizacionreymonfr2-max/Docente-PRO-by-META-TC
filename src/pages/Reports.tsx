@@ -262,18 +262,18 @@ Palabras clave: ${palabrasClave}`;
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8 no-print">
-        <h1 className="text-2xl font-bold text-gray-900">Generador de Boletines</h1>
-        <p className="text-gray-600 mt-1">Crea boletines informativos profesionales con observaciones redactadas por IA.</p>
+        <h1 className="text-2xl font-bold text-white">Generador de Boletines</h1>
+        <p className="text-slate-300 mt-1">Crea boletines informativos profesionales con observaciones redactadas por IA.</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-gray-200 overflow-x-auto no-print">
+      <div className="flex gap-2 mb-6 border-b border-white/10 overflow-x-auto no-print">
         <button
           onClick={() => { setActiveTab('generate'); setSelectedReport(null); }}
           className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
             activeTab === 'generate' 
-              ? 'border-indigo-600 text-indigo-600' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-indigo-400 text-indigo-400 font-bold' 
+              : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           <FileBadge className="w-4 h-4" />
@@ -283,8 +283,8 @@ Palabras clave: ${palabrasClave}`;
           onClick={() => setActiveTab('history')}
           className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
             activeTab === 'history' 
-              ? 'border-indigo-600 text-indigo-600' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-indigo-400 text-indigo-400 font-bold' 
+              : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           <History className="w-4 h-4" />

@@ -164,18 +164,18 @@ export default function Students() {
   return (
     <div className="max-w-6xl mx-auto">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Panel de Estudiantes</h1>
-        <p className="text-gray-600 mt-1">Gestiona la lista de alumnos y controla sus fechas de cumpleaños.</p>
+        <h1 className="text-2xl font-bold text-white">Panel de Estudiantes</h1>
+        <p className="text-slate-300 mt-1">Gestiona la lista de alumnos y controla sus fechas de cumpleaños.</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 mb-6 border-b border-gray-200 overflow-x-auto">
+      <div className="flex gap-2 mb-6 border-b border-white/10 overflow-x-auto">
         <button
           onClick={() => setActiveTab('list')}
           className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
             activeTab === 'list' 
-              ? 'border-blue-600 text-blue-600' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-blue-400 text-blue-400 font-bold' 
+              : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           <Users className="w-4 h-4" />
@@ -185,8 +185,8 @@ export default function Students() {
           onClick={() => setActiveTab('birthdays')}
           className={`flex items-center gap-2 px-4 py-3 font-medium text-sm transition-colors border-b-2 whitespace-nowrap ${
             activeTab === 'birthdays' 
-              ? 'border-blue-600 text-blue-600' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              ? 'border-blue-400 text-blue-400 font-bold' 
+              : 'border-transparent text-slate-400 hover:text-white'
           }`}
         >
           <Cake className="w-4 h-4" />

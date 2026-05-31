@@ -208,8 +208,8 @@ export default function AdminPanel() {
     <div className="max-w-4xl mx-auto space-y-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-3xl font-black text-gray-900 tracking-tight">Panel Principal <span className="text-blue-600">SaaS</span></h1>
-          <p className="text-gray-500 mt-1 font-medium italic">Gestión de licencias y activación de usuarios.</p>
+          <h1 className="text-3xl font-black text-white tracking-tight">Panel Principal <span className="text-blue-400">SaaS</span></h1>
+          <p className="text-slate-300 mt-1 font-medium italic">Gestión de licencias y activación de usuarios.</p>
         </div>
         <div className="flex flex-wrap gap-3">
           <button
@@ -237,7 +237,7 @@ export default function AdminPanel() {
             <Ticket size={24} />
           </div>
           <div>
-            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">Total</p>
+            <p className="text-sm font-bold text-gray-600 uppercase tracking-widest leading-none mb-1">Total</p>
             <p className="text-2xl font-black text-gray-900">{codes.length}</p>
           </div>
         </div>
@@ -246,16 +246,16 @@ export default function AdminPanel() {
             <CheckCircle2 size={24} />
           </div>
           <div>
-            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">Disponibles</p>
+            <p className="text-sm font-bold text-gray-600 uppercase tracking-widest leading-none mb-1">Disponibles</p>
             <p className="text-2xl font-black text-gray-900">{codes.filter(c => c.status === 'disponible').length}</p>
           </div>
         </div>
         <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-400 shrink-0">
+          <div className="w-12 h-12 bg-gray-50 rounded-2xl flex items-center justify-center text-gray-600 shrink-0">
             <History size={24} />
           </div>
           <div>
-            <p className="text-sm font-bold text-gray-400 uppercase tracking-widest leading-none mb-1">Usados</p>
+            <p className="text-sm font-bold text-gray-600 uppercase tracking-widest leading-none mb-1">Usados</p>
             <p className="text-2xl font-black text-gray-900">{codes.filter(c => c.status === 'usado').length}</p>
           </div>
         </div>
@@ -263,13 +263,13 @@ export default function AdminPanel() {
 
       <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-8 py-6 border-b border-gray-50 bg-gray-50/50 flex items-center gap-2">
-          <History size={20} className="text-gray-400" />
+          <History size={20} className="text-gray-500" />
           <h2 className="font-black text-gray-900 uppercase tracking-tight text-sm">Registro de Códigos</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left">
             <thead>
-              <tr className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] border-b border-gray-50">
+              <tr className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] border-b border-gray-50">
                 <th className="px-8 py-4">Código</th>
                 <th className="px-8 py-4">Nivel</th>
                 <th className="px-8 py-4">Estado</th>
@@ -280,11 +280,11 @@ export default function AdminPanel() {
             <tbody className="divide-y divide-gray-50">
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="px-8 py-12 text-center text-gray-400 font-medium">Cargando códigos...</td>
+                  <td colSpan={5} className="px-8 py-12 text-center text-gray-500 font-medium">Cargando códigos...</td>
                 </tr>
               ) : codes.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-8 py-12 text-center text-gray-400 font-medium">No hay códigos generados.</td>
+                  <td colSpan={5} className="px-8 py-12 text-center text-gray-500 font-medium">No hay códigos generados.</td>
                 </tr>
               ) : (
                 codes.map((code) => (
