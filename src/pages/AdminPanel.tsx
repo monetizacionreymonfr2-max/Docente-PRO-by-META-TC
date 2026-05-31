@@ -20,7 +20,7 @@ export default function AdminPanel() {
   const [isGenerating, setIsGenerating] = useState<string | false>(false);
 
   const currentUserEmail = auth.currentUser?.email;
-  const isCurrentAdmin = currentUserEmail === 'monetizacionreymonfr2@gmail.com';
+  const isCurrentAdmin = currentUserEmail === 'Tecnomundo235@gmail.com';
 
   useEffect(() => {
     if (!isCurrentAdmin) {

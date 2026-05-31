@@ -16,7 +16,7 @@ service cloud.firestore {
     }
     
     function isAdmin() {
-      return isSignedIn() && request.auth.token.email == "monetizacionreymonfr2@gmail.com";
+      return isSignedIn() && request.auth.token.email == "Tecnomundo235@gmail.com";
     }
 
     function isValidId(id) {
@@ -33,19 +33,25 @@ service cloud.firestore {
              data.access_level in ['guest', 'pro'];
     }
 
-    // Check ownership for any document that has a 'docenteId' or 'uid' field
-    function isDocOwner() {
+    function isActiveUser() {
       return isSignedIn() && (
-        (resource != null && (
-          resource.data.docenteId == request.auth.uid || 
-          resource.data.teacher_id == request.auth.uid || 
-          resource.data.uid == request.auth.uid
-        )) ||
-        (request.resource != null && (
-          request.resource.data.docenteId == request.auth.uid || 
-          request.resource.data.teacher_id == request.auth.uid || 
-          request.resource.data.uid == request.auth.uid
-        ))
+        isAdmin() || (
+          exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isActive == true &&
+          (
+            !('expiresAt' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data) ||
+            get(/databases/$(database)/documents/users/$(request.auth.uid)).data.expiresAt > request.time
+          )
+        )
+      );
+    }
+
+    // Parametrized check to ensure ownership for any document
+    function isDocOwner(data) {
+      return isActiveUser() && (
+        ('docenteId' in data && data.docenteId == request.auth.uid) || 
+        ('teacher_id' in data && data.teacher_id == request.auth.uid) || 
+        ('uid' in data && data.uid == request.auth.uid)
       );
     }
 
@@ -65,8 +71,8 @@ service cloud.firestore {
       allow create: if isOwner(userId) && 
                       incoming().email == request.auth.token.email &&
                       (
-                        (request.auth.token.email == "monetizacionreymonfr2@gmail.com" && incoming().role == "admin" && incoming().isActive == true) ||
-                        (request.auth.token.email != "monetizacionreymonfr2@gmail.com" && incoming().role == "teacher" && incoming().isActive == false && incoming().generationsCount == 0)
+                        (request.auth.token.email == "Tecnomundo235@gmail.com" && incoming().role == "admin" && incoming().isActive == true) ||
+                        (request.auth.token.email != "Tecnomundo235@gmail.com" && incoming().role == "teacher" && incoming().isActive == false && incoming().generationsCount == 0)
                       );
       allow update: if isAdmin() || (
         isOwner(userId) && (
@@ -92,7 +98,7 @@ service cloud.firestore {
 
     // Activation Codes
     match /activation_codes/{codeId} {
-      allow read, write: if request.auth.token.email == "monetizacionreymonfr2@gmail.com";
+      allow read, write: if request.auth.token.email == "Tecnomundo235@gmail.com";
       allow get: if isSignedIn();
       allow list: if isAdmin();
       allow update: if isSignedIn() && 
@@ -109,38 +115,50 @@ service cloud.firestore {
     
     // Students list
     match /estudiantes/{document} {
-      allow read, write: if isAdmin() || isDocOwner();
+      allow read: if isAdmin() || (resource != null && isDocOwner(existing()));
+      allow create: if isAdmin() || isDocOwner(incoming());
+      allow update: if isAdmin() || (resource != null && isDocOwner(existing()) && isDocOwner(incoming()));
+      allow delete: if isAdmin() || (resource != null && isDocOwner(existing()));
     }
 
     // Attendance records
     match /asistencias/{document} {
-      allow read, write: if isAdmin() || isDocOwner();
+      allow read: if isAdmin() || (resource != null && isDocOwner(existing()));
+      allow create: if isAdmin() || isDocOwner(incoming());
+      allow update: if isAdmin() || (resource != null && isDocOwner(existing()) && isDocOwner(incoming()));
+      allow delete: if isAdmin() || (resource != null && isDocOwner(existing()));
     }
 
     // PPA Projects (Projects, Objectives, etc.)
     match /proyectos_ppa/{document} {
-      allow read: if isAdmin() || isDocOwner();
-      allow create: if (isAdmin() || isDocOwner()) && isWithinGuestLimit();
-      allow update, delete: if isAdmin() || isDocOwner();
+      allow read: if isAdmin() || (resource != null && isDocOwner(existing()));
+      allow create: if (isAdmin() || isDocOwner(incoming())) && isWithinGuestLimit();
+      allow update: if isAdmin() || (resource != null && isDocOwner(existing()) && isDocOwner(incoming()));
+      allow delete: if isAdmin() || (resource != null && isDocOwner(existing()));
     }
 
     // Daily Lesson Plans
     match /planificaciones_diarias/{document} {
-      allow read: if isAdmin() || isDocOwner();
-      allow create: if (isAdmin() || isDocOwner()) && isWithinGuestLimit();
-      allow update, delete: if isAdmin() || isDocOwner();
+      allow read: if isAdmin() || (resource != null && isDocOwner(existing()));
+      allow create: if (isAdmin() || isDocOwner(incoming())) && isWithinGuestLimit();
+      allow update: if isAdmin() || (resource != null && isDocOwner(existing()) && isDocOwner(incoming()));
+      allow delete: if isAdmin() || (resource != null && isDocOwner(existing()));
     }
 
     // Evaluation Reports / Boletines
     match /boletines/{document} {
-      allow read: if isAdmin() || isDocOwner();
-      allow create: if (isAdmin() || isDocOwner()) && isWithinGuestLimit();
-      allow update, delete: if isAdmin() || isDocOwner();
+      allow read: if isAdmin() || (resource != null && isDocOwner(existing()));
+      allow create: if (isAdmin() || isDocOwner(incoming())) && isWithinGuestLimit();
+      allow update: if isAdmin() || (resource != null && isDocOwner(existing()) && isDocOwner(incoming()));
+      allow delete: if isAdmin() || (resource != null && isDocOwner(existing()));
     }
 
     // Maternal Routines and Milestones
     match /bitacoras_maternal/{document} {
-      allow read, write: if isAdmin() || isDocOwner();
+      allow read: if isAdmin() || (resource != null && isDocOwner(existing()));
+      allow create: if isAdmin() || isDocOwner(incoming());
+      allow update: if isAdmin() || (resource != null && isDocOwner(existing()) && isDocOwner(incoming()));
+      allow delete: if isAdmin() || (resource != null && isDocOwner(existing()));
     }
 
     match /activation_codes_admin/{document} {

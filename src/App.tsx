@@ -18,7 +18,7 @@ import Camila from './pages/Camila';
 import ActivationModal from './components/ActivationModal';
 import { Loader2 } from 'lucide-react';
 
-const ADMIN_EMAIL = 'monetizacionreymonfr2@gmail.com';
+const ADMIN_EMAIL = 'Tecnomundo235@gmail.com';
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
@@ -128,9 +128,18 @@ export default function App() {
   const generationsCount = profile?.generationsCount || 0;
   const expiresAt = profile?.expiresAt;
 
+  if (!isActive) {
+    return (
+      <BrowserRouter>
+        <Routes>
+          <Route path="*" element={<ActivationModal userId={user.uid} email={user.email} />} />
+        </Routes>
+      </BrowserRouter>
+    );
+  }
+
   return (
     <BrowserRouter>
-      {user && !isActive && <ActivationModal userId={user.uid} email={user.email} />}
       <Routes>
         <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} codeId={codeId} generationsCount={generationsCount} teacherId={user.uid} expiresAt={expiresAt} />}>
           <Route index element={<Navigate to="/home" replace />} />

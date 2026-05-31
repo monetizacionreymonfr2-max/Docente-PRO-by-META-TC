@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { signOut } from 'firebase/auth';
 import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '../lib/firebase';
 import { Key, Loader2, ShieldCheck, XCircle, Info, Sparkles } from 'lucide-react';
@@ -149,6 +150,14 @@ export default function ActivationModal({ userId, email }: ActivationModalProps)
                 <Sparkles size={18} className="text-amber-500 group-hover:animate-spin-slow" />
                 <span>¿Necesitas Información? Habla con Camila</span>
                 <Info size={16} className="opacity-50" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => signOut(auth)}
+                className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 border border-rose-100 transition-all active:scale-[0.98]"
+              >
+                Cerrar Sesión (Salir)
               </button>
             </div>
           </form>
