@@ -66,7 +66,7 @@ service cloud.firestore {
                       incoming().email == request.auth.token.email &&
                       (
                         (request.auth.token.email == "monetizacionreymonfr2@gmail.com" && incoming().role == "admin" && incoming().isActive == true) ||
-                        (request.auth.token.email != "monetizacionreymonfr2@gmail.com" && incoming().role == "teacher" && (!incoming().keys().contains('isActive') || incoming().isActive == false) && incoming().generationsCount == 0)
+                        (request.auth.token.email != "monetizacionreymonfr2@gmail.com" && incoming().role == "teacher" && incoming().isActive == false && incoming().generationsCount == 0)
                       );
       allow update: if isAdmin() || (
         isOwner(userId) && (
@@ -80,7 +80,7 @@ service cloud.firestore {
             incoming().diff(existing()).affectedKeys().hasOnly(['isActive', 'access_level', 'expiresAt', 'activatedAt', 'activationCode']) &&
             incoming().role == existing().role && // Cannot change role
             incoming().isActive == true &&
-            incoming().keys().contains('activationCode') &&
+            'activationCode' in incoming() &&
             incoming().activationCode is string &&
             getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.status == 'usado' &&
             getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.usedBy == request.auth.uid &&
