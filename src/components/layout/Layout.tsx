@@ -101,7 +101,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
     <div className="flex h-screen hex-bg font-sans overflow-hidden">
       
       {/* Mobile Top Bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 glass-effect text-white flex items-center justify-between px-4 z-20 shadow-md border-b-futuristic-purple/30">
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 glass-effect text-white flex items-center justify-between px-4 z-20 shadow-md border-b-futuristic-purple/30 no-print">
         <div className="flex items-center gap-2">
           <GraduationCap size={24} className="text-futuristic-accent" />
           <h1 className="text-lg font-bold tracking-tight">Docente<span className="text-futuristic-accent"> PRO</span> <span className="text-xs font-normal opacity-80">by META TC</span></h1>
@@ -117,14 +117,14 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
       {/* Overlay for mobile */}
       {isMobileMenuOpen && (
         <div 
-          className="md:hidden fixed inset-0 bg-black/80 z-30 backdrop-blur-sm"
+          className="md:hidden fixed inset-0 bg-black/80 z-30 backdrop-blur-sm no-print"
           onClick={closeMobileMenu}
         />
       )}
 
       {/* Sidebar */}
       <aside 
-        className={`fixed md:static inset-y-0 left-0 z-40 w-64 glass-effect text-white flex flex-col shadow-2xl transform transition-transform duration-300 ease-in-out border-r-futuristic-purple/20 ${
+        className={`fixed md:static inset-y-0 left-0 z-40 w-64 glass-effect text-white flex flex-col shadow-2xl transform transition-transform duration-300 ease-in-out border-r-futuristic-purple/20 no-print ${
           isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
@@ -245,7 +245,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
 
       {/* Floating Camila Widget */}
       {location.pathname !== '/camila' && (
-        <>
+        <div className="no-print">
           <button
             onClick={() => setIsCamilaWidgetOpen(!isCamilaWidgetOpen)}
             className="fixed bottom-6 right-6 p-4 rounded-full bg-gradient-to-br from-futuristic-purple to-futuristic-magenta text-white shadow-2xl hover:shadow-futuristic-purple/40 hover:scale-110 transition-all z-50 flex items-center justify-center border-2 border-white/20 group"
@@ -258,7 +258,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
               <CamilaInner teacherId={teacherId} isEmbedded={true} onClose={() => setIsCamilaWidgetOpen(false)} />
             </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

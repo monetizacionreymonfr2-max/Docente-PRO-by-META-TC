@@ -43,21 +43,96 @@
 }
 
 @media print {
-  body {
-    background-color: white;
+  /* Reset document flow and backgrounds for high quality printing */
+  html, body {
+    background: white !important;
+    color: black !important;
+    height: auto !important;
+    min-height: 100% !important;
+    overflow: visible !important;
+    position: static !important;
   }
+
+  /* Make sure background is light themed on paper */
+  body {
+    background-color: white !important;
+  }
+
+  #root {
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+    position: static !important;
+  }
+
+  /* Force layout wrapper classes to disable flex/grid with 100vh restrictions */
+  .flex.h-screen, .h-screen, [class*="h-screen"], [class*="overflow-hidden"] {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    overflow-x: visible !important;
+    overflow-y: visible !important;
+    display: block !important;
+    position: static !important;
+    max-height: none !important;
+  }
+
+  /* Strip main element of scrollbars and pt padding */
+  main, .flex-1, .overflow-y-auto {
+    overflow: visible !important;
+    overflow-y: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    display: block !important;
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-height: none !important;
+  }
+
   .no-print {
     display: none !important;
   }
+
   .print-only {
     display: block !important;
   }
+
+  /* The printable containers itself (PPA, Reports, Planners) */
   .print-document {
+    background: white !important;
+    background-color: white !important;
+    color: black !important;
     box-shadow: none !important;
+    border: none !important;
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
     max-width: none !important;
+    overflow: visible !important;
+    height: auto !important;
+    display: block !important;
+    position: static !important;
+  }
+
+  /* Force all children inside print-document to print with high contrast text colors */
+  .print-document * {
+    color: black !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    border-color: #cbd5e1 !important; /* light slate for borders */
+  }
+
+  /* Specific typography improvements for print outputs */
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+
+  p, li, blockquote, tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
   }
 }
 
