@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, setDoc, doc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, deleteDoc, writeBatch } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { Ticket, CheckCircle2, Copy, History, Loader2, Wand2, CalendarDays, RefreshCw, Trash2, Plus, Minus } from 'lucide-react';
+import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { Ticket, CheckCircle2, Copy, History, Loader2, Wand2, CalendarDays, RefreshCw, Trash2, Plus, Minus, Lock, ShieldAlert } from 'lucide-react';
 
 interface Code {
   id: string;
@@ -19,7 +19,15 @@ export default function AdminPanel() {
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState<string | false>(false);
 
+  const currentUserEmail = auth.currentUser?.email;
+  const isCurrentAdmin = currentUserEmail === 'monetizacionreymonfr2@gmail.com';
+
   useEffect(() => {
+    if (!isCurrentAdmin) {
+      setIsLoading(false);
+      return;
+    }
+
     let isMounted = true;
     
     // Fallback timer: if onSnapshot doesn't respond in 20 seconds, stop loading
@@ -203,6 +211,26 @@ export default function AdminPanel() {
       return 0;
     }
   };
+
+  if (!isCurrentAdmin) {
+    return (
+      <div className="max-w-md mx-auto my-12 bg-black/40 backdrop-blur-md rounded-3xl border border-red-500/30 p-8 text-center shadow-2xl">
+        <div className="w-16 h-16 bg-red-500/10 rounded-2xl flex items-center justify-center text-red-500 mx-auto mb-6 border border-red-500/20">
+          <Lock size={32} />
+        </div>
+        <h2 className="text-2xl font-black text-white tracking-tight uppercase">Acceso Denegado</h2>
+        <p className="text-red-300 font-medium text-xs tracking-wider uppercase mt-2">Error de Autenticación de Administrador</p>
+        <p className="text-slate-300 mt-4 text-sm leading-relaxed">
+          Tu cuenta (<span className="font-semibold text-white">{currentUserEmail || 'invitado'}</span>) no posee credenciales administrativas habilitadas. 
+          Este intento de acceso ha sido bloqueado y registrado por razones de seguridad.
+        </p>
+        <div className="mt-8 border-t border-white/5 pt-6 flex items-center justify-center gap-2 text-[10px] text-slate-500 font-mono">
+          <ShieldAlert size={12} className="text-red-500" />
+          <span>SISTEMA DE SEGURIDAD DOCENTE PRO x META TC</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl mx-auto space-y-8">
