@@ -82,9 +82,9 @@ service cloud.firestore {
             incoming().isActive == true &&
             incoming().keys().contains('activationCode') &&
             incoming().activationCode is string &&
-            get(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.status == 'usado' &&
-            get(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.usedBy == request.auth.uid &&
-            get(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.access_level == incoming().access_level
+            getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.status == 'usado' &&
+            getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.usedBy == request.auth.uid &&
+            getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.access_level == incoming().access_level
           )
         )
       );
