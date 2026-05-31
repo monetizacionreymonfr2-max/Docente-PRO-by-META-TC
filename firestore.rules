@@ -61,8 +61,33 @@ service cloud.firestore {
 
     // User Profiles
     match /users/{userId} {
-      allow read, update: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId);
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && 
+                      incoming().email == request.auth.token.email &&
+                      (
+                        (request.auth.token.email == "monetizacionreymonfr2@gmail.com" && incoming().role == "admin" && incoming().isActive == true) ||
+                        (request.auth.token.email != "monetizacionreymonfr2@gmail.com" && incoming().role == "teacher" && (!incoming().keys().contains('isActive') || incoming().isActive == false) && incoming().generationsCount == 0)
+                      );
+      allow update: if isAdmin() || (
+        isOwner(userId) && (
+          // Case 1: Simple increment of generations
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly(['generationsCount']) &&
+            incoming().generationsCount == existing().generationsCount + 1
+          ) ||
+          // Case 2: Code Activation verified against code doc in database
+          (
+            incoming().diff(existing()).affectedKeys().hasOnly(['isActive', 'access_level', 'expiresAt', 'activatedAt', 'activationCode']) &&
+            incoming().role == existing().role && // Cannot change role
+            incoming().isActive == true &&
+            incoming().keys().contains('activationCode') &&
+            incoming().activationCode is string &&
+            get(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.status == 'usado' &&
+            get(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.usedBy == request.auth.uid &&
+            get(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.access_level == incoming().access_level
+          )
+        )
+      );
     }
 
     // Activation Codes

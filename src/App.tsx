@@ -93,7 +93,7 @@ export default function App() {
     return <Login />;
   }
 
-  const isAdmin = profile?.role === 'admin' || user?.email === ADMIN_EMAIL;
+  const isAdmin = user?.email === ADMIN_EMAIL;
   
   // Subscription check: Must be active AND not expired (if teacher)
   const isSubscriptionValid = () => {
