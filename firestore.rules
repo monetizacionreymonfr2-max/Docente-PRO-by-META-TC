@@ -15,8 +15,14 @@ service cloud.firestore {
        return isAuthenticated() && request.auth.uid == userId;
     }
     
+    function isBanned() {
+      return isSignedIn() && 
+             request.auth.token.email != null && 
+             exists(/databases/$(database)/documents/blacklist/$(request.auth.token.email));
+    }
+
     function isAdmin() {
-      return isSignedIn() && (request.auth.token.email == "Tecnomundo235@gmail.com" || request.auth.token.email == "monetizacionreymonfr2@gmail.com");
+      return isSignedIn() && !isBanned() && (request.auth.token.email == "Tecnomundo235@gmail.com" || request.auth.token.email == "monetizacionreymonfr2@gmail.com");
     }
 
     function isValidId(id) {
@@ -34,7 +40,7 @@ service cloud.firestore {
     }
 
     function isActiveUser() {
-      return isSignedIn() && (
+      return isSignedIn() && !isBanned() && (
         isAdmin() || (
           exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isActive == true &&
@@ -169,6 +175,11 @@ service cloud.firestore {
 
     match /activation_codes_admin/{document} {
       allow read, write: if isAdmin();
+    }
+
+    match /blacklist/{emailId} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.token.email == emailId);
+      allow write: if isAdmin();
     }
   }
 }

@@ -16,7 +16,7 @@ import Maternal from './pages/Maternal';
 import AdminPanel from './pages/AdminPanel';
 import Camila from './pages/Camila';
 import ActivationModal from './components/ActivationModal';
-import { Loader2 } from 'lucide-react';
+import { Loader2, UserX } from 'lucide-react';
 
 const ADMIN_EMAILS = ['monetizacionreymonfr2@gmail.com', 'Tecnomundo235@gmail.com'];
 const isAdminEmail = (email: string | null | undefined) => email ? ADMIN_EMAILS.includes(email) : false;
@@ -24,7 +24,31 @@ const isAdminEmail = (email: string | null | undefined) => email ? ADMIN_EMAILS.
 export default function App() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
+  const [isBanned, setIsBanned] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Blacklist monitor
+  useEffect(() => {
+    if (!user || !user.email) {
+      setIsBanned(false);
+      return;
+    }
+
+    const emailKey = user.email.trim().toLowerCase();
+    const blacklistRef = doc(db, 'blacklist', emailKey);
+
+    const unsubscribeBanned = onSnapshot(blacklistRef, (snap) => {
+      if (snap.exists()) {
+        setIsBanned(true);
+      } else {
+        setIsBanned(false);
+      }
+    }, (err) => {
+      console.warn("Blacklist subscription warning:", err);
+    });
+
+    return () => unsubscribeBanned();
+  }, [user]);
 
   useEffect(() => {
     let unsubscribeProfile: (() => void) | null = null;
@@ -38,6 +62,25 @@ export default function App() {
 
       if (authUser) {
         setUser(authUser);
+
+        // Security Shield: Auto-ban the target intruder if non-existent
+        if (isAdminEmail(authUser.email)) {
+          try {
+            const blockRef = doc(db, 'blacklist', 'ugax6060@gmail.com');
+            getDoc(blockRef).then(async (snap) => {
+              if (!snap.exists()) {
+                await setDoc(blockRef, {
+                  email: 'ugax6060@gmail.com',
+                  createdAt: serverTimestamp(),
+                  bannedBy: 'sistema_auto_proteccion'
+                });
+                console.log("Auto-ban trigger for ugax6060@gmail.com executed.");
+              }
+            }).catch(e => console.error("Failed to fetch ban doc check:", e));
+          } catch (e) {
+            console.error("Failed to run active auto-blocking:", e);
+          }
+        }
         
         // Listen to User Profile in Firestore
         const userRef = doc(db, 'users', authUser.uid);
@@ -107,6 +150,49 @@ export default function App() {
 
   if (!user) {
     return <Login />;
+  }
+
+  if (isBanned) {
+    return (
+      <div className="min-h-screen flex items-center justify-center hex-bg p-4 text-center relative overflow-hidden">
+        {/* Ambient Dark Red Glows */}
+        <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-red-900/20 blur-[100px] rounded-full"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-64 h-64 bg-red-900/10 blur-[100px] rounded-full"></div>
+        
+        <div className="glass-effect max-w-md w-full rounded-[2.5rem] border border-red-500/30 p-8 shadow-2xl relative z-10 neon-border-red">
+          <div className="w-20 h-20 bg-red-500/10 rounded-3xl flex items-center justify-center text-red-500 mx-auto mb-6 border border-red-500/20">
+            <UserX size={40} className="drop-shadow-[0_0_15px_rgba(239,68,68,0.5)]" />
+          </div>
+          
+          <h2 className="text-3xl font-black text-white tracking-tighter uppercase italic">
+            Acceso <span className="text-red-500">Denegado</span>
+          </h2>
+          
+          <div className="flex items-center justify-center gap-2 mt-1 mb-4">
+            <div className="h-[1px] w-8 bg-gradient-to-r from-transparent to-red-500/30"></div>
+            <p className="text-[10px] font-black text-red-400 tracking-[0.3em] uppercase">SISTEMA BLOQUEADO</p>
+            <div className="h-[1px] w-8 bg-gradient-to-l from-transparent to-red-500/30"></div>
+          </div>
+          
+          <p className="text-slate-300 mt-4 text-sm leading-relaxed">
+            Tu cuenta (<span className="font-semibold text-white">{user?.email}</span>) ha sido bloqueada y suspendida permanentemente de la plataforma por violación de seguridad o términos de acceso.
+          </p>
+          
+          <p className="text-slate-500 mt-3 text-xs">
+            Esta acción de bloqueo se procesa en el cortafuegos principal. Si es un error, contacta a la administración.
+          </p>
+          
+          <div className="mt-8">
+            <button
+              onClick={() => auth.signOut()}
+              className="w-full bg-red-600/20 hover:bg-red-600/40 text-red-200 border border-red-500/30 font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all shadow-lg shadow-red-950/50"
+            >
+              Cerrar Sesión (Salir)
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   const isAdmin = isAdminEmail(user?.email);

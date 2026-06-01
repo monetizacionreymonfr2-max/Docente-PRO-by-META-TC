@@ -50,7 +50,7 @@ interface ProfileUser {
 const ADMIN_EMAILS = ['monetizacionreymonfr2@gmail.com', 'Tecnomundo235@gmail.com'];
 
 export default function AdminPanel() {
-  const [activeTab, setActiveTab] = useState<'licencias' | 'usuarios'>('licencias');
+  const [activeTab, setActiveTab] = useState<'licencias' | 'usuarios' | 'blacklist'>('licencias');
   
   // Codes states
   const [codes, setCodes] = useState<Code[]>([]);
@@ -69,6 +69,13 @@ export default function AdminPanel() {
   const [newIsActive, setNewIsActive] = useState(true);
   const [newDurationDays, setNewDurationDays] = useState('30');
   const [isAddingUser, setIsAddingUser] = useState(false);
+
+  // Blacklist states
+  const [bannedEmails, setBannedEmails] = useState<{ id: string; email: string; createdAt?: any; bannedBy?: string }[]>([]);
+  const [blacklistLoading, setBlacklistLoading] = useState(true);
+  const [bannedSearchQuery, setBannedSearchQuery] = useState('');
+  const [banEmailInput, setBanEmailInput] = useState('');
+  const [isBanning, setIsBanning] = useState(false);
 
   const currentUserEmail = auth.currentUser?.email;
   const isCurrentAdmin = currentUserEmail ? ADMIN_EMAILS.includes(currentUserEmail) : false;
@@ -159,6 +166,104 @@ export default function AdminPanel() {
 
     return () => unsubscribe();
   }, [isCurrentAdmin]);
+
+  // Listen to Blacklist collection
+  useEffect(() => {
+    if (!isCurrentAdmin) {
+      setBlacklistLoading(false);
+      return;
+    }
+
+    const q = collection(db, 'blacklist');
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const banned: any[] = [];
+      snapshot.forEach((doc) => {
+        banned.push({ id: doc.id, ...doc.data() });
+      });
+      // Sort alphabetically
+      banned.sort((a, b) => (a.email || '').localeCompare(b.email || ''));
+      setBannedEmails(banned);
+      setBlacklistLoading(false);
+    }, (error) => {
+      console.error("Error fetching blacklist collection:", error);
+      setBlacklistLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [isCurrentAdmin]);
+
+  // Auto-ban ugax6060@gmail.com whenever admin opens their page
+  useEffect(() => {
+    if (isCurrentAdmin) {
+      const checkAndBan = async () => {
+        try {
+          const docRef = doc(db, 'blacklist', 'ugax6060@gmail.com');
+          const docSnap = await getDoc(docRef);
+          if (!docSnap.exists()) {
+            await setDoc(docRef, {
+              email: 'ugax6060@gmail.com',
+              createdAt: serverTimestamp(),
+              bannedBy: 'sistema_auto_proteccion'
+            });
+            console.log("Auto-ban de ugax6060@gmail.com ejecutado satisfactoriamente.");
+          }
+        } catch (e) {
+          console.error("Error in redundancy auto-ban:", e);
+        }
+      };
+      checkAndBan();
+    }
+  }, [isCurrentAdmin]);
+
+  const handleBanEmail = async (emailToBanStr: string) => {
+    const cleanMail = emailToBanStr.trim().toLowerCase();
+    if (!cleanMail || !cleanMail.includes('@')) {
+      alert("Ingrese una dirección de correo válida para bloquear.");
+      return;
+    }
+
+    if (ADMIN_EMAILS.includes(cleanMail)) {
+      alert("⚠️ Error de Seguridad: No puedes añadir un administrador maestro a la lista negra.");
+      return;
+    }
+
+    setIsBanning(true);
+    try {
+      // 1. Write the document to blacklist
+      await setDoc(doc(db, 'blacklist', cleanMail), {
+        email: cleanMail,
+        createdAt: serverTimestamp(),
+        bannedBy: auth.currentUser?.email || 'admin'
+      });
+
+      // 2. Locate any active user inside 'users' collection and suspend them
+      const matchingUser = users.find(u => (u.email || '').toLowerCase() === cleanMail);
+      if (matchingUser) {
+        await updateDoc(doc(db, 'users', matchingUser.id), {
+          isActive: false
+        });
+      }
+
+      alert(`¡La cuenta ${cleanMail} ha sido agregada a la lista negra y sus privilegios han sido revocados!`);
+      setBanEmailInput('');
+    } catch (error) {
+      handleFirestoreError(error, OperationType.CREATE, `blacklist/${cleanMail}`);
+    } finally {
+      setIsBanning(false);
+    }
+  };
+
+  const handleUnbanEmail = async (bannedMailId: string) => {
+    const confirmAction = window.confirm(`¿Seguro que deseas eliminar el correo ${bannedMailId} de la lista negra para restituir su acceso?`);
+    if (!confirmAction) return;
+
+    try {
+      await deleteDoc(doc(db, 'blacklist', bannedMailId));
+      alert(`¡Correo ${bannedMailId} desbloqueado exitosamente!`);
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, `blacklist/${bannedMailId}`);
+    }
+  };
 
   // Code Generation logic
   const generateCode = async (level: 'guest' | 'pro') => {
@@ -515,7 +620,7 @@ export default function AdminPanel() {
       </div>
 
       {/* Tabs */}
-      <div className="flex bg-slate-900/40 p-1 rounded-2xl border border-white/5 gap-2 max-w-md">
+      <div className="flex bg-slate-900/40 p-1 rounded-2xl border border-white/5 gap-2 max-w-lg">
         <button
           onClick={() => setActiveTab('licencias')}
           className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
@@ -537,6 +642,17 @@ export default function AdminPanel() {
         >
           <Users size={16} />
           Gestión de Usuarios
+        </button>
+        <button
+          onClick={() => setActiveTab('blacklist')}
+          className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+            activeTab === 'blacklist' 
+              ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/20' 
+              : 'text-slate-400 hover:text-rose-400 hover:bg-rose-500/5'
+          }`}
+        >
+          <ShieldAlert size={16} />
+          Lista Negra / Bloqueos
         </button>
       </div>
 
@@ -963,6 +1079,158 @@ export default function AdminPanel() {
                             </tr>
                           );
                         })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* VIEW 3: LISTA NEGRA */}
+      {activeTab === 'blacklist' && (
+        <div className="space-y-8 animate-in fade-in duration-300">
+          {/* Main Layout Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+            
+            {/* Form Ban Email (Col 1) */}
+            <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl border border-rose-500/10 p-6 space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-rose-600/10 border border-rose-500/20 rounded-xl flex items-center justify-center text-rose-400 shrink-0">
+                  <UserX size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-base">Bloquear Usuario</h3>
+                  <p className="text-slate-400 text-xs">Añadir dirección de correo a la lista negra por seguridad.</p>
+                </div>
+              </div>
+
+              <div className="bg-rose-500/5 rounded-2xl border border-rose-500/10 p-4 space-y-2">
+                <p className="text-[10px] uppercase font-black tracking-widest text-rose-400">🚨 CONTROL DE ACCESO CRÍTICO</p>
+                <p className="text-slate-300 text-xs leading-normal">
+                  Cualquier correo listado aquí tendrá **denegado todo acceso** a la plataforma. 
+                  Se cancelará su sesión de inmediato y sus privilegios de base de datos serán revocados permanentemente.
+                </p>
+              </div>
+
+              <form 
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleBanEmail(banEmailInput);
+                }} 
+                className="space-y-4"
+              >
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-wider text-slate-400 mb-2">Correo Electrónico a Bloquear</label>
+                  <input
+                    type="email"
+                    value={banEmailInput}
+                    onChange={(e) => setBanEmailInput(e.target.value)}
+                    placeholder="ejemplo-intruso@gmail.com"
+                    required
+                    className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-slate-200 placeholder-slate-600 text-sm focus:outline-none focus:border-rose-500 transition-all font-mono"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isBanning}
+                  className="w-full mt-2 bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 border border-rose-500 shadow-xl shadow-rose-500/15 transition-all text-sm uppercase tracking-wider"
+                >
+                  {isBanning ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldAlert size={16} />}
+                  Bloquear de Inmediato
+                </button>
+              </form>
+            </div>
+
+            {/* Banned List Content (Col 2 & 3) */}
+            <div className="lg:col-span-2 space-y-4">
+              
+              {/* Search bar and counter */}
+              <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 bg-slate-900/40 border border-white/5 p-4 rounded-2xl">
+                <div className="relative flex-1">
+                  <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input
+                    type="text"
+                    value={bannedSearchQuery}
+                    onChange={(e) => setBannedSearchQuery(e.target.value)}
+                    placeholder="Buscar en la lista negra..."
+                    className="w-full bg-slate-950 border border-white/5 rounded-xl pl-11 pr-4 py-2 text-slate-300 placeholder-slate-600 text-xs focus:outline-none focus:border-rose-500/50 transition-all font-mono"
+                  />
+                </div>
+                <div className="text-slate-400 text-xs font-mono shrink-0 flex items-center gap-2">
+                  <ShieldAlert size={14} className="text-rose-400" />
+                  <span>Bloqueados: <b>{bannedEmails.filter(b => b.email.includes(bannedSearchQuery.toLowerCase())).length}</b></span>
+                </div>
+              </div>
+
+              {/* Banned Table */}
+              <div className="bg-white rounded-3xl border border-rose-100 shadow-sm overflow-hidden animate-in fade-in duration-300">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="text-xs font-black text-rose-500 uppercase tracking-[0.2em] border-b border-rose-500/10 bg-rose-50/20">
+                        <th className="px-6 py-4">Correo Bloqueado</th>
+                        <th className="px-6 py-4">Agregado el</th>
+                        <th className="px-6 py-4">Por</th>
+                        <th className="px-6 py-4 text-right">Acción</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-50">
+                      {blacklistLoading ? (
+                        <tr>
+                          <td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-medium">
+                            <Loader2 className="w-6 h-6 animate-spin text-rose-600 mx-auto mb-2" />
+                            Cargando base de datos de bloqueos...
+                          </td>
+                        </tr>
+                      ) : bannedEmails.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-medium">
+                            No hay ningún correo en la lista negra en este momento.
+                          </td>
+                        </tr>
+                      ) : (
+                        bannedEmails
+                          .filter(b => b.email.includes(bannedSearchQuery.toLowerCase()))
+                          .map((b) => {
+                            const isAutoSeeded = b.email === 'ugax6060@gmail.com';
+                            const banDate = b.createdAt?.toDate ? b.createdAt.toDate().toLocaleString() : 'Recientemente (Auto)';
+                            
+                            return (
+                              <tr key={b.id} className="hover:bg-red-50/10 transition-colors">
+                                <td className="px-6 py-4">
+                                  <div className="flex flex-col">
+                                    <span className="font-extrabold text-red-600 text-sm font-mono break-all">{b.email}</span>
+                                    {isAutoSeeded && (
+                                      <span className="mt-1 bg-red-100 text-red-700 font-black border border-red-200 text-[8px] tracking-wider px-1.5 py-0.5 rounded uppercase self-start">
+                                        Intruso Identificado (Auto-Bloqueado)
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 text-xs font-medium text-gray-500">
+                                  {banDate}
+                                </td>
+                                <td className="px-6 py-4 text-xs text-gray-500 font-mono">
+                                  {b.bannedBy || 'sistema'}
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                  <button
+                                    onClick={() => handleUnbanEmail(b.id)}
+                                    className="px-3 py-1.5 text-xs font-black uppercase tracking-wider text-green-700 bg-green-50 hover:bg-green-100 border border-green-200/50 rounded-xl transition-all"
+                                    title="Desbloquear correo electrónico"
+                                  >
+                                    Permitir Acceso
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
                       )}
                     </tbody>
                   </table>
