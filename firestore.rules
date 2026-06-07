@@ -101,7 +101,10 @@ service cloud.firestore {
             incoming().activationCode is string &&
             getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.status == 'usado' &&
             getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.usedBy == request.auth.uid &&
-            getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.access_level == incoming().access_level
+            (
+              !('access_level' in getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data) ||
+              getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.access_level == incoming().access_level
+            )
           )
         )
       );
