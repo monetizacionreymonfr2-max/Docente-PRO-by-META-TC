@@ -610,7 +610,7 @@ export default function AdminPanel() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
           <h1 className="text-3xl font-black text-white tracking-tight flex items-center gap-3">
-            Administración <span className="text-blue-400">Docente PRO</span>
+            Administración <span className="text-blue-400">Docenty PRO</span>
             <span className="bg-blue-600/10 text-blue-400 border border-blue-500/20 text-xs py-1 px-3 rounded-full font-bold uppercase tracking-widest">
               Master Access
             </span>
@@ -877,7 +877,7 @@ export default function AdminPanel() {
                       onChange={(e) => setNewAccessLevel(e.target.value as any)}
                       className="w-full bg-slate-950 border border-white/10 rounded-xl px-3 py-3 text-slate-200 text-xs focus:outline-none focus:border-blue-500 font-bold"
                     >
-                      <option value="pro">Docente PRO</option>
+                      <option value="pro">Docenty PRO</option>
                       <option value="guest">Invitado (Límitado)</option>
                     </select>
                   </div>

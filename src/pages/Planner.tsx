@@ -515,7 +515,7 @@ ESTRUCTURA OBLIGATORIA:
               <div className="absolute top-6 right-8 text-right flex flex-col items-end">
                 <div className="flex items-center gap-1.5 text-teal-600 font-bold text-sm tracking-tight">
                   <GraduationCap className="w-4 h-4 text-teal-500" />
-                  <span>Docente<span className="text-teal-500"> PRO</span></span>
+                  <span>Docenty<span className="text-teal-500"> PRO</span></span>
                 </div>
                 <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest -mt-0.5">by META TC</span>
               </div>

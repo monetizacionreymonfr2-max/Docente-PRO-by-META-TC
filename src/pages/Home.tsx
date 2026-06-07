@@ -30,7 +30,7 @@ export default function Home() {
   };
 
   const handleWhatsAppContact = () => {
-    const text = "Hola Reymon, vengo de la plataforma Docente PRO. Me gustaría consultar sobre tus servicios de programación y desarrollo web.";
+    const text = "Hola Reymon, vengo de la plataforma Docenty PRO. Me gustaría consultar sobre tus servicios de programación y desarrollo web.";
     window.open(`https://wa.me/584262953484?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -47,7 +47,7 @@ export default function Home() {
           <span className="text-xs font-black tracking-[0.3em] text-futuristic-accent uppercase">Sincronización de Biomas de Datos</span>
         </div>
         <h1 className="text-4xl md:text-6xl font-black tracking-tighter text-white">
-          DOCENTE <span className="text-transparent bg-clip-text bg-gradient-to-r from-futuristic-purple to-futuristic-magenta">PRO</span>
+          DOCENTY <span className="text-transparent bg-clip-text bg-gradient-to-r from-futuristic-purple to-futuristic-magenta">PRO</span>
         </h1>
         <p className="text-slate-300 max-w-2xl mx-auto text-lg">
           La evolución digital de la pedagogía venezolana. Inteligencia Artificial diseñada para elevar el estándar educativo.
@@ -82,7 +82,7 @@ export default function Home() {
           </div>
           <h3 className="text-xl font-bold text-white mb-3">Innovación Constante</h3>
           <p className="text-slate-300 text-sm leading-relaxed">
-            Docente PRO no es una herramienta estática. Evolucionamos semanalmente incorporando nuevas funciones basadas en las sugerencias de nuestros más de 1200 usuarios.
+            Docenty PRO no es una herramienta estática. Evolucionamos semanalmente incorporando nuevas funciones basadas en las sugerencias de nuestros más de 1200 usuarios.
           </p>
         </motion.div>
       </div>
@@ -156,7 +156,7 @@ export default function Home() {
                   { icon: <Globe size={18} />, label: 'Fundador de META TC', desc: 'Tiendas Online de alto impacto.' },
                   { icon: <ShoppingBag size={18} />, label: 'Tecno Mundo Castillo', desc: 'La franquicia tecnológica de referencia.' },
                   { icon: <Code size={18} />, label: 'Especialista Full Stack', desc: 'Dominio de arquitecturas modernas.' },
-                  { icon: <ShieldCheck size={18} />, label: 'Arquitecto Docente PRO', desc: 'Liderando la revolución pedagógica.' }
+                  { icon: <ShieldCheck size={18} />, label: 'Arquitecto Docenty PRO', desc: 'Liderando la revolución pedagógica.' }
                 ].map((stat, i) => (
                   <div key={i} className="flex gap-4 p-4 rounded-2xl bg-white/5 border border-white/5">
                     <div className="text-futuristic-accent">{stat.icon}</div>

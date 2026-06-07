@@ -147,7 +147,7 @@ export default function EarnMoney() {
             <div className="space-y-2">
               <p className="text-futuristic-magenta font-black text-xs uppercase tracking-widest">2. El Aliado Estratégico (El Director)</p>
               <p className="text-slate-400 text-sm leading-relaxed">
-                Ofrécele un código de cortesía gratis al Director o Coordinador del plantel. Si a la directiva le gusta, sugerirán fuertemente a todo el personal usar <span className="text-white font-bold">Docente PRO</span>.
+                Ofrécele un código de cortesía gratis al Director o Coordinador del plantel. Si a la directiva le gusta, sugerirán fuertemente a todo el personal usar <span className="text-white font-bold">Docenty PRO</span>.
               </p>
             </div>
             <div className="space-y-2">

@@ -36,7 +36,7 @@ export default function Login() {
         </div>
         
         <h2 className="text-4xl font-black text-white mb-2 tracking-tighter uppercase italic">
-          Docente<span className="text-futuristic-accent drop-shadow-[0_0_10px_rgba(0,242,255,0.4)]"> PRO</span>
+          Docenty<span className="text-futuristic-accent drop-shadow-[0_0_10px_rgba(0,242,255,0.4)]"> PRO</span>
         </h2>
         <div className="flex items-center justify-center gap-2 mb-4">
           <div className="h-[1px] w-8 bg-gradient-to-r from-transparent to-white/20"></div>

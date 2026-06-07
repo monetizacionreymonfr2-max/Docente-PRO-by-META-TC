@@ -94,7 +94,7 @@ export default function ActivationModal({ userId, email }: ActivationModalProps)
           <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6 text-blue-600 shadow-inner">
             <Key size={40} />
           </div>
-          <h2 className="text-2xl font-black text-gray-900 mb-2 tracking-tight">Activar Docente PRO</h2>
+          <h2 className="text-2xl font-black text-gray-900 mb-2 tracking-tight">Activar Docenty PRO</h2>
           <p className="text-gray-500 text-sm leading-relaxed">
             Hola <span className="font-semibold text-blue-600">{email}</span>. Para acceder a las funciones premium, ingresa tu código de activación.
           </p>

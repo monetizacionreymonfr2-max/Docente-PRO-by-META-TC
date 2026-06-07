@@ -36,13 +36,13 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat' }: {
 
   useEffect(() => {
     if (mode === 'sales') {
-      const salesGreeting = '¡Hola! Mira, ¿estás interesado en Docente PRO? Soy Camila y estoy aquí para mostrarte cómo más de 1200 colegas ya están ahorrando horas de trabajo administrativo gracias a mi ayuda. Nuestra plataforma, creada por el ingeniero venezolano de Apure, Reymon Castillo, es la más fácil de usar y está totalmente adaptada a nuestra pedagogía. ¿Te gustaría saber cómo puedes obtener tu acceso total por solo $2 dólares al cambio del BCV?';
+      const salesGreeting = '¡Hola! Mira, ¿estás interesado en Docenty PRO? Soy Camila y estoy aquí para mostrarte cómo más de 1200 colegas ya están ahorrando horas de trabajo administrativo gracias a mi ayuda. Nuestra plataforma, creada por el ingeniero venezolano de Apure, Reymon Castillo, es la más fácil de usar y está totalmente adaptada a nuestra pedagogía. ¿Te gustaría saber cómo puedes obtener tu acceso total por solo $2 dólares al cambio del BCV?';
       setMessages([
         { id: 'welcome', role: 'model', text: salesGreeting }
       ]);
     } else {
       setMessages([
-        { id: 'welcome', role: 'model', text: '¡Hola! Soy Camila, tu asistente pedagógica avanzada de Docente PRO. ¿En qué te puedo ayudar a planificar hoy?' }
+        { id: 'welcome', role: 'model', text: '¡Hola! Soy Camila, tu asistente pedagógica avanzada de Docenty PRO. ¿En qué te puedo ayudar a planificar hoy?' }
       ]);
     }
   }, [mode]);
@@ -516,7 +516,7 @@ Directrices de Ventas:
       // Greeting for sales mode when starting live mode
       if (mode === 'sales') {
         setTimeout(() => {
-          speakText('¡Hola! Soy Camila. Es un gusto saludarte. He notado que estás explorando Docente PRO y me encantaría explicarte cómo puedes unirte a los más de mil doscientos docentes que ya usan nuestra plataforma. Fue creada por el ingeniero venezolano Reymon Castillo, nacido en Apure, pensando justamente en nuestras necesidades pedagógicas. Es tan fácil como hablar conmigo y pedirme lo que necesites. Puedes obtener tu código PRO por solo dos dólares al cambio del B C V pagando con Pago Móvil. Al tocar el botón de activación, hablarás directamente con Reymon. ¿Tienes alguna duda de cómo funciona o quieres que te explique los beneficios para tu grado?');
+          speakText('¡Hola! Soy Camila. Es un gusto saludarte. He notado que estás explorando Docenty PRO y me encantaría explicarte cómo puedes unirte a los más de mil doscientos docentes que ya usan nuestra plataforma. Fue creada por el ingeniero venezolano Reymon Castillo, nacido en Apure, pensando justamente en nuestras necesidades pedagógicas. Es tan fácil como hablar conmigo y pedirme lo que necesites. Puedes obtener tu código PRO por solo dos dólares al cambio del B C V pagando con Pago Móvil. Al tocar el botón de activación, hablarás directamente con Reymon. ¿Tienes alguna duda de cómo funciona o quieres que te explique los beneficios para tu grado?');
         }, 1200);
       }
     }
@@ -913,7 +913,7 @@ Directrices:
               Cifrado Pedagógico ACTIVO
             </span>
             <span className="text-[10px] font-black tracking-widest text-white/30 uppercase">
-              Docente PRO v4.0.0
+              Docenty PRO v4.0.0
             </span>
           </div>
         </div>
@@ -926,7 +926,7 @@ export default function Camila() {
   const context = useOutletContext<{ teacherId: string }>();
 
   const handleShare = () => {
-    const text = "¡Hola! Estoy usando Docente PRO, una plataforma increíble para docentes con IA. ¡Te la recomiendo! Visítala en: https://docente-pro-by-meta-tc.vercel.app/";
+    const text = "¡Hola! Estoy usando Docenty PRO, una plataforma increíble para docentes con IA. ¡Te la recomiendo! Visítala en: https://docente-pro-by-meta-tc.vercel.app/";
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 

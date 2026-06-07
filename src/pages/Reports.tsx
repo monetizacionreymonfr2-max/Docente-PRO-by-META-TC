@@ -563,7 +563,7 @@ Palabras clave: ${palabrasClave}`;
                   <div className="absolute top-6 right-8 text-right flex flex-col items-end print:top-1 print:right-1">
                     <div className="flex items-center gap-1 text-indigo-600 font-bold text-[11px] tracking-tight">
                       <GraduationCap className="w-3.5 h-3.5 text-indigo-500" />
-                      <span>Docente<span className="text-indigo-500"> PRO</span></span>
+                      <span>Docenty<span className="text-indigo-500"> PRO</span></span>
                     </div>
                     <span className="text-[6.5px] font-bold text-gray-400 uppercase tracking-widest -mt-1">by META TC</span>
                   </div>
