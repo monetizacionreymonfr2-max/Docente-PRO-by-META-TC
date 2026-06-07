@@ -18,15 +18,15 @@ service cloud.firestore {
     function isBanned() {
       return isSignedIn() && 
              request.auth.token.email != null && 
-             exists(/databases/$(database)/documents/blacklist/$(request.auth.token.email));
+             exists(/databases/$(database)/documents/blacklist/$(request.auth.token.email.lower()));
     }
 
     function isAdmin() {
-      return isSignedIn() && !isBanned() && (request.auth.token.email == "Tecnomundo235@gmail.com" || request.auth.token.email == "monetizacionreymonfr2@gmail.com");
+      return isSignedIn() && !isBanned() && (request.auth.token.email.lower() == "tecnomundo235@gmail.com" || request.auth.token.email.lower() == "monetizacionreymonfr2@gmail.com");
     }
 
     function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-+@\\.]+$');
     }
 
     function incoming() { return request.resource.data; }
@@ -73,15 +73,15 @@ service cloud.firestore {
 
     // User Profiles
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin() || (isSignedIn() && request.auth.token.email == userId);
+      allow read: if isOwner(userId) || isAdmin() || (isSignedIn() && request.auth.token.email.lower() == userId.lower());
       allow create: if isAdmin() || (
                       isOwner(userId) && 
-                      incoming().email == request.auth.token.email &&
+                      incoming().email.lower() == request.auth.token.email.lower() &&
                       (
-                        (incoming().email in ["Tecnomundo235@gmail.com", "monetizacionreymonfr2@gmail.com"] && incoming().role == "admin" && incoming().isActive == true) ||
-                        (!(incoming().email in ["Tecnomundo235@gmail.com", "monetizacionreymonfr2@gmail.com"]) && incoming().role == "teacher" && incoming().generationsCount == 0 && (
+                        (incoming().email.lower() in ["tecnomundo235@gmail.com", "monetizacionreymonfr2@gmail.com"] && incoming().role == "admin" && incoming().isActive == true) ||
+                        (!(incoming().email.lower() in ["tecnomundo235@gmail.com", "monetizacionreymonfr2@gmail.com"]) && incoming().role == "teacher" && incoming().generationsCount == 0 && (
                           incoming().isActive == false || 
-                          exists(/databases/$(database)/documents/users/$(request.resource.data.email))
+                          exists(/databases/$(database)/documents/users/$(incoming().email.lower()))
                         ))
                       )
                     );
@@ -99,23 +99,20 @@ service cloud.firestore {
             incoming().isActive == true &&
             'activationCode' in incoming() &&
             incoming().activationCode is string &&
-            exists(/databases/$(database)/documents/activation_codes/$(request.resource.data.activationCode)) &&
+            exists(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)) &&
             (
-              get(/databases/$(database)/documents/activation_codes/$(request.resource.data.activationCode)).data.status == 'disponible' ||
-              (
-                getAfter(/databases/$(database)/documents/activation_codes/$(request.resource.data.activationCode)).data.status == 'usado' &&
-                getAfter(/databases/$(database)/documents/activation_codes/$(request.resource.data.activationCode)).data.usedBy == request.auth.uid
-              )
+              get(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.status == 'disponible' ||
+              get(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.usedBy == request.auth.uid
             )
           )
         )
       );
-      allow delete: if isAdmin() || (isSignedIn() && request.auth.token.email == userId);
+      allow delete: if isAdmin() || (isSignedIn() && request.auth.token.email.lower() == userId.lower());
     }
 
     // Activation Codes
     match /activation_codes/{codeId} {
-      allow read, write: if request.auth.token.email == "Tecnomundo235@gmail.com" || request.auth.token.email == "monetizacionreymonfr2@gmail.com";
+      allow read, write: if request.auth.token.email.lower() == "tecnomundo235@gmail.com" || request.auth.token.email.lower() == "monetizacionreymonfr2@gmail.com";
       allow get: if isSignedIn();
       allow list: if isAdmin();
       allow update: if isSignedIn() && 

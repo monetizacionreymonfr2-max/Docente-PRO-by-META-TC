@@ -93,13 +93,15 @@ export default function App() {
               // Create profile if missing. Check prepopulated email doc first
               try {
                 let initialProfile: any = null;
-                const emailDocRef = doc(db, 'users', authUser.email || '');
+                const userEmail = (authUser.email || '').trim().toLowerCase();
+                const emailDocRef = doc(db, 'users', userEmail);
                 const emailSnap = await getDoc(emailDocRef);
                 
                 if (emailSnap.exists()) {
                   const preConfig = emailSnap.data();
                   initialProfile = {
                     ...preConfig,
+                    email: userEmail,
                     createdAt: preConfig.createdAt || serverTimestamp()
                   };
                   // Write to the actual uid and delete the temporary email document
@@ -107,7 +109,7 @@ export default function App() {
                   await deleteDoc(emailDocRef);
                 } else {
                   initialProfile = {
-                    email: authUser.email,
+                    email: userEmail,
                     isActive: isAdminEmail(authUser.email), // Admin is auto-active
                     role: isAdminEmail(authUser.email) ? 'admin' : 'teacher',
                     generationsCount: 0,
