@@ -99,16 +99,18 @@ service cloud.firestore {
             incoming().isActive == true &&
             'activationCode' in incoming() &&
             incoming().activationCode is string &&
-            getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.status == 'usado' &&
-            getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.usedBy == request.auth.uid &&
+            exists(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)) &&
             (
-              !('access_level' in getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data) ||
-              getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.access_level == incoming().access_level
+              get(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.status == 'disponible' ||
+              (
+                getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.status == 'usado' &&
+                getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.usedBy == request.auth.uid
+              )
             )
           )
         )
       );
-      allow delete: if isAdmin();
+      allow delete: if isAdmin() || (isSignedIn() && request.auth.token.email == userId);
     }
 
     // Activation Codes
@@ -120,9 +122,6 @@ service cloud.firestore {
                       existing().status == 'disponible' && 
                       incoming().status == 'usado' &&
                       incoming().usedBy == request.auth.uid &&
-                      incoming().usedByEmail == request.auth.token.email &&
-                      incoming().expiresAt is timestamp &&
-                      incoming().usedAt == request.time &&
                       incoming().diff(existing()).affectedKeys().hasOnly(['status', 'usedBy', 'usedByEmail', 'usedAt', 'expiresAt']);
     }
 
