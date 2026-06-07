@@ -81,7 +81,7 @@ service cloud.firestore {
                         (incoming().email in ["Tecnomundo235@gmail.com", "monetizacionreymonfr2@gmail.com"] && incoming().role == "admin" && incoming().isActive == true) ||
                         (!(incoming().email in ["Tecnomundo235@gmail.com", "monetizacionreymonfr2@gmail.com"]) && incoming().role == "teacher" && incoming().generationsCount == 0 && (
                           incoming().isActive == false || 
-                          exists(/databases/$(database)/documents/users/$(incoming().email))
+                          exists(/databases/$(database)/documents/users/$(request.resource.data.email))
                         ))
                       )
                     );
@@ -99,12 +99,12 @@ service cloud.firestore {
             incoming().isActive == true &&
             'activationCode' in incoming() &&
             incoming().activationCode is string &&
-            exists(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)) &&
+            exists(/databases/$(database)/documents/activation_codes/$(request.resource.data.activationCode)) &&
             (
-              get(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.status == 'disponible' ||
+              get(/databases/$(database)/documents/activation_codes/$(request.resource.data.activationCode)).data.status == 'disponible' ||
               (
-                getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.status == 'usado' &&
-                getAfter(/databases/$(database)/documents/activation_codes/$(incoming().activationCode)).data.usedBy == request.auth.uid
+                getAfter(/databases/$(database)/documents/activation_codes/$(request.resource.data.activationCode)).data.status == 'usado' &&
+                getAfter(/databases/$(database)/documents/activation_codes/$(request.resource.data.activationCode)).data.usedBy == request.auth.uid
               )
             )
           )
