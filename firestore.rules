@@ -18,7 +18,7 @@ service cloud.firestore {
     function isBanned() {
       return isSignedIn() && 
              request.auth.token.email != null && 
-             exists(/databases/$(database)/documents/blacklist/$(request.auth.token.email.lower()));
+             exists(/databases/$(database)/documents/blacklist/$(request.auth.token.email));
     }
 
     function isAdmin() {
@@ -81,7 +81,7 @@ service cloud.firestore {
                         (incoming().email.lower() in ["tecnomundo235@gmail.com", "monetizacionreymonfr2@gmail.com"] && incoming().role == "admin" && incoming().isActive == true) ||
                         (!(incoming().email.lower() in ["tecnomundo235@gmail.com", "monetizacionreymonfr2@gmail.com"]) && incoming().role == "teacher" && incoming().generationsCount == 0 && (
                           incoming().isActive == false || 
-                          exists(/databases/$(database)/documents/users/$(incoming().email.lower()))
+                          exists(/databases/$(database)/documents/users/$(incoming().email))
                         ))
                       )
                     );
@@ -168,6 +168,14 @@ service cloud.firestore {
     match /bitacoras_maternal/{document} {
       allow read: if isAdmin() || (resource != null && isDocOwner(existing()));
       allow create: if isAdmin() || isDocOwner(incoming());
+      allow update: if isAdmin() || (resource != null && isDocOwner(existing()) && isDocOwner(incoming()));
+      allow delete: if isAdmin() || (resource != null && isDocOwner(existing()));
+    }
+
+    // Maternal Planning Records
+    match /planificaciones_maternal/{document} {
+      allow read: if isAdmin() || (resource != null && isDocOwner(existing()));
+      allow create: if (isAdmin() || isDocOwner(incoming())) && isWithinGuestLimit();
       allow update: if isAdmin() || (resource != null && isDocOwner(existing()) && isDocOwner(incoming()));
       allow delete: if isAdmin() || (resource != null && isDocOwner(existing()));
     }

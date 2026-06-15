@@ -124,6 +124,34 @@
       },
       "required": ["docenteId", "estudianteId", "fecha", "comida", "sueno", "panal", "createdAt"]
     },
+    "MaternalPlan": {
+      "title": "Maternal Plan",
+      "description": "A generated maternal pedagogical plan (semanal/quincenal or P.A. adapted).",
+      "type": "object",
+      "properties": {
+        "tipoPlan": { "type": "string" },
+        "institucion": { "type": "string" },
+        "salaEdad": { "type": "string" },
+        "anioEscolar": { "type": "string" },
+        "matriculaVarones": { "type": "integer" },
+        "matriculaHembras": { "type": "integer" },
+        "matriculaTotal": { "type": "integer" },
+        "tiempoInicio": { "type": "string" },
+        "tiempoFin": { "type": "string" },
+        "peicReferencia": { "type": "string" },
+        "enfasisCurriculares": { "type": "array" },
+        "hitosDesarrollo": { "type": "string" },
+        "necesidadesFisiologicas": { "type": "string" },
+        "tituloProyecto": { "type": "string" },
+        "justificacionPA": { "type": "string" },
+        "propositoPA": { "type": "string" },
+        "socioProductividad": { "type": "string" },
+        "contenido": { "type": "string" },
+        "docenteId": { "type": "string" },
+        "createdAt": { "type": "timestamp" }
+      },
+      "required": ["tipoPlan", "institucion", "salaEdad", "anioEscolar", "matriculaTotal", "tiempoInicio", "tiempoFin", "contenido", "docenteId", "createdAt"]
+    },
     "UserProfile": {
       "title": "User Profile",
       "description": "Premium status and profile info for teachers.",
@@ -177,6 +205,10 @@
     "/bitacoras_maternal/{recordId}": {
       "schema": { "$ref": "#/entities/MaternalRoutine" },
       "description": "Collection of maternal routine records."
+    },
+    "/planificaciones_maternal/{planId}": {
+      "schema": { "$ref": "#/entities/MaternalPlan" },
+      "description": "Collection of generated maternal planning records."
     },
     "/users/{userId}": {
       "schema": { "$ref": "#/entities/UserProfile" },
