@@ -188,6 +188,27 @@ export default function AdminPanel() {
     }
   }, [isCurrentAdmin]);
 
+  // Fetch Activation Codes when activeTab changes to 'licencias' or initial mount
+  useEffect(() => {
+    if (isCurrentAdmin && activeTab === 'licencias') {
+      fetchCodes();
+    }
+  }, [isCurrentAdmin, activeTab]);
+
+  // Fetch Users Profiles when activeTab changes to 'usuarios'
+  useEffect(() => {
+    if (isCurrentAdmin && activeTab === 'usuarios') {
+      fetchUsersProfile();
+    }
+  }, [isCurrentAdmin, activeTab]);
+
+  // Fetch Blacklist when activeTab changes to 'blacklist'
+  useEffect(() => {
+    if (isCurrentAdmin && activeTab === 'blacklist') {
+      fetchBlacklist();
+    }
+  }, [isCurrentAdmin, activeTab]);
+
   const handleBanEmail = async (emailToBanStr: string) => {
     const cleanMail = emailToBanStr.trim().toLowerCase();
     if (!cleanMail || !cleanMail.includes('@')) {
@@ -708,141 +729,126 @@ export default function AdminPanel() {
             </div>
           </div>
 
-          {!hasLoadedCodes ? (
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-12 text-center max-w-xl mx-auto my-6 animate-in fade-in duration-300">
-              <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100">
-                <Ticket size={28} />
-              </div>
-              <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-2">Consulta de Licencias Bajo Demanda</h3>
-              <p className="text-slate-500 text-sm mb-6 leading-relaxed">
-                Para optimizar el uso de tu cuota de Firestore y acelerar la carga, el listado de códigos de activación no se descarga automáticamente. Haz clic a continuación para cargarlos en tiempo real.
-              </p>
-              <button
-                onClick={fetchCodes}
-                disabled={isLoading}
-                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-8 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-sm uppercase tracking-wider mx-auto"
-              >
-                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eye className="w-5 h-5" />}
-                Cargar Códigos de Licencia
-              </button>
+          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="px-8 py-6 border-b border-gray-50 bg-gray-50/50 flex items-center gap-2">
+              <History size={20} className="text-gray-500" />
+              <h2 className="font-black text-gray-900 uppercase tracking-tight text-sm">Registro de Códigos</h2>
             </div>
-          ) : (
-            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-              <div className="px-8 py-6 border-b border-gray-50 bg-gray-50/50 flex items-center gap-2">
-                <History size={20} className="text-gray-500" />
-                <h2 className="font-black text-gray-900 uppercase tracking-tight text-sm">Registro de Códigos</h2>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] border-b border-gray-50">
-                      <th className="px-8 py-4">Código</th>
-                      <th className="px-8 py-4">Nivel</th>
-                      <th className="px-8 py-4">Estado</th>
-                      <th className="px-8 py-4">Usuario</th>
-                      <th className="px-8 py-4 text-right">Acciones</th>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] border-b border-gray-50">
+                    <th className="px-8 py-4">Código</th>
+                    <th className="px-8 py-4">Nivel</th>
+                    <th className="px-8 py-4">Estado</th>
+                    <th className="px-8 py-4">Usuario</th>
+                    <th className="px-8 py-4 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={5} className="px-8 py-12 text-center text-gray-500 font-medium font-sans">
+                        <div className="flex items-center justify-center gap-2">
+                          <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                          <span>Cargando códigos de activación...</span>
+                        </div>
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {isLoading ? (
-                      <tr>
-                        <td colSpan={5} className="px-8 py-12 text-center text-gray-500 font-medium">Cargando códigos...</td>
-                      </tr>
-                    ) : codes.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-8 py-12 text-center text-gray-500 font-medium">No hay códigos generados.</td>
-                      </tr>
-                    ) : (
-                      codes.map((code) => (
-                        <tr key={code.id} className="hover:bg-gray-50/50 transition-colors">
-                          <td className="px-8 py-4 font-mono font-bold text-blue-900 tracking-widest">
-                            {code.id}
-                          </td>
-                          <td className="px-8 py-4">
-                            <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${
-                              code.access_level === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
-                            }`}>
-                              {code.access_level || 'pro'}
-                            </span>
-                          </td>
-                          <td className="px-8 py-4">
-                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                              code.status === 'disponible' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                            }`}>
-                              {code.status}
-                            </span>
-                          </td>
-                          <td className="px-8 py-4 text-xs font-medium text-gray-500 truncate max-w-[150px]">
-                            {typeof code.usedByEmail === 'string' ? code.usedByEmail : 
-                             typeof code.usedBy === 'string' ? code.usedBy : '---'}
-                          </td>
-                          <td className="px-8 py-4 text-right">
-                            <div className="flex items-center justify-end gap-3">
-                              {code.status === 'usado' && code.expiresAt && (
-                                <div className="flex items-center gap-4">
-                                  <div className="flex flex-col items-end">
-                                    <span className={`text-[10px] font-black uppercase tracking-widest ${
-                                      (calculateDaysLeft(code.expiresAt) || 0) > 0 ? 'text-blue-600' : 'text-red-600'
-                                    }`}>
-                                      {(calculateDaysLeft(code.expiresAt) || 0) > 0 ? 'Quedan' : 'Expiró hace'}
-                                    </span>
-                                    <span className="text-xs font-bold text-gray-900">
-                                      {Math.abs(calculateDaysLeft(code.expiresAt) || 0)} días
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center bg-gray-50 rounded-xl p-1 border border-gray-100">
-                                    <button
-                                      onClick={() => handleAdjustDays(code, -1)}
-                                      className="p-1.5 text-red-500 hover:bg-white hover:shadow-sm rounded-lg transition-all"
-                                      title="Quitar 1 día"
-                                    >
-                                      <Minus size={14} />
-                                    </button>
-                                    <div className="w-px h-4 bg-gray-200 mx-1" />
-                                    <button
-                                      onClick={() => handleAdjustDays(code, 1)}
-                                      className="p-1.5 text-green-600 hover:bg-white hover:shadow-sm rounded-lg transition-all"
-                                      title="Sumar 1 día"
-                                    >
-                                      <Plus size={14} />
-                                    </button>
-                                    <div className="w-px h-4 bg-gray-200 mx-1" />
-                                    <button
-                                      onClick={() => handleRenew(code)}
-                                      className="p-1.5 text-blue-600 hover:bg-white hover:shadow-sm rounded-lg transition-all"
-                                      title="Plan Mensual (+30 días)"
-                                    >
-                                      <RefreshCw size={14} />
-                                    </button>
-                                  </div>
+                  ) : codes.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-8 py-12 text-center text-gray-500 font-medium">No hay códigos generados.</td>
+                    </tr>
+                  ) : (
+                    codes.map((code) => (
+                      <tr key={code.id} className="hover:bg-gray-50/50 transition-colors">
+                        <td className="px-8 py-4 font-mono font-bold text-blue-900 tracking-widest">
+                          {code.id}
+                        </td>
+                        <td className="px-8 py-4">
+                          <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${
+                            code.access_level === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            {code.access_level || 'pro'}
+                          </span>
+                        </td>
+                        <td className="px-8 py-4">
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                            code.status === 'disponible' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                          }`}>
+                            {code.status}
+                          </span>
+                        </td>
+                        <td className="px-8 py-4 text-xs font-medium text-gray-500 truncate max-w-[150px]">
+                          {typeof code.usedByEmail === 'string' ? code.usedByEmail : 
+                           typeof code.usedBy === 'string' ? code.usedBy : '---'}
+                        </td>
+                        <td className="px-8 py-4 text-right">
+                          <div className="flex items-center justify-end gap-3">
+                            {code.status === 'usado' && code.expiresAt && (
+                              <div className="flex items-center gap-4">
+                                <div className="flex flex-col items-end">
+                                  <span className={`text-[10px] font-black uppercase tracking-widest ${
+                                    (calculateDaysLeft(code.expiresAt) || 0) > 0 ? 'text-blue-600' : 'text-red-600'
+                                  }`}>
+                                    {(calculateDaysLeft(code.expiresAt) || 0) > 0 ? 'Quedan' : 'Expiró hace'}
+                                  </span>
+                                  <span className="text-xs font-bold text-gray-900">
+                                    {Math.abs(calculateDaysLeft(code.expiresAt) || 0)} días
+                                  </span>
                                 </div>
-                              )}
-                              {code.status === 'disponible' && (
-                                <button 
-                                  onClick={() => copyToClipboard(code.id)}
-                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
-                                  title="Copiar Código"
-                                >
-                                  <Copy size={18} />
-                                </button>
-                              )}
+                                <div className="flex items-center bg-gray-50 rounded-xl p-1 border border-gray-100">
+                                  <button
+                                    onClick={() => handleAdjustDays(code, -1)}
+                                    className="p-1.5 text-red-500 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+                                    title="Quitar 1 día"
+                                  >
+                                    <Minus size={14} />
+                                  </button>
+                                  <div className="w-px h-4 bg-gray-200 mx-1" />
+                                  <button
+                                    onClick={() => handleAdjustDays(code, 1)}
+                                    className="p-1.5 text-green-600 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+                                    title="Sumar 1 día"
+                                  >
+                                    <Plus size={14} />
+                                  </button>
+                                  <div className="w-px h-4 bg-gray-200 mx-1" />
+                                  <button
+                                    onClick={() => handleRenew(code)}
+                                    className="p-1.5 text-blue-600 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+                                    title="Plan Mensual (+30 días)"
+                                  >
+                                    <RefreshCw size={14} />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                            {code.status === 'disponible' && (
                               <button 
-                                onClick={() => handleDeleteCode(code)}
-                                className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                                title="Eliminar Código"
+                                onClick={() => copyToClipboard(code.id)}
+                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                                title="Copiar Código"
                               >
-                                <Trash2 size={18} />
+                                <Copy size={18} />
                               </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
+                            )}
+                            <button 
+                              onClick={() => handleDeleteCode(code)}
+                              className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                              title="Eliminar Código"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-          )}
+          </div>
         </div>
       )}
 
@@ -958,32 +964,11 @@ export default function AdminPanel() {
                 </div>
                 <div className="text-slate-400 text-xs font-mono shrink-0 flex items-center gap-2">
                   <Users size={14} className="text-blue-400" />
-                  <span>Encontrados: <b>{hasLoadedUsers ? filteredUsers.length : '—'}</b> de <b>{hasLoadedUsers ? users.length : '—'}</b></span>
+                  <span>Encontrados: <b>{filteredUsers.length}</b> de <b>{users.length}</b></span>
                 </div>
               </div>
 
-              {/* Users Table or demand Card */}
-              {!hasLoadedUsers ? (
-                <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-12 text-center animate-in fade-in duration-300">
-                  <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100">
-                    <Users size={28} />
-                  </div>
-                  <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-2">Consulta de Usuarios Bajo Demanda</h3>
-                  <p className="text-slate-500 text-sm mb-6 leading-relaxed max-w-sm mx-auto">
-                    La lista completa de usuarios registrados y pre-aprobados no se carga automáticamente para cuidar tus cuotas de Firestore.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={fetchUsersProfile}
-                    disabled={usersLoading}
-                    className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-8 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-sm uppercase tracking-wider mx-auto"
-                  >
-                    {usersLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eye className="w-5 h-5" />}
-                    Cargar Lista de Usuarios
-                  </button>
-                </div>
-              ) : (
-                <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
@@ -1123,7 +1108,6 @@ export default function AdminPanel() {
                     </table>
                   </div>
                 </div>
-              )}
 
             </div>
           </div>
@@ -1204,32 +1188,11 @@ export default function AdminPanel() {
                 </div>
                 <div className="text-slate-400 text-xs font-mono shrink-0 flex items-center gap-2">
                   <ShieldAlert size={14} className="text-rose-400" />
-                  <span>Bloqueados: <b>{hasLoadedBlacklist ? bannedEmails.filter(b => b.email.includes(bannedSearchQuery.toLowerCase())).length : '—'}</b></span>
+                  <span>Bloqueados: <b>{bannedEmails.filter(b => b.email.includes(bannedSearchQuery.toLowerCase())).length}</b></span>
                 </div>
               </div>
 
-              {/* Banned Table or demand Card */}
-              {!hasLoadedBlacklist ? (
-                <div className="bg-white rounded-3xl border border-rose-100 shadow-sm p-12 text-center animate-in fade-in duration-300">
-                  <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-rose-100 pb-0.5">
-                    <ShieldAlert size={28} />
-                  </div>
-                  <h3 className="text-lg font-black text-rose-800 uppercase tracking-tight mb-2">Lista Negra de Seguridad</h3>
-                  <p className="text-slate-500 text-sm mb-6 leading-relaxed max-w-sm mx-auto">
-                    La lista de correos electrónicos suspendidos y bloqueados temporalmente no se carga automáticamente para cuidar tus cuotas de Firestore.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={fetchBlacklist}
-                    disabled={blacklistLoading}
-                    className="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white font-bold py-3.5 px-8 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-rose-500/20 active:scale-95 transition-all text-sm uppercase tracking-wider mx-auto"
-                  >
-                    {blacklistLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eye className="w-5 h-5" />}
-                    Cargar Lista Negra
-                  </button>
-                </div>
-              ) : (
-                <div className="bg-white rounded-3xl border border-rose-100 shadow-sm overflow-hidden animate-in fade-in duration-300">
+              <div className="bg-white rounded-3xl border border-rose-100 shadow-sm overflow-hidden animate-in fade-in duration-300">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left">
                       <thead>
@@ -1296,7 +1259,6 @@ export default function AdminPanel() {
                     </table>
                   </div>
                 </div>
-              )}
 
             </div>
           </div>
