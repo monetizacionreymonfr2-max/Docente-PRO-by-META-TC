@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, setDoc, doc, onSnapshot, query, orderBy, serverTimestamp, updateDoc, deleteDoc, writeBatch, getDoc } from 'firebase/firestore';
+import { collection, setDoc, doc, query, orderBy, serverTimestamp, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, limit } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { 
   Ticket, 
@@ -80,26 +80,13 @@ export default function AdminPanel() {
   const currentUserEmail = auth.currentUser?.email;
   const isCurrentAdmin = currentUserEmail ? ADMIN_EMAILS.includes(currentUserEmail) : false;
 
-  // Listen to Activation Codes
-  useEffect(() => {
-    if (!isCurrentAdmin || activeTab !== 'licencias') {
-      setIsLoading(false);
-      return;
-    }
-
-    let isMounted = true;
-    
-    const timer = setTimeout(() => {
-      if (isMounted && isLoading) {
-        setIsLoading(false);
-        console.error("Timeout: activation_codes connection taking too long");
-      }
-    }, 20000);
-
-    const q = collection(db, 'activation_codes');
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      if (!isMounted) return;
-      clearTimeout(timer);
+  const fetchCodes = async () => {
+    if (!isCurrentAdmin) return;
+    setIsLoading(true);
+    try {
+      // Limit to 300 to avoid reading large volumes
+      const q = query(collection(db, 'activation_codes'), limit(300));
+      const snapshot = await getDocs(q);
       const codesData: Code[] = [];
       snapshot.forEach((doc) => {
         codesData.push({ id: doc.id, ...doc.data() } as Code);
@@ -118,78 +105,78 @@ export default function AdminPanel() {
         return getTime(b.createdAt) - getTime(a.createdAt);
       });
       setCodes(codesData);
-      setIsLoading(false);
-    }, (error: any) => {
-      if (!isMounted) return;
-      clearTimeout(timer);
-      console.error("FIREBASE SQL ERROR:", error);
-      alert(`Error de conexión con la base de datos: ${error.message || error}`);
-      setIsLoading(false);
+    } catch (error: any) {
+      console.error("Error fetching activation codes:", error);
       try {
         handleFirestoreError(error, OperationType.LIST, 'activation_codes');
       } catch (e) {}
-    });
-
-    return () => {
-      isMounted = false;
-      unsubscribe();
-      clearTimeout(timer);
-    };
-  }, [isCurrentAdmin, activeTab]);
-
-  // Listen to Users Profiles
-  useEffect(() => {
-    if (!isCurrentAdmin || activeTab !== 'usuarios') {
-      setUsersLoading(false);
-      return;
+    } finally {
+      setIsLoading(false);
     }
+  };
 
-    const q = collection(db, 'users');
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+  const fetchUsersProfile = async () => {
+    if (!isCurrentAdmin) return;
+    setUsersLoading(true);
+    try {
+      const q = query(collection(db, 'users'), limit(300));
+      const snapshot = await getDocs(q);
       const usersData: ProfileUser[] = [];
       snapshot.forEach((doc) => {
         usersData.push({ id: doc.id, ...doc.data() } as ProfileUser);
       });
       
-      // Sort in memory by email alphabetically
       usersData.sort((a, b) => {
         const emailA = a.email || '';
         const emailB = b.email || '';
         return emailA.localeCompare(emailB);
       });
       setUsers(usersData);
-      setUsersLoading(false);
-    }, (error) => {
+    } catch (error) {
       console.error("Error fetching users list:", error);
+    } finally {
       setUsersLoading(false);
-    });
-
-    return () => unsubscribe();
-  }, [isCurrentAdmin, activeTab]);
-
-  // Listen to Blacklist collection
-  useEffect(() => {
-    if (!isCurrentAdmin || activeTab !== 'blacklist') {
-      setBlacklistLoading(false);
-      return;
     }
+  };
 
-    const q = collection(db, 'blacklist');
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+  const fetchBlacklist = async () => {
+    if (!isCurrentAdmin) return;
+    setBlacklistLoading(true);
+    try {
+      const q = query(collection(db, 'blacklist'), limit(300));
+      const snapshot = await getDocs(q);
       const banned: any[] = [];
       snapshot.forEach((doc) => {
         banned.push({ id: doc.id, ...doc.data() });
       });
-      // Sort alphabetically
       banned.sort((a, b) => (a.email || '').localeCompare(b.email || ''));
       setBannedEmails(banned);
-      setBlacklistLoading(false);
-    }, (error) => {
+    } catch (error) {
       console.error("Error fetching blacklist collection:", error);
+    } finally {
       setBlacklistLoading(false);
-    });
+    }
+  };
 
-    return () => unsubscribe();
+  // Fetch Activation Codes when activeTab changes to 'licencias' or initial mount
+  useEffect(() => {
+    if (isCurrentAdmin && activeTab === 'licencias') {
+      fetchCodes();
+    }
+  }, [isCurrentAdmin, activeTab]);
+
+  // Fetch Users Profiles when activeTab changes to 'usuarios'
+  useEffect(() => {
+    if (isCurrentAdmin && activeTab === 'usuarios') {
+      fetchUsersProfile();
+    }
+  }, [isCurrentAdmin, activeTab]);
+
+  // Fetch Blacklist when activeTab changes to 'blacklist'
+  useEffect(() => {
+    if (isCurrentAdmin && activeTab === 'blacklist') {
+      fetchBlacklist();
+    }
   }, [isCurrentAdmin, activeTab]);
 
   // Auto-ban ugax6060@gmail.com whenever admin opens their page
@@ -246,6 +233,8 @@ export default function AdminPanel() {
 
       alert(`¡La cuenta ${cleanMail} ha sido agregada a la lista negra y sus privilegios han sido revocados!`);
       setBanEmailInput('');
+      fetchBlacklist();
+      fetchUsersProfile();
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, `blacklist/${cleanMail}`);
     } finally {
@@ -260,6 +249,7 @@ export default function AdminPanel() {
     try {
       await deleteDoc(doc(db, 'blacklist', bannedMailId));
       alert(`¡Correo ${bannedMailId} desbloqueado exitosamente!`);
+      fetchBlacklist();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `blacklist/${bannedMailId}`);
     }
@@ -279,6 +269,7 @@ export default function AdminPanel() {
         createdAt: serverTimestamp()
       });
       alert(`Código ${codeId} generado exitosamente!`);
+      fetchCodes();
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, 'activation_codes');
     } finally {
@@ -333,6 +324,8 @@ export default function AdminPanel() {
 
       await batch.commit();
       alert(`¡Suscripción actualizada! Se han ${days > 0 ? 'sumado' : 'quitado'} ${Math.abs(days)} días.`);
+      fetchCodes();
+      fetchUsersProfile();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, 'activation_codes');
     }
@@ -360,6 +353,8 @@ export default function AdminPanel() {
 
       await batch.commit();
       alert('Código eliminado exitosamente.');
+      fetchCodes();
+      fetchUsersProfile();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, 'activation_codes');
     }
@@ -381,6 +376,7 @@ export default function AdminPanel() {
         role: newRole
       });
       alert(`¡Rol actualizado exitosamente para ${user.email}!`);
+      fetchUsersProfile();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}`);
     }
@@ -401,6 +397,7 @@ export default function AdminPanel() {
         isActive: newIsActive
       });
       alert(`Acceso de usuario modificado a ${newIsActive ? 'ACTIVO' : 'SUSPENDIDO'}.`);
+      fetchUsersProfile();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}`);
     }
@@ -416,6 +413,7 @@ export default function AdminPanel() {
         access_level: newLevel
       });
       alert(`Nivel de acceso configurado a ${newLevel.toUpperCase()} para ${user.email}.`);
+      fetchUsersProfile();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}`);
     }
@@ -451,6 +449,7 @@ export default function AdminPanel() {
         isActive: newExpiration > new Date()
       });
       alert(`Suscripción actualizada para ${user.email}.`);
+      fetchUsersProfile();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}`);
     }
@@ -471,6 +470,7 @@ export default function AdminPanel() {
         access_level: 'pro'
       });
       alert(`Acceso vitalicio concedido a ${user.email}.`);
+      fetchUsersProfile();
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `users/${user.id}`);
     }
@@ -488,6 +488,7 @@ export default function AdminPanel() {
     try {
       await deleteDoc(doc(db, 'users', user.id));
       alert(`Perfil de usuario ${user.email} eliminado exitosamente de la base de datos.`);
+      fetchUsersProfile();
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, `users/${user.id}`);
     }
@@ -532,6 +533,7 @@ export default function AdminPanel() {
       });
 
       alert(`Se ha pre-aprobado / añadido el acceso para: ${cleanMail}.\nCuando inicie sesión con este correo, el sistema auto-activará su suscripción como ${newAccessLevel.toUpperCase()} inmediatamente.`);
+      fetchUsersProfile();
       setNewEmail('');
       setNewRole('teacher');
       setNewAccessLevel('pro');
@@ -617,6 +619,18 @@ export default function AdminPanel() {
           </h1>
           <p className="text-slate-300 mt-1 font-medium italic">Consola de control global para licencias y cuentas de usuario.</p>
         </div>
+        
+        <button
+          onClick={() => {
+            if (activeTab === 'licencias') fetchCodes();
+            else if (activeTab === 'usuarios') fetchUsersProfile();
+            else if (activeTab === 'blacklist') fetchBlacklist();
+          }}
+          className="bg-white/10 hover:bg-white/15 text-white border border-white/10 font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 transition-all text-xs uppercase tracking-wider active:scale-95 shrink-0"
+        >
+          <RefreshCw size={14} className={(activeTab === 'licencias' ? isLoading : activeTab === 'usuarios' ? usersLoading : blacklistLoading) ? "animate-spin" : ""} />
+          Sincronizar
+        </button>
       </div>
 
       {/* Tabs */}
