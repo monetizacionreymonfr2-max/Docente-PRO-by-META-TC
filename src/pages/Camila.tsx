@@ -250,9 +250,17 @@ Directrices de Ventas:
 1. IDENTIDAD Y CREADOR:
 - Tono y Estilo: Profesional, empático y motivador. Conoce profundamente la "GUÍA ORGANIZATIVA 2025-2026" del MPPE.
 - Sobre tu creador: El creador de la plataforma es Reymon Castillo, un talentoso Ingeniero de Sistemas nacido en el Estado Apure, Venezuela. Es el fundador de META TC y DOCENTE PRO.
+
 2. CONOCIMIENTO TÉCNICO (VENEZUELA 2025-2026):
 - Al planificar PPA o Planes Diarios, usa los 14 Temas Indispensables, los 10 Vértices y los 3 Momentos (Exploración, Desarrollo, Reflexión).
-- Correlaciona Áreas con Énfasis Curriculares de forma oficial (ej. Ciencias Sociales -> Identidad).`;
+- Correlaciona Áreas con Énfasis Curriculares de forma oficial (ej. Ciencias Sociales -> Identidad; Matemáticas -> Matemática para la Vida; Lenguaje -> Oralidad, Escritura y Lectura).
+
+3. NIVEL MATENAL (0 a 3 AÑOS):
+- Si el usuario te indica que es docente de Maternal, o te pide planificaciones de Maternal (ej. Maternal I, Maternal II, Maternal III o Sala Cuna):
+  a) Áreas Oficiales: Estructura siempre bajo las dos grandes áreas oficiales: "Formación Personal, Social y Comunicación" y "Relación entre los Componentes del Ambiente" (cada una con sus componentes y finalidades del cuadro organizador).
+  b) Momentos de la Jornada: Define actividades para los momentos de: Recibimiento, Cuidado Diario/Fisiológico (Alimentación, Aseo, Descanso/Hábitos de higiene), Actividad Central, Juego Libre en Espacios (Expresar y Crear, Armar y Construir, Experimentar y Descubrir, Imitar y Representar) y Despedida.
+  c) Evaluación: Utiliza como técnicas de evaluación el Registro Descriptivo o las Escalas de Estimación del Desarrollo Evolutivo.
+  d) Para guardar una planificación o proyecto de maternal, usa el tipo "maternal" en el parámetro "tipo" de la herramienta o formato JSON.`;
 
       // 2. ESPERAMOS que la sesión se conecte completamente.
       const session = await (ai as any).live.connect({
@@ -270,7 +278,7 @@ Directrices de Ventas:
               parameters: {
                 type: Type.OBJECT,
                 properties: {
-                  tipo: { type: Type.STRING, description: "Debe ser 'proyecto' o 'planificacion'" },
+                  tipo: { type: Type.STRING, description: "Debe ser 'proyecto', 'planificacion', o 'maternal'" },
                   titulo: { type: Type.STRING, description: "El título del proyecto o clase" },
                   resumen: { type: Type.STRING, description: "El diagnóstico o resumen de lo que trata" },
                   contenido_completo: { type: Type.STRING, description: "MUY IMPORTANTE: Todo el material inmenso y detallado. Estructura con Inicio, Desarrollo, Cierre, Objetivos, etc. Debes crear un documento MUY extenso aquí." }
@@ -370,8 +378,31 @@ Directrices de Ventas:
                       text: `*(Guardando automáticamente "${docTitle}" en el gestor de ${tipo.includes('plan') ? 'planificaciones' : 'proyectos'}...)*` 
                     }]);
 
-                    // Guardar PPA o Planificación
-                    if (tipo.includes('proyecto')) {
+                    // Guardar PPA, Planificación o Plan Maternal
+                    if (tipo.includes('maternal')) {
+                      addDoc(collection(db, 'planificaciones_maternal'), {
+                        tipoPlan: 'semanal_quincenal',
+                        institucion: 'C.E.I. Doctor Ramón Castillo',
+                        salaEdad: 'Maternal (0 a 3 años)',
+                        anioEscolar: '2025-2026',
+                        matriculaVarones: 8,
+                        matriculaHembras: 10,
+                        matriculaTotal: 18,
+                        tiempoInicio: new Date().toISOString().split('T')[0],
+                        tiempoFin: new Date(Date.now() + 5*24*60*60*1000).toISOString().split('T')[0],
+                        peicReferencia: 'Proyecto Educativo Productivo e Integrador',
+                        enfasisCurriculares: ['Oralidad, Escritura y Lectura', 'Matemática para la vida'],
+                        hitosDesarrollo: args.resumen || 'Desarrollo motriz y del lenguaje',
+                        necesidadesFisiologicas: 'Alimentación, descanso e higiene',
+                        tituloProyecto: docTitle,
+                        justificacionPA: '',
+                        propositoPA: '',
+                        socioProductividad: '',
+                        contenido: args.contenido_completo || args.resumen || '',
+                        docenteId: teacherId,
+                        createdAt: serverTimestamp()
+                      }).catch(err => console.error(err));
+                    } else if (tipo.includes('proyecto')) {
                       addDoc(collection(db, 'proyectos_ppa'), {
                         teacher_id: teacherId, 
                         docenteId: teacherId,
@@ -565,7 +596,14 @@ Directrices:
 2. PEDAGOGÍA VENEZUELA 2025-2026:
 - Conoce la "GUÍA ORGANIZATIVA 2025-2026". 
 - Usa 14 Temas Indispensables, 10 Vértices y 3 Momentos (Exploración, Desarrollo, Reflexión).
-- Relación oficial: Ciencias Sociales -> Identidad; Matemáticas -> Matemáticas; Lenguaje -> Lengua y Escritura; Educ. Física -> Deporte; Cultura -> Cultura; Ciencias Naturales -> Ciencias Naturales.`;
+- Relación oficial: Ciencias Sociales -> Identidad; Matemáticas -> Matemática para la Vida; Lenguaje -> Oralidad, Escritura y Lectura; Educ. Física -> Deporte; Cultura -> Cultura; Ciencias Naturales -> Ciencias Naturales.
+
+3. NIVEL MATERNAL (DEDICADO 0 a 3 años):
+- Si el usuario te indica que es de Maternal, o pide planificaciones de Maternal (ej. Maternal I, Maternal II, Maternal III o Sala Cuna):
+  a) Áreas Oficiales: Estructura siempre bajo las dos grandes áreas oficiales: "Formación Personal, Social y Comunicación" y "Relación entre los Componentes del Ambiente" (cada una con sus componentes y finalidades del cuadro organizador).
+  b) Momentos de la Jornada: Define actividades para los momentos de: Recibimiento, Cuidado Diario/Fisiológico (Alimentación, Aseo, Descanso/Hábitos de higiene), Actividad Central, Juego Libre en Espacios (Expresar y Crear, Armar y Construir, Experimentar y Descubrir, Imitar y Representar) y Despedida.
+  c) Evaluación: Utiliza como técnicas el Registro Descriptivo o las Escalas de Estimación del Desarrollo Evolutivo.
+  d) Para guardar una planificación o proyecto de maternal, usa el formato de guardado con tipo "maternal".`;
 
       // Build context history based on current states
       // Avoid Welcome message to prevent bloat if needed, but it helps context
@@ -600,7 +638,30 @@ Directrices:
           
           const tipo = (parsedData.tipo || '').toLowerCase();
           
-          if (tipo.includes('proyecto')) {
+          if (tipo.includes('maternal')) {
+            await addDoc(collection(db, 'planificaciones_maternal'), {
+              tipoPlan: parsedData.tipoPlan || 'semanal_quincenal',
+              institucion: parsedData.institucion || 'C.E.I. Doctor Ramón Castillo',
+              salaEdad: parsedData.salaEdad || 'Maternal (0 a 3 años)',
+              anioEscolar: parsedData.anioEscolar || '2025-2026',
+              matriculaVarones: parsedData.matriculaVarones || 8,
+              matriculaHembras: parsedData.matriculaHembras || 10,
+              matriculaTotal: (parsedData.matriculaVarones || 8) + (parsedData.matriculaHembras || 10),
+              tiempoInicio: parsedData.tiempoInicio || new Date().toISOString().split('T')[0],
+              tiempoFin: parsedData.tiempoFin || new Date(Date.now() + 5*24*60*60*1000).toISOString().split('T')[0],
+              peicReferencia: parsedData.peicReferencia || 'Proyecto Educativo Productivo e Integrador',
+              enfasisCurriculares: parsedData.enfasisCurriculares || ['Oralidad, Escritura y Lectura', 'Matemática para la vida'],
+              hitosDesarrollo: parsedData.hitosDesarrollo || parsedData.resumen || 'Desarrollo motriz y del lenguaje',
+              necesidadesFisiologicas: parsedData.necesidadesFisiologicas || 'Alimentación, descanso e higiene',
+              tituloProyecto: parsedData.tituloProyecto || parsedData.titulo || 'Plan Maternal',
+              justificacionPA: parsedData.justificacionPA || '',
+              propositoPA: parsedData.propositoPA || '',
+              socioProductividad: parsedData.socioProductividad || '',
+              contenido: parsedData.contenido_completo || rawText.replace(regex, '').trim(),
+              docenteId: teacherId,
+              createdAt: serverTimestamp()
+            });
+          } else if (tipo.includes('proyecto')) {
             await addDoc(collection(db, 'proyectos_ppa'), {
               teacher_id: teacherId, 
               docenteId: teacherId,
