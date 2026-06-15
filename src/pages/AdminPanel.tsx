@@ -21,7 +21,8 @@ import {
   Shield,
   UserCheck,
   UserX,
-  Sparkles
+  Sparkles,
+  Eye
 } from 'lucide-react';
 
 interface Code {
@@ -54,13 +55,15 @@ export default function AdminPanel() {
   
   // Codes states
   const [codes, setCodes] = useState<Code[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState<string | false>(false);
+  const [hasLoadedCodes, setHasLoadedCodes] = useState(false);
 
   // Users states
   const [users, setUsers] = useState<ProfileUser[]>([]);
-  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersLoading, setUsersLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [hasLoadedUsers, setHasLoadedUsers] = useState(false);
 
   // Manual User Creation states
   const [newEmail, setNewEmail] = useState('');
@@ -72,10 +75,11 @@ export default function AdminPanel() {
 
   // Blacklist states
   const [bannedEmails, setBannedEmails] = useState<{ id: string; email: string; createdAt?: any; bannedBy?: string }[]>([]);
-  const [blacklistLoading, setBlacklistLoading] = useState(true);
+  const [blacklistLoading, setBlacklistLoading] = useState(false);
   const [bannedSearchQuery, setBannedSearchQuery] = useState('');
   const [banEmailInput, setBanEmailInput] = useState('');
   const [isBanning, setIsBanning] = useState(false);
+  const [hasLoadedBlacklist, setHasLoadedBlacklist] = useState(false);
 
   const currentUserEmail = auth.currentUser?.email;
   const isCurrentAdmin = currentUserEmail ? ADMIN_EMAILS.includes(currentUserEmail) : false;
@@ -105,6 +109,7 @@ export default function AdminPanel() {
         return getTime(b.createdAt) - getTime(a.createdAt);
       });
       setCodes(codesData);
+      setHasLoadedCodes(true);
     } catch (error: any) {
       console.error("Error fetching activation codes:", error);
       try {
@@ -132,6 +137,7 @@ export default function AdminPanel() {
         return emailA.localeCompare(emailB);
       });
       setUsers(usersData);
+      setHasLoadedUsers(true);
     } catch (error) {
       console.error("Error fetching users list:", error);
     } finally {
@@ -151,33 +157,13 @@ export default function AdminPanel() {
       });
       banned.sort((a, b) => (a.email || '').localeCompare(b.email || ''));
       setBannedEmails(banned);
+      setHasLoadedBlacklist(true);
     } catch (error) {
       console.error("Error fetching blacklist collection:", error);
     } finally {
       setBlacklistLoading(false);
     }
   };
-
-  // Fetch Activation Codes when activeTab changes to 'licencias' or initial mount
-  useEffect(() => {
-    if (isCurrentAdmin && activeTab === 'licencias') {
-      fetchCodes();
-    }
-  }, [isCurrentAdmin, activeTab]);
-
-  // Fetch Users Profiles when activeTab changes to 'usuarios'
-  useEffect(() => {
-    if (isCurrentAdmin && activeTab === 'usuarios') {
-      fetchUsersProfile();
-    }
-  }, [isCurrentAdmin, activeTab]);
-
-  // Fetch Blacklist when activeTab changes to 'blacklist'
-  useEffect(() => {
-    if (isCurrentAdmin && activeTab === 'blacklist') {
-      fetchBlacklist();
-    }
-  }, [isCurrentAdmin, activeTab]);
 
   // Auto-ban ugax6060@gmail.com whenever admin opens their page
   useEffect(() => {
@@ -699,7 +685,7 @@ export default function AdminPanel() {
               </div>
               <div>
                 <p className="text-sm font-bold text-gray-600 uppercase tracking-widest leading-none mb-1">Total</p>
-                <p className="text-2xl font-black text-gray-900">{codes.length}</p>
+                <p className="text-2xl font-black text-gray-900">{hasLoadedCodes ? codes.length : '—'}</p>
               </div>
             </div>
             <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
@@ -708,7 +694,7 @@ export default function AdminPanel() {
               </div>
               <div>
                 <p className="text-sm font-bold text-gray-600 uppercase tracking-widest leading-none mb-1">Disponibles</p>
-                <p className="text-2xl font-black text-gray-900">{codes.filter(c => c.status === 'disponible').length}</p>
+                <p className="text-2xl font-black text-gray-900">{hasLoadedCodes ? codes.filter(c => c.status === 'disponible').length : '—'}</p>
               </div>
             </div>
             <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
@@ -717,126 +703,146 @@ export default function AdminPanel() {
               </div>
               <div>
                 <p className="text-sm font-bold text-gray-600 uppercase tracking-widest leading-none mb-1">Usados</p>
-                <p className="text-2xl font-black text-gray-900">{codes.filter(c => c.status === 'usado').length}</p>
+                <p className="text-2xl font-black text-gray-900">{hasLoadedCodes ? codes.filter(c => c.status === 'usado').length : '—'}</p>
               </div>
             </div>
           </div>
 
-          <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-8 py-6 border-b border-gray-50 bg-gray-50/50 flex items-center gap-2">
-              <History size={20} className="text-gray-500" />
-              <h2 className="font-black text-gray-900 uppercase tracking-tight text-sm">Registro de Códigos</h2>
+          {!hasLoadedCodes ? (
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-12 text-center max-w-xl mx-auto my-6 animate-in fade-in duration-300">
+              <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100">
+                <Ticket size={28} />
+              </div>
+              <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-2">Consulta de Licencias Bajo Demanda</h3>
+              <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+                Para optimizar el uso de tu cuota de Firestore y acelerar la carga, el listado de códigos de activación no se descarga automáticamente. Haz clic a continuación para cargarlos en tiempo real.
+              </p>
+              <button
+                onClick={fetchCodes}
+                disabled={isLoading}
+                className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-8 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-sm uppercase tracking-wider mx-auto"
+              >
+                {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eye className="w-5 h-5" />}
+                Cargar Códigos de Licencia
+              </button>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead>
-                  <tr className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] border-b border-gray-50">
-                    <th className="px-8 py-4">Código</th>
-                    <th className="px-8 py-4">Nivel</th>
-                    <th className="px-8 py-4">Estado</th>
-                    <th className="px-8 py-4">Usuario</th>
-                    <th className="px-8 py-4 text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {isLoading ? (
-                    <tr>
-                      <td colSpan={5} className="px-8 py-12 text-center text-gray-500 font-medium">Cargando códigos...</td>
+          ) : (
+            <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-8 py-6 border-b border-gray-50 bg-gray-50/50 flex items-center gap-2">
+                <History size={20} className="text-gray-500" />
+                <h2 className="font-black text-gray-900 uppercase tracking-tight text-sm">Registro de Códigos</h2>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] border-b border-gray-50">
+                      <th className="px-8 py-4">Código</th>
+                      <th className="px-8 py-4">Nivel</th>
+                      <th className="px-8 py-4">Estado</th>
+                      <th className="px-8 py-4">Usuario</th>
+                      <th className="px-8 py-4 text-right">Acciones</th>
                     </tr>
-                  ) : codes.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-8 py-12 text-center text-gray-500 font-medium">No hay códigos generados.</td>
-                    </tr>
-                  ) : (
-                    codes.map((code) => (
-                      <tr key={code.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-8 py-4 font-mono font-bold text-blue-900 tracking-widest">
-                          {code.id}
-                        </td>
-                        <td className="px-8 py-4">
-                          <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${
-                            code.access_level === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
-                          }`}>
-                            {code.access_level || 'pro'}
-                          </span>
-                        </td>
-                        <td className="px-8 py-4">
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                            code.status === 'disponible' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                          }`}>
-                            {code.status}
-                          </span>
-                        </td>
-                        <td className="px-8 py-4 text-xs font-medium text-gray-500 truncate max-w-[150px]">
-                          {typeof code.usedByEmail === 'string' ? code.usedByEmail : 
-                           typeof code.usedBy === 'string' ? code.usedBy : '---'}
-                        </td>
-                        <td className="px-8 py-4 text-right">
-                          <div className="flex items-center justify-end gap-3">
-                            {code.status === 'usado' && code.expiresAt && (
-                              <div className="flex items-center gap-4">
-                                <div className="flex flex-col items-end">
-                                  <span className={`text-[10px] font-black uppercase tracking-widest ${
-                                    (calculateDaysLeft(code.expiresAt) || 0) > 0 ? 'text-blue-600' : 'text-red-600'
-                                  }`}>
-                                    {(calculateDaysLeft(code.expiresAt) || 0) > 0 ? 'Quedan' : 'Expiró hace'}
-                                  </span>
-                                  <span className="text-xs font-bold text-gray-900">
-                                    {Math.abs(calculateDaysLeft(code.expiresAt) || 0)} días
-                                  </span>
-                                </div>
-                                <div className="flex items-center bg-gray-50 rounded-xl p-1 border border-gray-100">
-                                  <button
-                                    onClick={() => handleAdjustDays(code, -1)}
-                                    className="p-1.5 text-red-500 hover:bg-white hover:shadow-sm rounded-lg transition-all"
-                                    title="Quitar 1 día"
-                                  >
-                                    <Minus size={14} />
-                                  </button>
-                                  <div className="w-px h-4 bg-gray-200 mx-1" />
-                                  <button
-                                    onClick={() => handleAdjustDays(code, 1)}
-                                    className="p-1.5 text-green-600 hover:bg-white hover:shadow-sm rounded-lg transition-all"
-                                    title="Sumar 1 día"
-                                  >
-                                    <Plus size={14} />
-                                  </button>
-                                  <div className="w-px h-4 bg-gray-200 mx-1" />
-                                  <button
-                                    onClick={() => handleRenew(code)}
-                                    className="p-1.5 text-blue-600 hover:bg-white hover:shadow-sm rounded-lg transition-all"
-                                    title="Plan Mensual (+30 días)"
-                                  >
-                                    <RefreshCw size={14} />
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                            {code.status === 'disponible' && (
-                              <button 
-                                onClick={() => copyToClipboard(code.id)}
-                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
-                                title="Copiar Código"
-                              >
-                                <Copy size={18} />
-                              </button>
-                            )}
-                            <button 
-                              onClick={() => handleDeleteCode(code)}
-                              className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                              title="Eliminar Código"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </td>
+                  </thead>
+                  <tbody className="divide-y divide-gray-50">
+                    {isLoading ? (
+                      <tr>
+                        <td colSpan={5} className="px-8 py-12 text-center text-gray-500 font-medium">Cargando códigos...</td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : codes.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-8 py-12 text-center text-gray-500 font-medium">No hay códigos generados.</td>
+                      </tr>
+                    ) : (
+                      codes.map((code) => (
+                        <tr key={code.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-8 py-4 font-mono font-bold text-blue-900 tracking-widest">
+                            {code.id}
+                          </td>
+                          <td className="px-8 py-4">
+                            <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${
+                              code.access_level === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                            }`}>
+                              {code.access_level || 'pro'}
+                            </span>
+                          </td>
+                          <td className="px-8 py-4">
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                              code.status === 'disponible' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                            }`}>
+                              {code.status}
+                            </span>
+                          </td>
+                          <td className="px-8 py-4 text-xs font-medium text-gray-500 truncate max-w-[150px]">
+                            {typeof code.usedByEmail === 'string' ? code.usedByEmail : 
+                             typeof code.usedBy === 'string' ? code.usedBy : '---'}
+                          </td>
+                          <td className="px-8 py-4 text-right">
+                            <div className="flex items-center justify-end gap-3">
+                              {code.status === 'usado' && code.expiresAt && (
+                                <div className="flex items-center gap-4">
+                                  <div className="flex flex-col items-end">
+                                    <span className={`text-[10px] font-black uppercase tracking-widest ${
+                                      (calculateDaysLeft(code.expiresAt) || 0) > 0 ? 'text-blue-600' : 'text-red-600'
+                                    }`}>
+                                      {(calculateDaysLeft(code.expiresAt) || 0) > 0 ? 'Quedan' : 'Expiró hace'}
+                                    </span>
+                                    <span className="text-xs font-bold text-gray-900">
+                                      {Math.abs(calculateDaysLeft(code.expiresAt) || 0)} días
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center bg-gray-50 rounded-xl p-1 border border-gray-100">
+                                    <button
+                                      onClick={() => handleAdjustDays(code, -1)}
+                                      className="p-1.5 text-red-500 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+                                      title="Quitar 1 día"
+                                    >
+                                      <Minus size={14} />
+                                    </button>
+                                    <div className="w-px h-4 bg-gray-200 mx-1" />
+                                    <button
+                                      onClick={() => handleAdjustDays(code, 1)}
+                                      className="p-1.5 text-green-600 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+                                      title="Sumar 1 día"
+                                    >
+                                      <Plus size={14} />
+                                    </button>
+                                    <div className="w-px h-4 bg-gray-200 mx-1" />
+                                    <button
+                                      onClick={() => handleRenew(code)}
+                                      className="p-1.5 text-blue-600 hover:bg-white hover:shadow-sm rounded-lg transition-all"
+                                      title="Plan Mensual (+30 días)"
+                                    >
+                                      <RefreshCw size={14} />
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                              {code.status === 'disponible' && (
+                                <button 
+                                  onClick={() => copyToClipboard(code.id)}
+                                  className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                                  title="Copiar Código"
+                                >
+                                  <Copy size={18} />
+                                </button>
+                              )}
+                              <button 
+                                onClick={() => handleDeleteCode(code)}
+                                className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                                title="Eliminar Código"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
@@ -930,8 +936,7 @@ export default function AdminPanel() {
                   disabled={isAddingUser}
                   className="w-full mt-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 border border-blue-500 shadow-xl shadow-blue-500/15 transition-all text-sm uppercase tracking-wider"
                 >
-                  {isAddingUser ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus size={16} />}
-                  Añadir Usuario
+                        Añadir Usuario
                 </button>
               </form>
             </div>
@@ -948,156 +953,177 @@ export default function AdminPanel() {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Buscar usuarios por email o ID..."
-                    className="w-full bg-slate-950 border border-white/5 rounded-xl pl-11 pr-4 py-2 text-slate-300 placeholder-slate-600 text-xs focus:outline-none focus:border-blue-500/50 transition-all"
+                    className="w-full bg-slate-950 border border-white/5 rounded-xl pl-11 pr-4 py-2 text-slate-300 placeholder-slate-600 text-xs focus:outline-none focus:border-blue-500/50 transition-all font-mono"
                   />
                 </div>
                 <div className="text-slate-400 text-xs font-mono shrink-0 flex items-center gap-2">
                   <Users size={14} className="text-blue-400" />
-                  <span>Encontrados: <b>{filteredUsers.length}</b> de <b>{users.length}</b></span>
+                  <span>Encontrados: <b>{hasLoadedUsers ? filteredUsers.length : '—'}</b> de <b>{hasLoadedUsers ? users.length : '—'}</b></span>
                 </div>
               </div>
 
-              {/* Users Table */}
-              <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] border-b border-gray-100 bg-gray-50/50">
-                        <th className="px-6 py-4">Usuario</th>
-                        <th className="px-6 py-4">Rol</th>
-                        <th className="px-6 py-4">Estado</th>
-                        <th className="px-6 py-4">Expiración</th>
-                        <th className="px-6 py-4 text-right">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {usersLoading ? (
-                        <tr>
-                          <td colSpan={5} className="px-6 py-12 text-center text-gray-500 font-medium">
-                            <Loader2 className="w-6 h-6 animate-spin text-blue-600 mx-auto mb-2" />
-                            Cargando base de datos de usuarios...
-                          </td>
+              {/* Users Table or demand Card */}
+              {!hasLoadedUsers ? (
+                <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-12 text-center animate-in fade-in duration-300">
+                  <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-blue-100">
+                    <Users size={28} />
+                  </div>
+                  <h3 className="text-lg font-black text-slate-800 uppercase tracking-tight mb-2">Consulta de Usuarios Bajo Demanda</h3>
+                  <p className="text-slate-500 text-sm mb-6 leading-relaxed max-w-sm mx-auto">
+                    La lista completa de usuarios registrados y pre-aprobados no se carga automáticamente para cuidar tus cuotas de Firestore.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={fetchUsersProfile}
+                    disabled={usersLoading}
+                    className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-8 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-sm uppercase tracking-wider mx-auto"
+                  >
+                    {usersLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eye className="w-5 h-5" />}
+                    Cargar Lista de Usuarios
+                  </button>
+                </div>
+              ) : (
+                <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] border-b border-gray-100 bg-gray-50/50">
+                          <th className="px-6 py-4">Usuario</th>
+                          <th className="px-6 py-4">Rol</th>
+                          <th className="px-6 py-4">Estado</th>
+                          <th className="px-6 py-4">Expiración</th>
+                          <th className="px-6 py-4 text-right">Acciones</th>
                         </tr>
-                      ) : filteredUsers.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="px-6 py-12 text-center text-gray-500 font-medium">
-                            No se encontraron registros de usuarios con esa búsqueda.
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredUsers.map((usr) => {
-                          const isSuperAdminUser = ADMIN_EMAILS.includes(usr.email || '');
-                          const isPreRegistered = (usr.id === usr.email); // Our custom pre-reg mapping identifier!
-                          
-                          return (
-                            <tr key={usr.id} className="hover:bg-gray-50/20 transition-colors">
-                              <td className="px-6 py-4">
-                                <div className="flex flex-col">
-                                  <span className="font-bold text-gray-900 text-sm break-all">{usr.email}</span>
-                                  <span className="text-[10px] font-mono text-gray-400 flex items-center gap-1.5 mt-0.5">
-                                    {isPreRegistered ? (
-                                      <span className="bg-amber-50 text-amber-600 border border-amber-200/40 px-1.5 py-0.2 rounded text-[9px] font-bold">PRE-APROBADO</span>
-                                    ) : (
-                                      <span className="truncate max-w-[120px]" title={usr.id}>UID: {usr.id}</span>
-                                    )}
-                                    {usr.generationsCount > 0 && <span>• {usr.generationsCount} gen.</span>}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <button
-                                  onClick={() => handleToggleUserRole(usr)}
-                                  disabled={isSuperAdminUser}
-                                  className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border transition-all ${
-                                    usr.role === 'admin'
-                                      ? 'bg-rose-50 text-rose-700 border-rose-100 hover:bg-rose-100'
-                                      : 'bg-slate-50 text-slate-700 border-slate-100 hover:bg-slate-100'
-                                  } ${isSuperAdminUser ? 'opacity-70 cursor-not-allowed' : ''}`}
-                                  title={isSuperAdminUser ? "Super-Administrador Maestro (Fijo)" : "Click para alternar Rol"}
-                                >
-                                  <Shield size={10} className={usr.role === 'admin' ? 'text-rose-500' : 'text-slate-400'} />
-                                  {usr.role === 'admin' ? 'Administrador' : 'Docente'}
-                                </button>
-                              </td>
-                              <td className="px-6 py-4">
-                                <button
-                                  onClick={() => handleToggleUserActive(usr)}
-                                  disabled={isSuperAdminUser}
-                                  className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 border transition-all ${
-                                    usr.isActive
-                                      ? 'bg-green-50 text-green-700 border border-green-100 hover:bg-green-100'
-                                      : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'
-                                  } ${isSuperAdminUser ? 'opacity-70 cursor-not-allowed' : ''}`}
-                                  title={isSuperAdminUser ? "Acceso fijo garantizado" : "Click para cambiar habilitación"}
-                                >
-                                  {usr.isActive ? <UserCheck size={11} className="text-green-500" /> : <UserX size={11} className="text-red-500" />}
-                                  {usr.isActive ? 'Activo' : 'Suspendido'}
-                                </button>
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="flex flex-col">
-                                  {getExpirationBadge(usr.expiresAt)}
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {usersLoading ? (
+                          <tr>
+                            <td colSpan={5} className="px-6 py-12 text-center text-gray-500 font-medium">
+                              <Loader2 className="w-6 h-6 animate-spin text-blue-600 mx-auto mb-2" />
+                              Cargando base de datos de usuarios...
+                            </td>
+                          </tr>
+                        ) : filteredUsers.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="px-6 py-12 text-center text-gray-500 font-medium">
+                              No se encontraron registros de usuarios con esa búsqueda.
+                            </td>
+                          </tr>
+                        ) : (
+                          filteredUsers.map((usr) => {
+                            const isSuperAdminUser = ADMIN_EMAILS.includes(usr.email || '');
+                            const isPreRegistered = (usr.id === usr.email); // Our custom pre-reg mapping identifier!
+                            
+                            return (
+                              <tr key={usr.id} className="hover:bg-gray-50/20 transition-colors">
+                                <td className="px-6 py-4">
+                                  <div className="flex flex-col">
+                                    <span className="font-bold text-gray-900 text-sm break-all">{usr.email}</span>
+                                    <span className="text-[10px] font-mono text-gray-400 flex items-center gap-1.5 mt-0.5">
+                                      {isPreRegistered ? (
+                                        <span className="bg-amber-50 text-amber-600 border border-amber-200/40 px-1.5 py-0.2 rounded text-[9px] font-bold">PRE-APROBADO</span>
+                                      ) : (
+                                        <span className="truncate max-w-[120px]" title={usr.id}>UID: {usr.id}</span>
+                                      )}
+                                      {usr.generationsCount > 0 && <span>• {usr.generationsCount} gen.</span>}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4">
                                   <button
-                                    onClick={() => handleToggleUserAccessLevel(usr)}
-                                    className="text-[9px] text-left text-slate-500 underline hover:text-slate-900 mt-1 font-bold font-mono tracking-wider uppercase"
-                                    title="Click para alternar Pro/Guest"
+                                    onClick={() => handleToggleUserRole(usr)}
+                                    disabled={isSuperAdminUser}
+                                    className={`px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 border transition-all ${
+                                      usr.role === 'admin'
+                                        ? 'bg-rose-50 text-rose-700 border-rose-100 hover:bg-rose-100'
+                                        : 'bg-slate-50 text-slate-700 border-slate-100 hover:bg-slate-100'
+                                    } ${isSuperAdminUser ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                    title={isSuperAdminUser ? "Super-Administrador Maestro (Fijo)" : "Click para alternar Rol"}
                                   >
-                                    Nivel: {usr.access_level || 'pro'}
+                                    <Shield size={10} className={usr.role === 'admin' ? 'text-rose-500' : 'text-slate-400'} />
+                                    {usr.role === 'admin' ? 'Administrador' : 'Docente'}
                                   </button>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 text-right">
-                                <div className="flex items-center justify-end gap-2">
-                                  {/* Subscription time managers */}
-                                  <div className="flex items-center bg-gray-50 rounded-lg p-0.5 border border-gray-100">
+                                </td>
+                                <td className="px-6 py-4">
+                                  <button
+                                    onClick={() => handleToggleUserActive(usr)}
+                                    disabled={isSuperAdminUser}
+                                    className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider flex items-center gap-1 border transition-all ${
+                                      usr.isActive
+                                        ? 'bg-green-50 text-green-700 border border-green-100 hover:bg-green-100'
+                                        : 'bg-red-50 text-red-600 border border-red-100 hover:bg-red-100'
+                                    } ${isSuperAdminUser ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                    title={isSuperAdminUser ? "Acceso fijo garantizado" : "Click para cambiar habilitación"}
+                                  >
+                                    {usr.isActive ? <UserCheck size={11} className="text-green-500" /> : <UserX size={11} className="text-red-500" />}
+                                    {usr.isActive ? 'Activo' : 'Suspendido'}
+                                  </button>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <div className="flex flex-col">
+                                    {getExpirationBadge(usr.expiresAt)}
                                     <button
-                                      onClick={() => handleAdjustUserDays(usr, -1)}
-                                      className="p-1 text-red-500 hover:bg-white hover:shadow-xs rounded transition-all"
-                                      title="Quitar 1 día"
+                                      onClick={() => handleToggleUserAccessLevel(usr)}
+                                      className="text-[9px] text-left text-slate-500 underline hover:text-slate-900 mt-1 font-bold font-mono tracking-wider uppercase"
+                                      title="Click para alternar Pro/Guest"
                                     >
-                                      <Minus size={11} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleAdjustUserDays(usr, 1)}
-                                      className="p-1 text-green-600 hover:bg-white hover:shadow-xs rounded transition-all"
-                                      title="Sumar 1 día"
-                                    >
-                                      <Plus size={11} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleAdjustUserDays(usr, 30)}
-                                      className="p-1 text-blue-600 hover:bg-white hover:shadow-xs rounded transition-all"
-                                      title="Añadir 30 Días (+1 mes)"
-                                    >
-                                      <RefreshCw size={11} />
-                                    </button>
-                                    <button
-                                      onClick={() => handleSetUserInfinite(usr)}
-                                      className="p-1 text-purple-600 hover:bg-white hover:shadow-xs rounded transition-all font-bold text-[9px] px-1"
-                                      title="Conceder Licencia Vitalicia (Sin vencimiento)"
-                                    >
-                                      ∞
+                                      Nivel: {usr.access_level || 'pro'}
                                     </button>
                                   </div>
+                                </td>
+                                <td className="px-6 py-4 text-right">
+                                  <div className="flex items-center justify-end gap-2">
+                                    {/* Subscription time managers */}
+                                    <div className="flex items-center bg-gray-50 rounded-lg p-0.5 border border-gray-100">
+                                      <button
+                                        onClick={() => handleAdjustUserDays(usr, -1)}
+                                        className="p-1 text-red-500 hover:bg-white hover:shadow-xs rounded transition-all"
+                                        title="Quitar 1 día"
+                                      >
+                                        <Minus size={11} />
+                                      </button>
+                                      <button
+                                        onClick={() => handleAdjustUserDays(usr, 1)}
+                                        className="p-1 text-green-600 hover:bg-white hover:shadow-xs rounded transition-all"
+                                        title="Sumar 1 día"
+                                      >
+                                        <Plus size={11} />
+                                      </button>
+                                      <button
+                                        onClick={() => handleAdjustUserDays(usr, 30)}
+                                        className="p-1 text-blue-600 hover:bg-white hover:shadow-xs rounded transition-all font-bold block"
+                                        title="Añadir 30 Días (+1 mes)"
+                                      >
+                                        <RefreshCw size={11} />
+                                      </button>
+                                      <button
+                                        onClick={() => handleSetUserInfinite(usr)}
+                                        className="p-1 text-purple-600 hover:bg-white hover:shadow-xs rounded transition-all font-bold text-[9px] px-1"
+                                        title="Conceder Licencia Vitalicia (Sin vencimiento)"
+                                      >
+                                        ∞
+                                      </button>
+                                    </div>
 
-                                  <button
-                                    onClick={() => handleDeleteUser(usr)}
-                                    disabled={isSuperAdminUser}
-                                    className={`p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all ${isSuperAdminUser ? 'opacity-30 cursor-not-allowed' : ''}`}
-                                    title="Eliminar usuario de la base de datos"
-                                  >
-                                    <Trash2 size={14} />
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
+                                    <button
+                                      onClick={() => handleDeleteUser(usr)}
+                                      disabled={isSuperAdminUser}
+                                      className={`p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all ${isSuperAdminUser ? 'opacity-30 cursor-not-allowed' : ''}`}
+                                      title="Eliminar usuario de la base de datos"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
+              )}
 
             </div>
           </div>
@@ -1178,78 +1204,99 @@ export default function AdminPanel() {
                 </div>
                 <div className="text-slate-400 text-xs font-mono shrink-0 flex items-center gap-2">
                   <ShieldAlert size={14} className="text-rose-400" />
-                  <span>Bloqueados: <b>{bannedEmails.filter(b => b.email.includes(bannedSearchQuery.toLowerCase())).length}</b></span>
+                  <span>Bloqueados: <b>{hasLoadedBlacklist ? bannedEmails.filter(b => b.email.includes(bannedSearchQuery.toLowerCase())).length : '—'}</b></span>
                 </div>
               </div>
 
-              {/* Banned Table */}
-              <div className="bg-white rounded-3xl border border-rose-100 shadow-sm overflow-hidden animate-in fade-in duration-300">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                    <thead>
-                      <tr className="text-xs font-black text-rose-500 uppercase tracking-[0.2em] border-b border-rose-500/10 bg-rose-50/20">
-                        <th className="px-6 py-4">Correo Bloqueado</th>
-                        <th className="px-6 py-4">Agregado el</th>
-                        <th className="px-6 py-4">Por</th>
-                        <th className="px-6 py-4 text-right">Acción</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-50">
-                      {blacklistLoading ? (
-                        <tr>
-                          <td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-medium">
-                            <Loader2 className="w-6 h-6 animate-spin text-rose-600 mx-auto mb-2" />
-                            Cargando base de datos de bloqueos...
-                          </td>
-                        </tr>
-                      ) : bannedEmails.length === 0 ? (
-                        <tr>
-                          <td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-medium">
-                            No hay ningún correo en la lista negra en este momento.
-                          </td>
-                        </tr>
-                      ) : (
-                        bannedEmails
-                          .filter(b => b.email.includes(bannedSearchQuery.toLowerCase()))
-                          .map((b) => {
-                            const isAutoSeeded = b.email === 'ugax6060@gmail.com';
-                            const banDate = b.createdAt?.toDate ? b.createdAt.toDate().toLocaleString() : 'Recientemente (Auto)';
-                            
-                            return (
-                              <tr key={b.id} className="hover:bg-red-50/10 transition-colors">
-                                <td className="px-6 py-4">
-                                  <div className="flex flex-col">
-                                    <span className="font-extrabold text-red-600 text-sm font-mono break-all">{b.email}</span>
-                                    {isAutoSeeded && (
-                                      <span className="mt-1 bg-red-100 text-red-700 font-black border border-red-200 text-[8px] tracking-wider px-1.5 py-0.5 rounded uppercase self-start">
-                                        Intruso Identificado (Auto-Bloqueado)
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="px-6 py-4 text-xs font-medium text-gray-500">
-                                  {banDate}
-                                </td>
-                                <td className="px-6 py-4 text-xs text-gray-500 font-mono">
-                                  {b.bannedBy || 'sistema'}
-                                </td>
-                                <td className="px-6 py-4 text-right">
-                                  <button
-                                    onClick={() => handleUnbanEmail(b.id)}
-                                    className="px-3 py-1.5 text-xs font-black uppercase tracking-wider text-green-700 bg-green-50 hover:bg-green-100 border border-green-200/50 rounded-xl transition-all"
-                                    title="Desbloquear correo electrónico"
-                                  >
-                                    Permitir Acceso
-                                  </button>
-                                </td>
-                              </tr>
-                            );
-                          })
-                      )}
-                    </tbody>
-                  </table>
+              {/* Banned Table or demand Card */}
+              {!hasLoadedBlacklist ? (
+                <div className="bg-white rounded-3xl border border-rose-100 shadow-sm p-12 text-center animate-in fade-in duration-300">
+                  <div className="w-16 h-16 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-rose-100 pb-0.5">
+                    <ShieldAlert size={28} />
+                  </div>
+                  <h3 className="text-lg font-black text-rose-800 uppercase tracking-tight mb-2">Lista Negra de Seguridad</h3>
+                  <p className="text-slate-500 text-sm mb-6 leading-relaxed max-w-sm mx-auto">
+                    La lista de correos electrónicos suspendidos y bloqueados temporalmente no se carga automáticamente para cuidar tus cuotas de Firestore.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={fetchBlacklist}
+                    disabled={blacklistLoading}
+                    className="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 text-white font-bold py-3.5 px-8 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-rose-500/20 active:scale-95 transition-all text-sm uppercase tracking-wider mx-auto"
+                  >
+                    {blacklistLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Eye className="w-5 h-5" />}
+                    Cargar Lista Negra
+                  </button>
                 </div>
-              </div>
+              ) : (
+                <div className="bg-white rounded-3xl border border-rose-100 shadow-sm overflow-hidden animate-in fade-in duration-300">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="text-xs font-black text-rose-500 uppercase tracking-[0.2em] border-b border-rose-500/10 bg-rose-50/20">
+                          <th className="px-6 py-4">Correo Bloqueado</th>
+                          <th className="px-6 py-4">Agregado el</th>
+                          <th className="px-6 py-4">Por</th>
+                          <th className="px-6 py-4 text-right">Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {blacklistLoading ? (
+                          <tr>
+                            <td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-medium">
+                              <Loader2 className="w-6 h-6 animate-spin text-rose-600 mx-auto mb-2" />
+                              Cargando base de datos de bloqueos...
+                            </td>
+                          </tr>
+                        ) : bannedEmails.length === 0 ? (
+                          <tr>
+                            <td colSpan={4} className="px-6 py-12 text-center text-gray-500 font-medium">
+                              No hay ningún correo en la lista negra en este momento.
+                            </td>
+                          </tr>
+                        ) : (
+                          bannedEmails
+                            .filter(b => b.email.includes(bannedSearchQuery.toLowerCase()))
+                            .map((b) => {
+                              const isAutoSeeded = b.email === 'ugax6060@gmail.com';
+                              const banDate = b.createdAt?.toDate ? b.createdAt.toDate().toLocaleString() : 'Recientemente (Auto)';
+                              
+                              return (
+                                <tr key={b.id} className="hover:bg-red-50/10 transition-colors">
+                                  <td className="px-6 py-4">
+                                    <div className="flex flex-col">
+                                      <span className="font-extrabold text-red-600 text-sm font-mono break-all">{b.email}</span>
+                                      {isAutoSeeded && (
+                                        <span className="mt-1 bg-red-100 text-red-700 font-black border border-red-200 text-[8px] tracking-wider px-1.5 py-0.5 rounded uppercase self-start">
+                                          Intruso Identificado (Auto-Bloqueado)
+                                        </span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-xs font-medium text-gray-500">
+                                    {banDate}
+                                  </td>
+                                  <td className="px-6 py-4 text-xs text-gray-500 font-mono">
+                                    {b.bannedBy || 'sistema'}
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
+                                    <button
+                                      onClick={() => handleUnbanEmail(b.id)}
+                                      className="px-3 py-1.5 text-xs font-black uppercase tracking-wider text-green-700 bg-green-50 hover:bg-green-100 border border-green-200/50 rounded-xl transition-all"
+                                      title="Desbloquear correo electrónico"
+                                    >
+                                      Permitir Acceso
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
             </div>
           </div>
