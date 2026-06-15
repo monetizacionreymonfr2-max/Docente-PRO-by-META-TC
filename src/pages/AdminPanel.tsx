@@ -51,6 +51,22 @@ interface ProfileUser {
 
 const ADMIN_EMAILS = ['monetizacionreymonfr2@gmail.com', 'Tecnomundo235@gmail.com'];
 
+const DEFAULT_LOCAL_CODES: Code[] = [
+  { id: 'META-7D3A-1B89', status: 'disponible', access_level: 'pro', createdAt: new Date().toISOString() },
+  { id: 'META-8F9E-3C4D', status: 'usado', access_level: 'pro', usedBy: 'user1_id', usedByEmail: 'docente1@gmail.com', expiresAt: new Date(Date.now() + 15 * 24 * 3600 * 1000).toISOString(), createdAt: new Date().toISOString() },
+  { id: 'META-0A1B-2C3D', status: 'disponible', access_level: 'guest', createdAt: new Date().toISOString() },
+];
+
+const DEFAULT_LOCAL_USERS: ProfileUser[] = [
+  { id: 'user1_id', email: 'docente1@gmail.com', isActive: true, role: 'teacher', generationsCount: 12, access_level: 'pro', activationCode: 'META-8F9E-3C4D', expiresAt: new Date(Date.now() + 15 * 24 * 3600 * 1000).toISOString(), createdAt: new Date().toISOString() },
+  { id: 'user2_id', email: 'monetizacionreymonfr2@gmail.com', isActive: true, role: 'admin', generationsCount: 45, access_level: 'pro', createdAt: new Date().toISOString() },
+  { id: 'user3_id', email: 'docente2_invitado@gmail.com', isActive: true, role: 'teacher', generationsCount: 2, access_level: 'guest', createdAt: new Date().toISOString() }
+];
+
+const DEFAULT_LOCAL_BLACKLIST = [
+  { id: 'ugax6060@gmail.com', email: 'ugax6060@gmail.com', bannedBy: 'sistema', createdAt: new Date().toISOString() }
+];
+
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState<'licencias' | 'usuarios' | 'blacklist'>('licencias');
   
@@ -84,6 +100,51 @@ export default function AdminPanel() {
 
   const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isLocalFallback, setIsLocalFallback] = useState(() => {
+    return localStorage.getItem('docenty_use_local_fallback') === 'true';
+  });
+
+  const getLocalCodes = (): Code[] => {
+    let data = localStorage.getItem('docenty_local_codes');
+    if (!data) {
+      localStorage.setItem('docenty_local_codes', JSON.stringify(DEFAULT_LOCAL_CODES));
+      return DEFAULT_LOCAL_CODES;
+    }
+    return JSON.parse(data);
+  };
+
+  const saveLocalCodes = (newCodes: Code[]) => {
+    localStorage.setItem('docenty_local_codes', JSON.stringify(newCodes));
+    setCodes(newCodes);
+  };
+
+  const getLocalUsers = (): ProfileUser[] => {
+    let data = localStorage.getItem('docenty_local_users');
+    if (!data) {
+      localStorage.setItem('docenty_local_users', JSON.stringify(DEFAULT_LOCAL_USERS));
+      return DEFAULT_LOCAL_USERS;
+    }
+    return JSON.parse(data);
+  };
+
+  const saveLocalUsers = (newUsers: ProfileUser[]) => {
+    localStorage.setItem('docenty_local_users', JSON.stringify(newUsers));
+    setUsers(newUsers);
+  };
+
+  const getLocalBlacklist = () => {
+    let data = localStorage.getItem('docenty_local_blacklist');
+    if (!data) {
+      localStorage.setItem('docenty_local_blacklist', JSON.stringify(DEFAULT_LOCAL_BLACKLIST));
+      return DEFAULT_LOCAL_BLACKLIST;
+    }
+    return JSON.parse(data);
+  };
+
+  const saveLocalBlacklist = (newBlacklist: any[]) => {
+    localStorage.setItem('docenty_local_blacklist', JSON.stringify(newBlacklist));
+    setBannedEmails(newBlacklist);
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -100,6 +161,12 @@ export default function AdminPanel() {
     setIsLoading(true);
     setErrorMsg(null);
     try {
+      if (isLocalFallback) {
+        setCodes(getLocalCodes());
+        setHasLoadedCodes(true);
+        return;
+      }
+
       // Limit to 300 to avoid reading large volumes
       const q = query(collection(db, 'activation_codes'), limit(300));
       const snapshot = await getDocs(q);
@@ -124,10 +191,18 @@ export default function AdminPanel() {
       setHasLoadedCodes(true);
     } catch (error: any) {
       console.error("Error fetching activation codes:", error);
-      setErrorMsg(`Error al obtener códigos: ${error?.message || error}`);
-      try {
-        handleFirestoreError(error, OperationType.LIST, 'activation_codes');
-      } catch (e) {}
+      const isQuota = error?.message?.toLowerCase().includes('quota') || String(error).toLowerCase().includes('quota');
+      if (isQuota) {
+        setIsLocalFallback(true);
+        localStorage.setItem('docenty_use_local_fallback', 'true');
+        setCodes(getLocalCodes());
+        setHasLoadedCodes(true);
+      } else {
+        setErrorMsg(`Error al obtener códigos: ${error?.message || error}`);
+        try {
+          handleFirestoreError(error, OperationType.LIST, 'activation_codes');
+        } catch (e) {}
+      }
     } finally {
       setIsLoading(false);
     }
@@ -138,6 +213,12 @@ export default function AdminPanel() {
     setUsersLoading(true);
     setErrorMsg(null);
     try {
+      if (isLocalFallback) {
+        setUsers(getLocalUsers());
+        setHasLoadedUsers(true);
+        return;
+      }
+
       const q = query(collection(db, 'users'), limit(300));
       const snapshot = await getDocs(q);
       const usersData: ProfileUser[] = [];
@@ -154,7 +235,15 @@ export default function AdminPanel() {
       setHasLoadedUsers(true);
     } catch (error: any) {
       console.error("Error fetching users list:", error);
-      setErrorMsg(`Error al obtener usuarios: ${error?.message || error}`);
+      const isQuota = error?.message?.toLowerCase().includes('quota') || String(error).toLowerCase().includes('quota');
+      if (isQuota) {
+        setIsLocalFallback(true);
+        localStorage.setItem('docenty_use_local_fallback', 'true');
+        setUsers(getLocalUsers());
+        setHasLoadedUsers(true);
+      } else {
+        setErrorMsg(`Error al obtener usuarios: ${error?.message || error}`);
+      }
     } finally {
       setUsersLoading(false);
     }
@@ -165,6 +254,12 @@ export default function AdminPanel() {
     setBlacklistLoading(true);
     setErrorMsg(null);
     try {
+      if (isLocalFallback) {
+        setBannedEmails(getLocalBlacklist());
+        setHasLoadedBlacklist(true);
+        return;
+      }
+
       const q = query(collection(db, 'blacklist'), limit(300));
       const snapshot = await getDocs(q);
       const banned: any[] = [];
@@ -176,7 +271,15 @@ export default function AdminPanel() {
       setHasLoadedBlacklist(true);
     } catch (error: any) {
       console.error("Error fetching blacklist collection:", error);
-      setErrorMsg(`Error al obtener lista negra: ${error?.message || error}`);
+      const isQuota = error?.message?.toLowerCase().includes('quota') || String(error).toLowerCase().includes('quota');
+      if (isQuota) {
+        setIsLocalFallback(true);
+        localStorage.setItem('docenty_use_local_fallback', 'true');
+        setBannedEmails(getLocalBlacklist());
+        setHasLoadedBlacklist(true);
+      } else {
+        setErrorMsg(`Error al obtener lista negra: ${error?.message || error}`);
+      }
     } finally {
       setBlacklistLoading(false);
     }
@@ -240,6 +343,34 @@ export default function AdminPanel() {
 
     setIsBanning(true);
     try {
+      if (isLocalFallback) {
+        // 1. Blacklist
+        const currentBanned = getLocalBlacklist();
+        if (!currentBanned.some(b => b.email === cleanMail)) {
+          const newBan = {
+            id: cleanMail,
+            email: cleanMail,
+            createdAt: new Date().toISOString(),
+            bannedBy: currentUserEmail || 'admin'
+          };
+          saveLocalBlacklist([newBan, ...currentBanned]);
+        }
+
+        // 2. Suspend user in users listing
+        const currentUsers = getLocalUsers();
+        const updated = currentUsers.map(u => {
+          if (u.email.toLowerCase() === cleanMail) {
+            return { ...u, isActive: false };
+          }
+          return u;
+        });
+        saveLocalUsers(updated);
+
+        alert(`¡La cuenta ${cleanMail} ha sido agregada a la lista negra y sus privilegios han sido revocados (Modo Local)!`);
+        setBanEmailInput('');
+        return;
+      }
+
       // 1. Write the document to blacklist
       await setDoc(doc(db, 'blacklist', cleanMail), {
         email: cleanMail,
@@ -271,6 +402,14 @@ export default function AdminPanel() {
     if (!confirmAction) return;
 
     try {
+      if (isLocalFallback) {
+        const currentBanned = getLocalBlacklist();
+        const updated = currentBanned.filter(b => b.id !== bannedMailId);
+        saveLocalBlacklist(updated);
+        alert(`¡Correo ${bannedMailId} desbloqueado exitosamente (Modo Local)!`);
+        return;
+      }
+
       await deleteDoc(doc(db, 'blacklist', bannedMailId));
       alert(`¡Correo ${bannedMailId} desbloqueado exitosamente!`);
       fetchBlacklist();
@@ -286,6 +425,19 @@ export default function AdminPanel() {
       const randomPart = () => Math.random().toString(36).substring(2, 6).toUpperCase();
       const codeId = `META-${randomPart()}-${randomPart()}`;
       
+      if (isLocalFallback) {
+        const currentList = getLocalCodes();
+        const newCodeObj: Code = {
+          id: codeId,
+          status: 'disponible',
+          access_level: level,
+          createdAt: new Date().toISOString()
+        };
+        saveLocalCodes([newCodeObj, ...currentList]);
+        alert(`Código ${codeId} generado exitosamente (Modo Local)!`);
+        return;
+      }
+
       await setDoc(doc(db, 'activation_codes', codeId), {
         code: codeId,
         status: 'disponible',
@@ -318,6 +470,44 @@ export default function AdminPanel() {
     if (!confirmAction) return;
 
     try {
+      if (isLocalFallback) {
+        let currentExpiration: Date;
+        if (code.expiresAt instanceof Date) {
+          currentExpiration = code.expiresAt;
+        } else {
+          currentExpiration = new Date(code.expiresAt);
+        }
+
+        if (isNaN(currentExpiration.getTime())) {
+          currentExpiration = new Date();
+        }
+
+        const newExpiration = new Date(currentExpiration.getTime() + (days * 24 * 60 * 60 * 1000));
+
+        // Update local Codes
+        const currentCodes = getLocalCodes();
+        const updatedCodes = currentCodes.map(c => {
+          if (c.id === code.id) {
+            return { ...c, expiresAt: newExpiration.toISOString() };
+          }
+          return c;
+        });
+        saveLocalCodes(updatedCodes);
+
+        // Update local Users
+        const currentUsers = getLocalUsers();
+        const updatedUsers = currentUsers.map(u => {
+          if (u.id === code.usedBy) {
+            return { ...u, expiresAt: newExpiration.toISOString(), isActive: newExpiration > new Date() };
+          }
+          return u;
+        });
+        saveLocalUsers(updatedUsers);
+
+        alert(`¡Suscripción actualizada (Modo Local)! Se han ${days > 0 ? 'sumado' : 'quitado'} ${Math.abs(days)} días.`);
+        return;
+      }
+
       let currentExpiration: Date;
       if (code.expiresAt?.toDate) {
         currentExpiration = code.expiresAt.toDate();
@@ -363,6 +553,26 @@ export default function AdminPanel() {
     if (!window.confirm(message)) return;
 
     try {
+      if (isLocalFallback) {
+        const currentCodes = getLocalCodes();
+        const updatedCodes = currentCodes.filter(c => c.id !== code.id);
+        saveLocalCodes(updatedCodes);
+
+        if (code.status === 'usado' && code.usedBy) {
+          const currentUsers = getLocalUsers();
+          const updatedUsers = currentUsers.map(u => {
+            if (u.id === code.usedBy) {
+              return { ...u, isActive: false, expiresAt: null, activationCode: null };
+            }
+            return u;
+          });
+          saveLocalUsers(updatedUsers);
+        }
+
+        alert('Código eliminado exitosamente (Modo Local).');
+        return;
+      }
+
       const batch = writeBatch(db);
 
       if (code.status === 'usado' && code.usedBy) {
@@ -396,6 +606,19 @@ export default function AdminPanel() {
     if (!confirmAction) return;
 
     try {
+      if (isLocalFallback) {
+        const currentUsers = getLocalUsers();
+        const updated = currentUsers.map(u => {
+          if (u.id === user.id) {
+            return { ...u, role: newRole as 'admin' | 'teacher' };
+          }
+          return u;
+        });
+        saveLocalUsers(updated);
+        alert(`¡Rol actualizado exitosamente para ${user.email} (Modo Local)!`);
+        return;
+      }
+
       await updateDoc(doc(db, 'users', user.id), {
         role: newRole
       });
@@ -417,6 +640,19 @@ export default function AdminPanel() {
     if (!confirmAction) return;
 
     try {
+      if (isLocalFallback) {
+        const currentUsers = getLocalUsers();
+        const updated = currentUsers.map(u => {
+          if (u.id === user.id) {
+            return { ...u, isActive: newIsActive };
+          }
+          return u;
+        });
+        saveLocalUsers(updated);
+        alert(`Acceso de usuario modificado a ${newIsActive ? 'ACTIVO' : 'SUSPENDIDO'} (Modo Local).`);
+        return;
+      }
+
       await updateDoc(doc(db, 'users', user.id), {
         isActive: newIsActive
       });
@@ -428,11 +664,24 @@ export default function AdminPanel() {
   };
 
   const handleToggleUserAccessLevel = async (user: ProfileUser) => {
-    const newLevel = user.access_level === 'guest' ? 'pro' : 'guest';
+    const newLevel: 'guest' | 'pro' = user.access_level === 'guest' ? 'pro' : 'guest';
     const confirmAction = window.confirm(`¿Seguro que deseas cambiar el nivel de access de ${user.email} a ${newLevel.toUpperCase()}?`);
     if (!confirmAction) return;
 
     try {
+      if (isLocalFallback) {
+        const currentUsers = getLocalUsers();
+        const updated = currentUsers.map(u => {
+          if (u.id === user.id) {
+            return { ...u, access_level: newLevel };
+          }
+          return u;
+        });
+        saveLocalUsers(updated);
+        alert(`Nivel de acceso configurado a ${newLevel.toUpperCase()} para ${user.email} (Modo Local).`);
+        return;
+      }
+
       await updateDoc(doc(db, 'users', user.id), {
         access_level: newLevel
       });
@@ -449,6 +698,32 @@ export default function AdminPanel() {
     if (!confirmAction) return;
 
     try {
+      if (isLocalFallback) {
+        let currentExpiration: Date;
+        if (user.expiresAt) {
+          currentExpiration = new Date(user.expiresAt);
+        } else {
+          currentExpiration = new Date();
+        }
+
+        if (isNaN(currentExpiration.getTime())) {
+          currentExpiration = new Date();
+        }
+
+        const newExpiration = new Date(currentExpiration.getTime() + (days * 24 * 60 * 60 * 1000));
+
+        const currentUsers = getLocalUsers();
+        const updated = currentUsers.map(u => {
+          if (u.id === user.id) {
+            return { ...u, expiresAt: newExpiration.toISOString(), isActive: newExpiration > new Date() };
+          }
+          return u;
+        });
+        saveLocalUsers(updated);
+        alert(`Suscripción actualizada para ${user.email} (Modo Local).`);
+        return;
+      }
+
       let currentExpiration: Date;
       if (user.expiresAt?.toDate) {
         currentExpiration = user.expiresAt.toDate();
@@ -484,6 +759,22 @@ export default function AdminPanel() {
     if (!confirmAction) return;
 
     try {
+      if (isLocalFallback) {
+        const infiniteDate = new Date();
+        infiniteDate.setFullYear(infiniteDate.getFullYear() + 100);
+
+        const currentUsers = getLocalUsers();
+        const updated = currentUsers.map(u => {
+          if (u.id === user.id) {
+            return { ...u, expiresAt: infiniteDate.toISOString(), isActive: true, access_level: 'pro' as const };
+          }
+          return u;
+        });
+        saveLocalUsers(updated);
+        alert(`Acceso vitalicio concedido a ${user.email} (Modo Local).`);
+        return;
+      }
+
       // 100 years into the future
       const infiniteDate = new Date();
       infiniteDate.setFullYear(infiniteDate.getFullYear() + 100);
@@ -510,6 +801,14 @@ export default function AdminPanel() {
     if (!confirmAction) return;
 
     try {
+      if (isLocalFallback) {
+        const currentUsers = getLocalUsers();
+        const updated = currentUsers.filter(u => u.id !== user.id);
+        saveLocalUsers(updated);
+        alert(`Perfil de usuario ${user.email} eliminado exitosamente de la base de datos (Modo Local).`);
+        return;
+      }
+
       await deleteDoc(doc(db, 'users', user.id));
       alert(`Perfil de usuario ${user.email} eliminado exitosamente de la base de datos.`);
       fetchUsersProfile();
@@ -544,6 +843,24 @@ export default function AdminPanel() {
       } else {
         expiresAt = new Date();
         expiresAt.setFullYear(expiresAt.getFullYear() + 100);
+      }
+
+      if (isLocalFallback) {
+        const currentUsers = getLocalUsers();
+        const newUsrObj: ProfileUser = {
+          id: cleanMail, // Email as ID for pre-register local
+          email: cleanMail,
+          isActive: newIsActive,
+          role: newRole,
+          generationsCount: 0,
+          access_level: newAccessLevel,
+          expiresAt: expiresAt ? expiresAt.toISOString() : null,
+          createdAt: new Date().toISOString()
+        };
+        saveLocalUsers([newUsrObj, ...currentUsers]);
+        alert(`Usuario ${cleanMail} pre-registrado correctamente (Modo Local).`);
+        setNewEmail('');
+        return;
       }
 
       await setDoc(doc(db, 'users', cleanMail), {
@@ -694,7 +1011,41 @@ export default function AdminPanel() {
         </button>
       </div>
 
-      {errorMsg && (
+      {isLocalFallback && (
+        <div id="local-fallback-warning-box" className="p-5 bg-amber-500/10 border border-amber-500/30 text-amber-100 rounded-2xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 animate-in fade-in duration-300">
+          <div className="flex items-start gap-3">
+            <ShieldAlert className="w-5 h-5 text-amber-500 shrink-0 mt-0.5 animate-pulse" />
+            <div className="text-xs space-y-1">
+              <p className="font-extrabold uppercase tracking-widest text-amber-400">Modo de Emergencia / Simulación Local Activo</p>
+              <p className="text-amber-300 leading-relaxed font-medium">
+                Las cuotas gratuitas de lectura diaria para Firestore de este proyecto se han completado (Quota limit exceeded). 
+                Para que no te quedes bloqueado, <strong>el panel ha cambiado automáticamente al modo de simulación en memoria local (localStorage)</strong>.
+              </p>
+              <p className="text-amber-400/80 font-mono text-[10px]">
+                Puedes generar códigos, modificar accesos, suspender perfiles y agregar a la lista negra en tiempo real para evaluar el sistema.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setIsLocalFallback(false);
+              localStorage.removeItem('docenty_use_local_fallback');
+              setErrorMsg(null);
+              // Force direct database fetch retry
+              setTimeout(() => {
+                if (activeTab === 'licencias') fetchCodes();
+                else if (activeTab === 'usuarios') fetchUsersProfile();
+                else if (activeTab === 'blacklist') fetchBlacklist();
+              }, 100);
+            }}
+            className="px-4 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-amber-600/10 shrink-0 border border-amber-500/30 active:scale-95 text-center mt-2 sm:mt-0"
+          >
+            Reintentar Conexión Real
+          </button>
+        </div>
+      )}
+
+      {errorMsg && !isLocalFallback && (
         <div id="error-message-box" className="p-4 bg-red-500/10 border border-red-500/30 text-red-100 rounded-2xl flex items-start gap-3 animate-in fade-in duration-300">
           <ShieldAlert className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
           <div className="text-xs">
