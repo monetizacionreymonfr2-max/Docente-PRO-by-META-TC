@@ -82,7 +82,7 @@ export default function AdminPanel() {
 
   // Listen to Activation Codes
   useEffect(() => {
-    if (!isCurrentAdmin) {
+    if (!isCurrentAdmin || activeTab !== 'licencias') {
       setIsLoading(false);
       return;
     }
@@ -135,11 +135,11 @@ export default function AdminPanel() {
       unsubscribe();
       clearTimeout(timer);
     };
-  }, []);
+  }, [isCurrentAdmin, activeTab]);
 
   // Listen to Users Profiles
   useEffect(() => {
-    if (!isCurrentAdmin) {
+    if (!isCurrentAdmin || activeTab !== 'usuarios') {
       setUsersLoading(false);
       return;
     }
@@ -165,11 +165,11 @@ export default function AdminPanel() {
     });
 
     return () => unsubscribe();
-  }, [isCurrentAdmin]);
+  }, [isCurrentAdmin, activeTab]);
 
   // Listen to Blacklist collection
   useEffect(() => {
-    if (!isCurrentAdmin) {
+    if (!isCurrentAdmin || activeTab !== 'blacklist') {
       setBlacklistLoading(false);
       return;
     }
@@ -190,7 +190,7 @@ export default function AdminPanel() {
     });
 
     return () => unsubscribe();
-  }, [isCurrentAdmin]);
+  }, [isCurrentAdmin, activeTab]);
 
   // Auto-ban ugax6060@gmail.com whenever admin opens their page
   useEffect(() => {

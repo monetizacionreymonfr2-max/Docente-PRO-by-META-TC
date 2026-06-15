@@ -93,15 +93,19 @@ export default function Planner() {
         });
       });
       setPpas(ppaData);
-      if (ppaData.length > 0 && !selectedPpaId) {
-        setSelectedPpaId(ppaData[0].id);
-      }
     }, (error) => {
       handleFirestoreError(error, OperationType.LIST, 'proyectos_ppa');
     });
 
     return () => unsubscribe();
-  }, [teacherId, selectedPpaId]);
+  }, [teacherId]);
+
+  // Set default selected PPA when list is fetched
+  useEffect(() => {
+    if (ppas.length > 0 && !selectedPpaId) {
+      setSelectedPpaId(ppas[0].id);
+    }
+  }, [ppas, selectedPpaId]);
 
   // Fetch Daily Plans History
   useEffect(() => {
