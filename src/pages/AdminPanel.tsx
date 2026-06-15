@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { collection, setDoc, doc, query, orderBy, serverTimestamp, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, limit } from 'firebase/firestore';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
 import { 
   Ticket, 
@@ -81,12 +82,23 @@ export default function AdminPanel() {
   const [isBanning, setIsBanning] = useState(false);
   const [hasLoadedBlacklist, setHasLoadedBlacklist] = useState(false);
 
-  const currentUserEmail = auth.currentUser?.email;
+  const [currentUser, setCurrentUser] = useState<User | null>(auth.currentUser);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setCurrentUser(user);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const currentUserEmail = currentUser?.email;
   const isCurrentAdmin = currentUserEmail ? ADMIN_EMAILS.includes(currentUserEmail) : false;
 
   const fetchCodes = async () => {
     if (!isCurrentAdmin) return;
     setIsLoading(true);
+    setErrorMsg(null);
     try {
       // Limit to 300 to avoid reading large volumes
       const q = query(collection(db, 'activation_codes'), limit(300));
@@ -112,6 +124,7 @@ export default function AdminPanel() {
       setHasLoadedCodes(true);
     } catch (error: any) {
       console.error("Error fetching activation codes:", error);
+      setErrorMsg(`Error al obtener códigos: ${error?.message || error}`);
       try {
         handleFirestoreError(error, OperationType.LIST, 'activation_codes');
       } catch (e) {}
@@ -123,6 +136,7 @@ export default function AdminPanel() {
   const fetchUsersProfile = async () => {
     if (!isCurrentAdmin) return;
     setUsersLoading(true);
+    setErrorMsg(null);
     try {
       const q = query(collection(db, 'users'), limit(300));
       const snapshot = await getDocs(q);
@@ -138,8 +152,9 @@ export default function AdminPanel() {
       });
       setUsers(usersData);
       setHasLoadedUsers(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching users list:", error);
+      setErrorMsg(`Error al obtener usuarios: ${error?.message || error}`);
     } finally {
       setUsersLoading(false);
     }
@@ -148,6 +163,7 @@ export default function AdminPanel() {
   const fetchBlacklist = async () => {
     if (!isCurrentAdmin) return;
     setBlacklistLoading(true);
+    setErrorMsg(null);
     try {
       const q = query(collection(db, 'blacklist'), limit(300));
       const snapshot = await getDocs(q);
@@ -158,8 +174,9 @@ export default function AdminPanel() {
       banned.sort((a, b) => (a.email || '').localeCompare(b.email || ''));
       setBannedEmails(banned);
       setHasLoadedBlacklist(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error fetching blacklist collection:", error);
+      setErrorMsg(`Error al obtener lista negra: ${error?.message || error}`);
     } finally {
       setBlacklistLoading(false);
     }
@@ -677,7 +694,15 @@ export default function AdminPanel() {
         </button>
       </div>
 
-      {/* VIEW 1: LICENCIAS */}
+      {errorMsg && (
+        <div id="error-message-box" className="p-4 bg-red-500/10 border border-red-500/30 text-red-100 rounded-2xl flex items-start gap-3 animate-in fade-in duration-300">
+          <ShieldAlert className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+          <div className="text-xs">
+            <p className="font-extrabold uppercase tracking-widest text-red-400 mb-1">Error de sincronización con Firestore</p>
+            <p className="font-mono text-xs leading-relaxed text-red-300 break-all">{errorMsg}</p>
+          </div>
+        </div>
+      )}
       {activeTab === 'licencias' && (
         <div className="space-y-8 animate-in fade-in duration-300">
           <div className="flex justify-end gap-3">
