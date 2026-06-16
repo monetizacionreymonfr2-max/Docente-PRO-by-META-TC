@@ -109,6 +109,8 @@ export default function App() {
               }
             } catch (err) {
               console.error("Supabase profile fetch error:", err);
+            } finally {
+              setIsLoading(false);
             }
           };
 
