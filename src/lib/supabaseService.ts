@@ -1,0 +1,682 @@
+import { supabase } from './supabase';
+
+export interface SupabaseUserProfile {
+  id: string;
+  email: string;
+  is_active: boolean;
+  role: 'admin' | 'teacher';
+  generations_count: number;
+  access_level: 'guest' | 'pro';
+  activation_code: string | null;
+  expires_at: string | null;
+  created_at?: string;
+}
+
+export interface SupabaseStudent {
+  id?: string;
+  nombre: string;
+  apellidos?: string;
+  grado_seccion: string;
+  nivel: 'Primaria' | 'Maternal' | 'Preescolar' | 'Media';
+  fecha_nacimiento: string;
+  sexo: 'V' | 'H';
+  docente_id: string;
+  created_at?: string;
+}
+
+export interface SupabaseAttendance {
+  id: string; // Composite ID date_studentId or UUID
+  student_id: string;
+  student_name: string;
+  date: string;
+  estado: 'asistio' | 'falto' | 'justificado' | 'retardo';
+  teacher_id: string;
+}
+
+export interface SupabasePlanificacion {
+  id?: string;
+  titulo: string;
+  proyecto?: string;
+  fecha_inicio?: string;
+  fecha_fin?: string;
+  nivel?: string;
+  diagnostico?: string;
+  proposito?: string;
+  estrategias?: string;
+  recursos?: string;
+  evaluacion?: string;
+  planes_diarios?: any; // jsonb
+  teacher_id: string;
+  created_at?: string;
+}
+
+export interface SupabaseCamilaLog {
+  id?: string;
+  student_id: string;
+  student_name?: string;
+  notes: string;
+  category: string;
+  teacher_id: string;
+  created_at?: string;
+}
+
+export interface SupabaseMaternalReport {
+  id?: string;
+  student_id: string;
+  student_name: string;
+  date?: string;
+  alimentacion?: string;
+  sueno?: string;
+  evacuacion?: string;
+  higiene?: string;
+  observaciones?: string;
+  teacher_id: string;
+  created_at?: string;
+}
+
+export interface SupabasePPA {
+  id?: string;
+  student_id: string;
+  student_name?: string;
+  teacher_id: string;
+  objetivos?: string;
+  metas?: string;
+  diagnostico?: string;
+  evaluacion?: string;
+  created_at?: string;
+}
+
+export interface SupabaseReport {
+  id?: string;
+  student_id: string;
+  student_name: string;
+  tipo: string;
+  contenido: string;
+  teacher_id: string;
+  created_at?: string;
+}
+
+export interface SupabaseActivationCode {
+  id: string;
+  status: 'disponible' | 'usado';
+  access_level: 'guest' | 'pro';
+  used_by: string | null;
+  used_by_email: string | null;
+  expires_at: string | null;
+  created_at?: string;
+}
+
+/**
+ * UTILS & BRIDGES FOR ALL SUPABASE DATABASE INTERACTION
+ */
+export const SupabaseService = {
+  // --- BLACKLIST & SECURITY ---
+  async isEmailBanned(email: string): Promise<boolean> {
+    try {
+      const { data, error } = await supabase
+        .from('blacklist')
+        .select('email')
+        .eq('email', email.trim().toLowerCase())
+        .maybeSingle();
+      if (error) return false;
+      return !!data;
+    } catch {
+      return false;
+    }
+  },
+
+  async banEmail(email: string, bannedBy: string): Promise<void> {
+    const cleanMail = email.trim().toLowerCase();
+    await supabase.from('blacklist').upsert({
+      email: cleanMail,
+      banned_by: bannedBy,
+      created_at: new Date().toISOString()
+    });
+  },
+
+  async unbanEmail(email: string): Promise<void> {
+    await supabase.from('blacklist').delete().eq('email', email.trim().toLowerCase());
+  },
+
+  async getBlacklist(): Promise<any[]> {
+    const { data, error } = await supabase.from('blacklist').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(b => ({
+      id: b.email,
+      email: b.email,
+      bannedBy: b.banned_by,
+      createdAt: b.created_at ? { toDate: () => new Date(b.created_at) } : null
+    }));
+  },
+
+  // --- USER PROFILES ---
+  async getUserProfile(uid: string): Promise<any | null> {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', uid)
+      .maybeSingle();
+    
+    if (error) {
+      console.warn("Error retrieving profile from Supabase:", error);
+      return null;
+    }
+    if (!data) return null;
+
+    // Map database snake_case to app's camelCase
+    return {
+      email: data.email,
+      isActive: data.is_active,
+      role: data.role,
+      generationsCount: data.generations_count || 0,
+      access_level: data.access_level,
+      activationCode: data.activation_code,
+      expiresAt: data.expires_at,
+      createdAt: data.created_at
+    };
+  },
+
+  async createUserProfile(uid: string, profile: any): Promise<void> {
+    const payload = {
+      id: uid,
+      email: (profile.email || '').trim().toLowerCase(),
+      is_active: profile.isActive ?? true,
+      role: profile.role || 'teacher',
+      generations_count: profile.generationsCount || 0,
+      access_level: profile.access_level || 'pro',
+      activation_code: profile.activationCode || null,
+      expires_at: profile.expiresAt || null,
+      created_at: new Date().toISOString()
+    };
+    const { error } = await supabase.from('profiles').upsert(payload);
+    if (error) throw error;
+  },
+
+  async incrementGenerationsCount(uid: string, inc: number = 1): Promise<void> {
+    // Correct way in Supabase: select current value then update, or use rpc function increment_generation
+    const { data, error: fetchErr } = await supabase.from('profiles').select('generations_count').eq('id', uid).maybeSingle();
+    if (fetchErr) return;
+    const current = data?.generations_count || 0;
+    await supabase.from('profiles').update({ generations_count: current + inc }).eq('id', uid);
+  },
+
+  async updateProfileRole(uid: string, role: 'admin' | 'teacher'): Promise<void> {
+    await supabase.from('profiles').update({ role }).eq('id', uid);
+  },
+
+  async updateProfileActive(uid: string, is_active: boolean): Promise<void> {
+    await supabase.from('profiles').update({ is_active }).eq('id', uid);
+  },
+
+  async updateProfileAccessLevel(uid: string, access_level: 'guest' | 'pro'): Promise<void> {
+    await supabase.from('profiles').update({ access_level }).eq('id', uid);
+  },
+
+  async updateProfileSubscription(uid: string, days: number, expiresAtStr?: string): Promise<any> {
+    let currentExpiresAt: Date;
+    if (expiresAtStr) {
+      currentExpiresAt = new Date(expiresAtStr);
+    } else {
+      const { data } = await supabase.from('profiles').select('expires_at').eq('id', uid).maybeSingle();
+      currentExpiresAt = data?.expires_at ? new Date(data.expires_at) : new Date();
+    }
+    
+    if (isNaN(currentExpiresAt.getTime())) {
+      currentExpiresAt = new Date();
+    }
+
+    const newExpiration = new Date(currentExpiresAt.getTime() + (days * 24 * 60 * 60 * 1000));
+    const newExpiresAtISO = newExpiration.toISOString();
+
+    const { error } = await supabase.from('profiles').update({
+      expires_at: newExpiresAtISO,
+      is_active: newExpiration > new Date()
+    }).eq('id', uid);
+
+    if (error) throw error;
+    return newExpiresAtISO;
+  },
+
+  async grantLifetimeAccess(uid: string): Promise<any> {
+    const infiniteDate = new Date();
+    infiniteDate.setFullYear(infiniteDate.getFullYear() + 100);
+    const dateStr = infiniteDate.toISOString();
+
+    const { error } = await supabase.from('profiles').update({
+      expires_at: dateStr,
+      is_active: true,
+      access_level: 'pro'
+    }).eq('id', uid);
+
+    if (error) throw error;
+    return dateStr;
+  },
+
+  async deleteUserProfile(uid: string): Promise<void> {
+    await supabase.from('profiles').delete().eq('id', uid);
+  },
+
+  async getUsersProfiles(): Promise<any[]> {
+    const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(d => ({
+      id: d.id,
+      email: d.email,
+      isActive: d.is_active,
+      role: d.role,
+      generationsCount: d.generations_count || 0,
+      access_level: d.access_level,
+      activationCode: d.activation_code,
+      expiresAt: d.expires_at,
+      createdAt: d.created_at
+    }));
+  },
+
+  // --- ACTIVATION CODES ---
+  async getActivationCodes(): Promise<any[]> {
+    const { data, error } = await supabase.from('activation_codes').select('*').order('created_at', { ascending: false });
+    if (error) throw error;
+    return (data || []).map(c => ({
+      id: c.id,
+      code: c.id,
+      status: c.status,
+      access_level: c.access_level,
+      usedBy: c.used_by,
+      usedByEmail: c.used_by_email,
+      expiresAt: c.expires_at,
+      createdAt: c.created_at
+    }));
+  },
+
+  async generateCode(codeId: string, level: 'guest' | 'pro'): Promise<void> {
+    await supabase.from('activation_codes').insert({
+      id: codeId,
+      status: 'disponible',
+      access_level: level,
+      used_by: null,
+      used_by_email: null,
+      expires_at: null,
+      created_at: new Date().toISOString()
+    });
+  },
+
+  async deleteCode(codeId: string): Promise<void> {
+    await supabase.from('activation_codes').delete().eq('id', codeId);
+  },
+
+  async claimActivationCode(codeId: string, userId: string, userEmail: string): Promise<{ success: boolean; message: string }> {
+    try {
+      // 1. Fetch activation code
+      const { data: code, error: codeError } = await supabase
+        .from('activation_codes')
+        .select('*')
+        .eq('id', codeId.trim().toUpperCase())
+        .maybeSingle();
+
+      if (codeError) throw codeError;
+      if (!code) {
+        return { success: false, message: 'El código ingresado no existe.' };
+      }
+
+      if (code.status !== 'disponible') {
+        return { success: false, message: 'Este código ya ha sido utilizado.' };
+      }
+
+      const expires = new Date();
+      if (code.access_level === 'pro') {
+        expires.setDate(expires.getDate() + 30); // 30 days
+      } else {
+        expires.setDate(expires.getDate() + 15); // 15 days
+      }
+
+      const expiresISO = expires.toISOString();
+
+      // Update code
+      const { error: updateCodeErr } = await supabase.from('activation_codes').update({
+        status: 'usado',
+        used_by: userId,
+        used_by_email: userEmail.trim().toLowerCase(),
+        expires_at: expiresISO
+      }).eq('id', code.id);
+
+      if (updateCodeErr) throw updateCodeErr;
+
+      // Update profile
+      const { error: updateProfileErr } = await supabase.from('profiles').update({
+        is_active: true,
+        access_level: code.access_level,
+        activation_code: code.id,
+        expires_at: expiresISO
+      }).eq('id', userId);
+
+      if (updateProfileErr) throw updateProfileErr;
+
+      return { success: true, message: `¡Activado exitosamente! Tienes acceso nivel: ${code.access_level.toUpperCase()}` };
+    } catch (err: any) {
+      return { success: false, message: `Error al canjear código: ${err?.message || err}` };
+    }
+  },
+
+  // --- ESTUDIANTES ---
+  async getEstudiantes(teacherId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('estudiantes')
+      .select('*')
+      .eq('docente_id', teacherId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map(c => ({
+      id: c.id,
+      nombre: c.nombre,
+      apellidos: c.apellidos || '',
+      gradoSeccion: c.grado_seccion,
+      nivel: c.nivel,
+      fechaNacimiento: c.fecha_nacimiento,
+      sexo: c.sexo,
+      createdAt: c.created_at
+    }));
+  },
+
+  async addEstudiante(student: Omit<SupabaseStudent, 'docente_id'>, teacherId: string): Promise<string> {
+    const id = crypto.randomUUID();
+    const { error } = await supabase.from('estudiantes').insert({
+      id,
+      nombre: student.nombre,
+      apellidos: student.apellidos || '',
+      grado_seccion: student.grado_seccion,
+      nivel: student.nivel,
+      fecha_nacimiento: student.fecha_nacimiento,
+      sexo: student.sexo,
+      docente_id: teacherId,
+      created_at: new Date().toISOString()
+    });
+    if (error) throw error;
+    return id;
+  },
+
+  async updateEstudiante(id: string, student: Partial<SupabaseStudent>): Promise<void> {
+    const payload: any = {};
+    if (student.nombre !== undefined) payload.nombre = student.nombre;
+    if (student.apellidos !== undefined) payload.apellidos = student.apellidos;
+    if (student.grado_seccion !== undefined) payload.grado_seccion = student.grado_seccion;
+    if (student.nivel !== undefined) payload.nivel = student.nivel;
+    if (student.fecha_nacimiento !== undefined) payload.fecha_nacimiento = student.fecha_nacimiento;
+    if (student.sexo !== undefined) payload.sexo = student.sexo;
+
+    const { error } = await supabase.from('estudiantes').update(payload).eq('id', id);
+    if (error) throw error;
+  },
+
+  async deleteEstudiante(id: string): Promise<void> {
+    const { error } = await supabase.from('estudiantes').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  // --- MATERNAL ---
+  async getMaternalReports(teacherId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('informes_maternal')
+      .select('*')
+      .eq('teacher_id', teacherId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map(r => ({
+      id: r.id,
+      studentId: r.student_id,
+      studentName: r.student_name,
+      date: r.date,
+      alimentacion: r.alimentacion,
+      sueno: r.sueno,
+      evacuacion: r.evacuacion,
+      higiene: r.higiene,
+      observaciones: r.observaciones,
+      createdAt: r.created_at
+    }));
+  },
+
+  async addMaternalReport(report: any, teacherId: string): Promise<string> {
+    const id = crypto.randomUUID();
+    const { error } = await supabase.from('informes_maternal').insert({
+      id,
+      student_id: report.studentId,
+      student_name: report.studentName,
+      date: report.date,
+      alimentacion: report.alimentacion,
+      sueno: report.sueno,
+      evacuacion: report.evacuacion,
+      higiene: report.higiene,
+      observaciones: report.observaciones,
+      teacher_id: teacherId,
+      created_at: new Date().toISOString()
+    });
+    if (error) throw error;
+    return id;
+  },
+
+  async updateMaternalReport(id: string, report: any): Promise<void> {
+    const { error } = await supabase.from('informes_maternal').update({
+      alimentacion: report.alimentacion,
+      sueno: report.sueno,
+      evacuacion: report.evacuacion,
+      higiene: report.higiene,
+      observaciones: report.observaciones,
+      date: report.date
+    }).eq('id', id);
+    if (error) throw error;
+  },
+
+  async deleteMaternalReport(id: string): Promise<void> {
+    const { error } = await supabase.from('informes_maternal').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  // --- ASISTENCIA ---
+  async getAsistencia(teacherId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('asistencia')
+      .select('*')
+      .eq('teacher_id', teacherId);
+
+    if (error) throw error;
+    return (data || []).map(a => ({
+      id: a.id,
+      studentId: a.student_id,
+      studentName: a.student_name,
+      date: a.date,
+      estado: a.estado,
+    }));
+  },
+
+  async setAsistencia(record: SupabaseAttendance): Promise<void> {
+    const { error } = await supabase.from('asistencia').upsert({
+      id: record.id,
+      student_id: record.student_id,
+      student_name: record.student_name,
+      date: record.date,
+      estado: record.estado,
+      teacher_id: record.teacher_id,
+      created_at: new Date().toISOString()
+    });
+    if (error) throw error;
+  },
+
+  // --- PLANIFICACION / PLANNER ---
+  async getPlanificaciones(teacherId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('planificaciones')
+      .select('*')
+      .eq('teacher_id', teacherId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map(p => ({
+      id: p.id,
+      titulo: p.titulo,
+      proyecto: p.proyecto || '',
+      fechaInicio: p.fecha_inicio || '',
+      fechaFin: p.fecha_fin || '',
+      nivel: p.nivel || '',
+      diagnostico: p.diagnostico || '',
+      proposito: p.proposito || '',
+      estrategias: p.estrategias || '',
+      recursos: p.recursos || '',
+      evaluacion: p.evaluacion || '',
+      planesDiarios: p.planes_diarios || [],
+      createdAt: p.created_at
+    }));
+  },
+
+  async addPlanificacion(planner: any, teacherId: string): Promise<string> {
+    const id = crypto.randomUUID();
+    const { error } = await supabase.from('planificaciones').insert({
+      id,
+      titulo: planner.titulo,
+      proyecto: planner.proyecto || '',
+      fecha_inicio: planner.fechaInicio || '',
+      fecha_fin: planner.fechaFin || '',
+      nivel: planner.nivel || '',
+      diagnostico: planner.diagnostico || '',
+      proposito: planner.proposito || '',
+      estrategias: planner.estrategias || '',
+      recursos: planner.recursos || '',
+      evaluacion: planner.evaluacion || '',
+      planes_diarios: planner.planesDiarios || [],
+      teacher_id: teacherId,
+      created_at: new Date().toISOString()
+    });
+    if (error) throw error;
+    return id;
+  },
+
+  async updatePlanificacion(id: string, planner: any): Promise<void> {
+    const { error } = await supabase.from('planificaciones').update({
+      titulo: planner.titulo,
+      proyecto: planner.proyecto || '',
+      fecha_inicio: planner.fechaInicio || '',
+      fecha_fin: planner.fechaFin || '',
+      nivel: planner.nivel || '',
+      diagnostico: planner.diagnostico || '',
+      proposito: planner.proposito || '',
+      estrategias: planner.estrategias || '',
+      recursos: planner.recursos || '',
+      evaluacion: planner.evaluacion || '',
+      planes_diarios: planner.planesDiarios || []
+    }).eq('id', id);
+    if (error) throw error;
+  },
+
+  async deletePlanificacion(id: string): Promise<void> {
+    const { error } = await supabase.from('planificaciones').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  // --- CAMILA (LOGS) ---
+  async getCamilaLogs(teacherId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('camila_logs')
+      .select('*')
+      .eq('teacher_id', teacherId)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return (data || []).map(l => ({
+      id: l.id,
+      studentId: l.student_id,
+      studentName: l.student_name || '',
+      notes: l.notes,
+      category: l.category,
+      createdAt: l.created_at
+    }));
+  },
+
+  async addCamilaLog(log: any, teacherId: string): Promise<string> {
+    const id = crypto.randomUUID();
+    const { error } = await supabase.from('camila_logs').insert({
+      id,
+      student_id: log.studentId,
+      student_name: log.studentName || '',
+      notes: log.notes,
+      category: log.category,
+      teacher_id: teacherId,
+      created_at: new Date().toISOString()
+    });
+    if (error) throw error;
+    return id;
+  },
+
+  // --- PPA ---
+  async getPPALogs(teacherId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('ppa')
+      .select('*')
+      .eq('teacher_id', teacherId);
+
+    if (error) return [];
+    return data.map(p => ({
+      id: p.id,
+      studentId: p.student_id,
+      studentName: p.student_name || '',
+      teacherId: p.teacher_id,
+      objetivos: p.objetivos || '',
+      metas: p.metas || '',
+      diagnostico: p.diagnostico || '',
+      evaluacion: p.evaluacion || ''
+    }));
+  },
+
+  async setPPA(record: SupabasePPA): Promise<void> {
+    const { error } = await supabase.from('ppa').upsert({
+      id: record.id || `${record.teacher_id}_${record.student_id}`,
+      student_id: record.student_id,
+      student_name: record.student_name || '',
+      teacher_id: record.teacher_id,
+      objetivos: record.objetivos || '',
+      metas: record.metas || '',
+      diagnostico: record.diagnostico || '',
+      evaluacion: record.evaluacion || '',
+      created_at: new Date().toISOString()
+    });
+    if (error) throw error;
+  },
+
+  // --- REPORTES ---
+  async getReportes(teacherId: string): Promise<any[]> {
+    const { data, error } = await supabase
+      .from('reportes')
+      .select('*')
+      .eq('teacher_id', teacherId)
+      .order('created_at', { ascending: false });
+
+    if (error) return [];
+    return data.map(r => ({
+      id: r.id,
+      studentId: r.student_id,
+      studentName: r.student_name,
+      tipo: r.tipo,
+      contenido: r.contenido,
+      createdAt: r.created_at
+    }));
+  },
+
+  async addReporte(report: SupabaseReport): Promise<string> {
+    const id = report.id || crypto.randomUUID();
+    const { error } = await supabase.from('reportes').insert({
+      id,
+      student_id: report.student_id,
+      student_name: report.student_name,
+      tipo: report.tipo,
+      contenido: report.contenido,
+      teacher_id: report.teacher_id,
+      created_at: new Date().toISOString()
+    });
+    if (error) throw error;
+    return id;
+  },
+
+  async deleteReporte(id: string): Promise<void> {
+    const { error } = await supabase.from('reportes').delete().eq('id', id);
+    if (error) throw error;
+  }
+};

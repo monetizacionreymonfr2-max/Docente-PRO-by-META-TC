@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { SupabaseService } from '../lib/supabaseService';
 import { generateContentWithRetry } from '../lib/gemini';
 import { BookOpen, Loader2, FileText, Copy, Printer, X, History, Calendar, Trash2, Edit3, Save, GraduationCap } from 'lucide-react';
 import Markdown from 'react-markdown';
@@ -76,6 +77,27 @@ export default function Planner() {
   useEffect(() => {
     if (!teacherId) return;
 
+    const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+    if (isSupabase) {
+      const fetchPPAsSupabase = async () => {
+        try {
+          const list = await SupabaseService.getPlanificaciones(teacherId);
+          const ppaData: PPAProject[] = list.map(item => ({
+            id: item.id,
+            tema: item.titulo,
+            nivel: item.nivel as any,
+            contenido: item.proposito || ''
+          }));
+          setPpas(ppaData);
+        } catch (err) {
+          console.error("Error loading PPAs for dropdown in Supabase:", err);
+        }
+      };
+      fetchPPAsSupabase();
+      const interval = setInterval(fetchPPAsSupabase, 8000);
+      return () => clearInterval(interval);
+    }
+
     const q = query(
       collection(db, 'proyectos_ppa'),
       where('docenteId', '==', teacherId),
@@ -110,6 +132,31 @@ export default function Planner() {
   // Fetch Daily Plans History
   useEffect(() => {
     if (!teacherId) return;
+
+    const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+    if (isSupabase) {
+      const fetchHistorySupabase = async () => {
+        try {
+          const list = await SupabaseService.getPlanificaciones(teacherId);
+          const plansData: DailyPlan[] = list.flatMap(p => (p.planesDiarios || []).map((pd: any) => ({
+            id: pd.id,
+            ppaId: p.id,
+            fecha: pd.fecha,
+            temaDia: pd.temaDia,
+            contenido: pd.contenido,
+            createdAt: pd.createdAt ? new Date(pd.createdAt) : new Date()
+          })));
+          setDailyPlans(plansData);
+          setIsHistoryLoading(false);
+        } catch (err) {
+          console.error("Error loading Daily Plans in Supabase:", err);
+          setIsHistoryLoading(false);
+        }
+      };
+      fetchHistorySupabase();
+      const interval = setInterval(fetchHistorySupabase, 8000);
+      return () => clearInterval(interval);
+    }
 
     const q = query(
       collection(db, 'planificaciones_diarias'),
@@ -202,26 +249,63 @@ ESTRUCTURA OBLIGATORIA:
         contenido: generatedText,
       };
 
-      // Save to Firestore
-      const docRef = await addDoc(collection(db, 'planificaciones_diarias'), {
-        teacher_id: teacherId, // New unified isolation field
-        docenteId: teacherId, // Legacy compatibility
-        ...planData,
-        createdAt: serverTimestamp()
-      });
+      const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+      let docId = '';
 
-      // Increment generationsCount
-      const userRef = doc(db, 'users', teacherId);
-      await updateDoc(userRef, {
-        generationsCount: increment(1)
-      });
+      if (isSupabase) {
+        const parentList = await SupabaseService.getPlanificaciones(teacherId);
+        const parent = parentList.find(p => p.id === selectedPpaId);
+        if (parent) {
+          docId = crypto.randomUUID();
+          const newDailyPlan = {
+            id: docId,
+            fecha,
+            temaDia: planData.temaDia,
+            contenido: planData.contenido,
+            createdAt: new Date().toISOString()
+          };
+          const updatedPlanes = [...(parent.planesDiarios || []), newDailyPlan];
+          await SupabaseService.updatePlanificacion(parent.id, {
+            titulo: parent.titulo,
+            proyecto: parent.proyecto,
+            fechaInicio: parent.fechaInicio,
+            fechaFin: parent.fechaFin,
+            nivel: parent.nivel,
+            diagnostico: parent.diagnostico,
+            proposito: parent.proposito,
+            estrategias: parent.estrategias,
+            recursos: parent.recursos,
+            evaluacion: parent.evaluacion,
+            planesDiarios: updatedPlanes
+          });
+
+          await SupabaseService.incrementGenerationsCount(teacherId, 1);
+        } else {
+          throw new Error("No se encontró el PPA base asociado.");
+        }
+      } else {
+        // Save to Firestore
+        const docRef = await addDoc(collection(db, 'planificaciones_diarias'), {
+          teacher_id: teacherId, // New unified isolation field
+          docenteId: teacherId, // Legacy compatibility
+          ...planData,
+          createdAt: serverTimestamp()
+        });
+        docId = docRef.id;
+
+        // Increment generationsCount
+        const userRef = doc(db, 'users', teacherId);
+        await updateDoc(userRef, {
+          generationsCount: increment(1)
+        });
+      }
 
       // Clear form
       setTemaDia('');
       
       // Show the generated plan
       setSelectedPlan({
-        id: docRef.id,
+        id: docId,
         ...planData,
         createdAt: new Date()
       });
@@ -244,15 +328,46 @@ ESTRUCTURA OBLIGATORIA:
   const handleSaveEdit = async () => {
     if (!selectedPlan || !editedTitle.trim() || !editedContent.trim()) return;
     try {
-      const docRef = doc(db, 'planificaciones_diarias', selectedPlan.id);
-      await updateDoc(docRef, {
-        temaDia: editedTitle,
-        contenido: editedContent
-      });
+      const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+      if (isSupabase) {
+        const parentList = await SupabaseService.getPlanificaciones(teacherId);
+        const parent = parentList.find(p => (p.planesDiarios || []).some((pd: any) => pd.id === selectedPlan.id));
+        if (parent) {
+          const updatedPlanes = (parent.planesDiarios || []).map((pd: any) => {
+            if (pd.id === selectedPlan.id) {
+              return { ...pd, temaDia: editedTitle, contenido: editedContent };
+            }
+            return pd;
+          });
+          await SupabaseService.updatePlanificacion(parent.id, {
+            titulo: parent.titulo,
+            proyecto: parent.proyecto,
+            fechaInicio: parent.fechaInicio,
+            fechaFin: parent.fechaFin,
+            nivel: parent.nivel,
+            diagnostico: parent.diagnostico,
+            proposito: parent.proposito,
+            estrategias: parent.estrategias,
+            recursos: parent.recursos,
+            evaluacion: parent.evaluacion,
+            planesDiarios: updatedPlanes
+          });
+        }
+      } else {
+        const docRef = doc(db, 'planificaciones_diarias', selectedPlan.id);
+        await updateDoc(docRef, {
+          temaDia: editedTitle,
+          contenido: editedContent
+        });
+      }
       setSelectedPlan(prev => prev ? { ...prev, temaDia: editedTitle, contenido: editedContent } : null);
       setIsEditing(false);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'planificaciones_diarias');
+      if (localStorage.getItem('docenty_backend_provider') === 'supabase') {
+        console.error("Error saving edit to Supabase:", error);
+      } else {
+        handleFirestoreError(error, OperationType.UPDATE, 'planificaciones_diarias');
+      }
     }
   };
 
@@ -269,12 +384,39 @@ ESTRUCTURA OBLIGATORIA:
     e.stopPropagation();
     if (!window.confirm('¿Deseas eliminar esta planificación?')) return;
     try {
-      await deleteDoc(doc(db, 'planificaciones_diarias', id));
+      const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+      if (isSupabase) {
+        const parentList = await SupabaseService.getPlanificaciones(teacherId);
+        const parent = parentList.find(p => (p.planesDiarios || []).some((pd: any) => pd.id === id));
+        if (parent) {
+          const updatedPlanes = (parent.planesDiarios || []).filter((pd: any) => pd.id !== id);
+          await SupabaseService.updatePlanificacion(parent.id, {
+            titulo: parent.titulo,
+            proyecto: parent.proyecto,
+            fechaInicio: parent.fechaInicio,
+            fechaFin: parent.fechaFin,
+            nivel: parent.nivel,
+            diagnostico: parent.diagnostico,
+            proposito: parent.proposito,
+            estrategias: parent.estrategias,
+            recursos: parent.recursos,
+            evaluacion: parent.evaluacion,
+            planesDiarios: updatedPlanes
+          });
+        }
+      } else {
+        await deleteDoc(doc(db, 'planificaciones_diarias', id));
+      }
+      
       if (selectedPlan?.id === id) {
         setSelectedPlan(null);
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, 'planificaciones_diarias');
+      if (localStorage.getItem('docenty_backend_provider') === 'supabase') {
+        console.error("Error deleting from Supabase:", error);
+      } else {
+        handleFirestoreError(error, OperationType.DELETE, 'planificaciones_diarias');
+      }
     }
   };
 

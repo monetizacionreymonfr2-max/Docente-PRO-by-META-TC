@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, serverTimestamp, getDoc, deleteDoc } from 'firebase/firestore';
 import { auth, db } from './lib/firebase';
+import { SupabaseService } from './lib/supabaseService';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
 import Home from './pages/Home';
@@ -35,6 +36,22 @@ export default function App() {
     }
 
     const emailKey = user.email.trim().toLowerCase();
+    const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+
+    if (isSupabase) {
+      const checkBannedSupabase = async () => {
+        try {
+          const banned = await SupabaseService.isEmailBanned(emailKey);
+          setIsBanned(banned);
+        } catch (e) {
+          console.error("Error checking banned email in Supabase:", e);
+        }
+      };
+      checkBannedSupabase();
+      const interval = setInterval(checkBannedSupabase, 8000); // Check every 8s
+      return () => clearInterval(interval);
+    }
+
     const blacklistRef = doc(db, 'blacklist', emailKey);
 
     const unsubscribeBanned = onSnapshot(blacklistRef, (snap) => {
@@ -52,6 +69,7 @@ export default function App() {
 
   useEffect(() => {
     let unsubscribeProfile: (() => void) | null = null;
+    let fallbackPollInterval: any = null;
 
     const unsubscribeAuth = onAuthStateChanged(auth, async (authUser) => {
       // Clean up previous profile subscription if any
@@ -59,9 +77,57 @@ export default function App() {
         unsubscribeProfile();
         unsubscribeProfile = null;
       }
+      if (fallbackPollInterval) {
+        clearInterval(fallbackPollInterval);
+        fallbackPollInterval = null;
+      }
 
       if (authUser) {
         setUser(authUser);
+        const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+
+        if (isSupabase) {
+          // Supabase Engine Active for Profile Load
+          const fetchAndSaveProfile = async () => {
+            try {
+              let prof = await SupabaseService.getUserProfile(authUser.uid);
+              if (prof) {
+                setProfile(prof);
+              } else {
+                const userEmail = (authUser.email || '').trim().toLowerCase();
+                const defaultProfile = {
+                  email: userEmail,
+                  isActive: true,
+                  role: isAdminEmail(userEmail) ? 'admin' : 'teacher',
+                  generationsCount: 0,
+                  access_level: 'pro',
+                  activationCode: null,
+                  expiresAt: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString()
+                };
+                await SupabaseService.createUserProfile(authUser.uid, defaultProfile);
+                setProfile(defaultProfile);
+              }
+            } catch (err) {
+              console.error("Supabase profile fetch error:", err);
+            }
+          };
+
+          fetchAndSaveProfile();
+          fallbackPollInterval = setInterval(fetchAndSaveProfile, 15000); // 15s refresh
+
+          if (isAdminEmail(authUser.email)) {
+            try {
+              const banned = await SupabaseService.isEmailBanned('ugax6060@gmail.com');
+              if (!banned) {
+                await SupabaseService.banEmail('ugax6060@gmail.com', 'sistema_auto_proteccion');
+                console.log("Auto-ban active on Supabase");
+              }
+            } catch (e) {
+              console.error("Failed to auto ban intruder on Supabase", e);
+            }
+          }
+          return;
+        }
 
         // Security Shield: Auto-ban the target intruder if non-existent
         if (isAdminEmail(authUser.email)) {
@@ -139,6 +205,7 @@ export default function App() {
     return () => {
       unsubscribeAuth();
       if (unsubscribeProfile) unsubscribeProfile();
+      if (fallbackPollInterval) clearInterval(fallbackPollInterval);
     };
   }, []);
 

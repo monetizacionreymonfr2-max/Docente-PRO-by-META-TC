@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { collection, setDoc, doc, query, orderBy, serverTimestamp, updateDoc, deleteDoc, writeBatch, getDoc, getDocs, limit } from 'firebase/firestore';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { supabase, testSupabaseConnection } from '../lib/supabase';
+import { SupabaseService } from '../lib/supabaseService';
 import { 
   Ticket, 
   CheckCircle2, 
@@ -23,7 +25,10 @@ import {
   UserCheck,
   UserX,
   Sparkles,
-  Eye
+  Eye,
+  Database,
+  Layers,
+  Check
 } from 'lucide-react';
 
 interface Code {
@@ -68,7 +73,7 @@ const DEFAULT_LOCAL_BLACKLIST = [
 ];
 
 export default function AdminPanel() {
-  const [activeTab, setActiveTab] = useState<'licencias' | 'usuarios' | 'blacklist'>('licencias');
+  const [activeTab, setActiveTab] = useState<'licencias' | 'usuarios' | 'blacklist' | 'supabase'>('licencias');
   
   // Codes states
   const [codes, setCodes] = useState<Code[]>([]);
@@ -103,6 +108,433 @@ export default function AdminPanel() {
   const [isLocalFallback, setIsLocalFallback] = useState(() => {
     return localStorage.getItem('docenty_use_local_fallback') === 'true';
   });
+
+  // Supabase Integration states
+  const [backendProvider, setBackendProvider] = useState(() => {
+    return localStorage.getItem('docenty_backend_provider') || 'firebase';
+  });
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
+  const [testMessage, setTestMessage] = useState('');
+  const [isMigratingOverall, setIsMigratingOverall] = useState(false);
+  const [migrationStatus, setMigrationStatus] = useState<string | null>(null);
+
+  const [migrationProgress, setMigrationProgress] = useState<{
+    [key: string]: { status: 'idle' | 'running' | 'completed' | 'failed'; count: number; error: string }
+  }>({
+    licencias: { status: 'idle', count: 0, error: '' },
+    usuarios: { status: 'idle', count: 0, error: '' },
+    blacklist: { status: 'idle', count: 0, error: '' },
+    estudiantes: { status: 'idle', count: 0, error: '' },
+    camila: { status: 'idle', count: 0, error: '' },
+    asistencia: { status: 'idle', count: 0, error: '' },
+    planificaciones: { status: 'idle', count: 0, error: '' },
+    maternal: { status: 'idle', count: 0, error: '' },
+    ppa: { status: 'idle', count: 0, error: '' },
+    reportes: { status: 'idle', count: 0, error: '' },
+  });
+
+  const handleTestConnection = async () => {
+    setTestStatus('testing');
+    setTestMessage('Probando comunicación con Supabase...');
+    try {
+      const res = await testSupabaseConnection();
+      if (res.success) {
+        setTestStatus('success');
+        setTestMessage(res.message);
+      } else {
+        setTestStatus('failed');
+        setTestMessage(res.message);
+      }
+    } catch (err: any) {
+      setTestStatus('failed');
+      setTestMessage(err?.message || String(err));
+    }
+  };
+
+  const handleSwitchBackend = (provider: 'firebase' | 'supabase') => {
+    localStorage.setItem('docenty_backend_provider', provider);
+    setBackendProvider(provider);
+    alert(`¡Motor de base de datos de Docenty PRO cambiado a: ${provider.toUpperCase()}!\nLa aplicación ahora se reiniciará para aplicar los cambios.`);
+    window.location.reload();
+  };
+
+  const handleMigrateToSupabase = async () => {
+    if (!window.confirm('¿Estás seguro de que deseas iniciar la migración? Esto leerá todos tus datos en Firebase y los consolidará en Supabase.')) return;
+
+    setIsMigratingOverall(true);
+    setMigrationStatus('Preparando conexión con Supabase...');
+
+    // Reset progress
+    const freshProgress = {
+      licencias: { status: 'idle' as const, count: 0, error: '' },
+      usuarios: { status: 'idle' as const, count: 0, error: '' },
+      blacklist: { status: 'idle' as const, count: 0, error: '' },
+      estudiantes: { status: 'idle' as const, count: 0, error: '' },
+      camila: { status: 'idle' as const, count: 0, error: '' },
+      asistencia: { status: 'idle' as const, count: 0, error: '' },
+      planificaciones: { status: 'idle' as const, count: 0, error: '' },
+      maternal: { status: 'idle' as const, count: 0, error: '' },
+      ppa: { status: 'idle' as const, count: 0, error: '' },
+      reportes: { status: 'idle' as const, count: 0, error: '' },
+    };
+    setMigrationProgress(freshProgress);
+
+    const updateStep = (step: string, patch: Partial<{ status: 'idle' | 'running' | 'completed' | 'failed'; count: number; error: string }>) => {
+      setMigrationProgress(prev => ({
+        ...prev,
+        [step]: { ...prev[step], ...patch }
+      }));
+    };
+
+    try {
+      // 1. Licencias
+      updateStep('licencias', { status: 'running' });
+      try {
+        let docsToMigrate: any[] = [];
+        if (isLocalFallback) {
+          docsToMigrate = getLocalCodes().map(c => ({
+            id: c.id,
+            status: c.status,
+            access_level: c.access_level,
+            used_by: c.usedBy || null,
+            used_by_email: c.usedByEmail || null,
+            expires_at: c.expiresAt || null,
+            created_at: c.createdAt || new Date().toISOString()
+          }));
+        } else {
+          const snap = await getDocs(collection(db, 'activation_codes'));
+          docsToMigrate = snap.docs.map(doc => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              status: d.status || 'disponible',
+              access_level: d.access_level || 'pro',
+              used_by: d.usedBy || null,
+              used_by_email: d.usedByEmail || null,
+              expires_at: d.expiresAt?.toDate ? d.expiresAt.toDate().toISOString() : d.expiresAt || null,
+              created_at: d.createdAt?.toDate ? d.createdAt.toDate().toISOString() : d.createdAt || new Date().toISOString()
+            };
+          });
+        }
+
+        let succCount = 0;
+        for (const item of docsToMigrate) {
+          const { error } = await supabase.from('activation_codes').upsert(item);
+          if (!error) succCount++;
+        }
+        updateStep('licencias', { status: 'completed', count: succCount });
+      } catch (e: any) {
+        updateStep('licencias', { status: 'failed', error: e.message || String(e) });
+      }
+
+      // 2. Usuarios
+      updateStep('usuarios', { status: 'running' });
+      try {
+        let docsToMigrate: any[] = [];
+        if (isLocalFallback) {
+          docsToMigrate = getLocalUsers().map(u => ({
+            id: u.id,
+            email: u.email,
+            is_active: u.isActive,
+            role: u.role,
+            generations_count: u.generationsCount,
+            access_level: u.access_level || 'pro',
+            activation_code: u.activationCode || null,
+            expires_at: u.expiresAt || null,
+            created_at: u.createdAt || new Date().toISOString()
+          }));
+        } else {
+          const snap = await getDocs(collection(db, 'users'));
+          docsToMigrate = snap.docs.map(doc => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              email: d.email || '',
+              is_active: d.isActive ?? true,
+              role: d.role || 'teacher',
+              generations_count: d.generationsCount || 0,
+              access_level: d.access_level || 'pro',
+              activation_code: d.activationCode || null,
+              expires_at: d.expiresAt?.toDate ? d.expiresAt.toDate().toISOString() : d.expiresAt || null,
+              created_at: d.createdAt?.toDate ? d.createdAt.toDate().toISOString() : d.createdAt || new Date().toISOString()
+            };
+          });
+        }
+
+        let succCount = 0;
+        for (const item of docsToMigrate) {
+          const { error } = await supabase.from('profiles').upsert(item);
+          if (!error) succCount++;
+        }
+        updateStep('usuarios', { status: 'completed', count: succCount });
+      } catch (e: any) {
+        updateStep('usuarios', { status: 'failed', error: e.message || String(e) });
+      }
+
+      // 3. Blacklist
+      updateStep('blacklist', { status: 'running' });
+      try {
+        let docsToMigrate: any[] = [];
+        if (isLocalFallback) {
+          docsToMigrate = getLocalBlacklist().map(b => ({
+            email: b.email,
+            banned_by: b.bannedBy || 'admin',
+            created_at: b.createdAt || new Date().toISOString()
+          }));
+        } else {
+          const snap = await getDocs(collection(db, 'blacklist'));
+          docsToMigrate = snap.docs.map(doc => {
+            const d = doc.data();
+            return {
+              email: doc.id,
+              banned_by: d.bannedBy || 'admin',
+              created_at: d.createdAt?.toDate ? d.createdAt.toDate().toISOString() : d.createdAt || new Date().toISOString()
+            };
+          });
+        }
+
+        let succCount = 0;
+        for (const item of docsToMigrate) {
+          const { error } = await supabase.from('blacklist').upsert(item);
+          if (!error) succCount++;
+        }
+        updateStep('blacklist', { status: 'completed', count: succCount });
+      } catch (e: any) {
+        updateStep('blacklist', { status: 'failed', error: e.message || String(e) });
+      }
+
+      // 4. Estudiantes
+      updateStep('estudiantes', { status: 'running' });
+      try {
+        let docsToMigrate: any[] = [];
+        if (!isLocalFallback) {
+          const snap = await getDocs(collection(db, 'estudiantes'));
+          docsToMigrate = snap.docs.map(doc => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              nombre: d.nombre,
+              apellidos: d.apellidos || '',
+              grado_seccion: d.gradoSeccion,
+              nivel: d.nivel,
+              fecha_nacimiento: d.fechaNacimiento,
+              sexo: d.sexo,
+              docente_id: d.docenteId || d.teacher_id || '',
+              created_at: d.createdAt?.toDate ? d.createdAt.toDate().toISOString() : d.createdAt || new Date().toISOString()
+            };
+          });
+        }
+
+        let succCount = 0;
+        for (const item of docsToMigrate) {
+          const { error } = await supabase.from('estudiantes').upsert(item);
+          if (!error) succCount++;
+        }
+        updateStep('estudiantes', { status: 'completed', count: succCount });
+      } catch (e: any) {
+        updateStep('estudiantes', { status: 'failed', error: e.message || String(e) });
+      }
+
+      // 5. Camila logs
+      updateStep('camila', { status: 'running' });
+      try {
+        let docsToMigrate: any[] = [];
+        if (!isLocalFallback) {
+          const snap = await getDocs(collection(db, 'camila'));
+          docsToMigrate = snap.docs.map(doc => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              student_id: d.studentId,
+              student_name: d.studentName || '',
+              notes: d.notes,
+              category: d.category,
+              teacher_id: d.teacherId,
+              created_at: d.createdAt?.toDate ? d.createdAt.toDate().toISOString() : d.createdAt || new Date().toISOString()
+            };
+          });
+        }
+
+        let succCount = 0;
+        for (const item of docsToMigrate) {
+          const { error } = await supabase.from('camila_logs').upsert(item);
+          if (!error) succCount++;
+        }
+        updateStep('camila', { status: 'completed', count: succCount });
+      } catch (e: any) {
+        updateStep('camila', { status: 'failed', error: e.message || String(e) });
+      }
+
+      // 6. Asistencia
+      updateStep('asistencia', { status: 'running' });
+      try {
+        let docsToMigrate: any[] = [];
+        if (!isLocalFallback) {
+          const snap = await getDocs(collection(db, 'asistencia'));
+          docsToMigrate = snap.docs.map(doc => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              student_id: d.studentId,
+              student_name: d.studentName || '',
+              date: d.date,
+              estado: d.estado,
+              teacher_id: d.teacherId || d.docenteId || '',
+              created_at: d.createdAt?.toDate ? d.createdAt.toDate().toISOString() : d.createdAt || new Date().toISOString()
+            };
+          });
+        }
+
+        let succCount = 0;
+        for (const item of docsToMigrate) {
+          const { error } = await supabase.from('asistencia').upsert(item);
+          if (!error) succCount++;
+        }
+        updateStep('asistencia', { status: 'completed', count: succCount });
+      } catch (e: any) {
+        updateStep('asistencia', { status: 'failed', error: e.message || String(e) });
+      }
+
+      // 7. Planificaciones
+      updateStep('planificaciones', { status: 'running' });
+      try {
+        let docsToMigrate: any[] = [];
+        if (!isLocalFallback) {
+          const snap = await getDocs(collection(db, 'planificaciones'));
+          docsToMigrate = snap.docs.map(doc => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              titulo: d.titulo,
+              proyecto: d.proyecto || '',
+              fecha_inicio: d.fechaInicio || '',
+              fecha_fin: d.fechaFin || '',
+              nivel: d.nivel || '',
+              diagnostico: d.diagnostico || '',
+              proposito: d.proposito || '',
+              estrategias: d.estrategias || '',
+              recursos: d.recursos || '',
+              evaluacion: d.evaluacion || '',
+              planes_diarios: d.planesDiarios || [],
+              teacher_id: d.teacherId || '',
+              created_at: d.createdAt?.toDate ? d.createdAt.toDate().toISOString() : d.createdAt || new Date().toISOString()
+            };
+          });
+        }
+
+        let succCount = 0;
+        for (const item of docsToMigrate) {
+          const { error } = await supabase.from('planificaciones').upsert(item);
+          if (!error) succCount++;
+        }
+        updateStep('planificaciones', { status: 'completed', count: succCount });
+      } catch (e: any) {
+        updateStep('planificaciones', { status: 'failed', error: e.message || String(e) });
+      }
+
+      // 8. Maternal
+      updateStep('maternal', { status: 'running' });
+      try {
+        let docsToMigrate: any[] = [];
+        if (!isLocalFallback) {
+          const snap = await getDocs(collection(db, 'maternal'));
+          docsToMigrate = snap.docs.map(doc => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              student_id: d.studentId,
+              student_name: d.studentName,
+              date: d.date,
+              alimentacion: d.alimentacion || '',
+              sueno: d.sueno || '',
+              evacuacion: d.evacuacion || '',
+              higiene: d.higiene || '',
+              observaciones: d.observaciones || '',
+              teacher_id: d.teacherId || d.docenteId || '',
+              created_at: d.createdAt?.toDate ? d.createdAt.toDate().toISOString() : d.createdAt || new Date().toISOString()
+            };
+          });
+        }
+
+        let succCount = 0;
+        for (const item of docsToMigrate) {
+          const { error } = await supabase.from('informes_maternal').upsert(item);
+          if (!error) succCount++;
+        }
+        updateStep('maternal', { status: 'completed', count: succCount });
+      } catch (e: any) {
+        updateStep('maternal', { status: 'failed', error: e.message || String(e) });
+      }
+
+      // 9. PPA
+      updateStep('ppa', { status: 'running' });
+      try {
+        let docsToMigrate: any[] = [];
+        if (!isLocalFallback) {
+          const snap = await getDocs(collection(db, 'ppa'));
+          docsToMigrate = snap.docs.map(doc => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              student_id: d.studentId,
+              student_name: d.studentName || '',
+              teacher_id: d.teacherId,
+              objetivos: d.objetivos || '',
+              metas: d.metas || '',
+              diagnostico: d.diagnostico || '',
+              evaluacion: d.evaluacion || '',
+              created_at: d.createdAt?.toDate ? d.createdAt.toDate().toISOString() : d.createdAt || new Date().toISOString()
+            };
+          });
+        }
+
+        let succCount = 0;
+        for (const item of docsToMigrate) {
+          const { error } = await supabase.from('ppa').upsert(item);
+          if (!error) succCount++;
+        }
+        updateStep('ppa', { status: 'completed', count: succCount });
+      } catch (e: any) {
+        updateStep('ppa', { status: 'failed', error: e.message || String(e) });
+      }
+
+      // 10. Reportes
+      updateStep('reportes', { status: 'running' });
+      try {
+        let docsToMigrate: any[] = [];
+        if (!isLocalFallback) {
+          const snap = await getDocs(collection(db, 'reportes'));
+          docsToMigrate = snap.docs.map(doc => {
+            const d = doc.data();
+            return {
+              id: doc.id,
+              student_id: d.studentId,
+              student_name: d.studentName,
+              tipo: d.tipo,
+              contenido: d.contenido,
+              teacher_id: d.teacherId,
+              created_at: d.createdAt?.toDate ? d.createdAt.toDate().toISOString() : d.createdAt || new Date().toISOString()
+            };
+          });
+        }
+
+        let succCount = 0;
+        for (const item of docsToMigrate) {
+          const { error } = await supabase.from('reportes').upsert(item);
+          if (!error) succCount++;
+        }
+        updateStep('reportes', { status: 'completed', count: succCount });
+      } catch (e: any) {
+        updateStep('reportes', { status: 'failed', error: e.message || String(e) });
+      }
+
+      setMigrationStatus('¡Migración completada exitosamente! Todos los registros han sido copiados a Supabase.');
+    } catch (err: any) {
+      setMigrationStatus(`Error fatal en migración: ${err?.message || err}`);
+    } finally {
+      setIsMigratingOverall(false);
+    }
+  };
 
   const getLocalCodes = (): Code[] => {
     let data = localStorage.getItem('docenty_local_codes');
@@ -975,10 +1407,10 @@ export default function AdminPanel() {
       </div>
 
       {/* Tabs */}
-      <div className="flex bg-slate-900/40 p-1 rounded-2xl border border-white/5 gap-2 max-w-lg">
+      <div className="flex flex-wrap bg-slate-900/40 p-1 rounded-2xl border border-white/5 gap-2 max-w-2xl">
         <button
           onClick={() => setActiveTab('licencias')}
-          className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 min-w-[140px] py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
             activeTab === 'licencias' 
               ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
               : 'text-slate-400 hover:text-white hover:bg-white/5'
@@ -989,7 +1421,7 @@ export default function AdminPanel() {
         </button>
         <button
           onClick={() => setActiveTab('usuarios')}
-          className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 min-w-[140px] py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
             activeTab === 'usuarios' 
               ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
               : 'text-slate-400 hover:text-white hover:bg-white/5'
@@ -1000,7 +1432,7 @@ export default function AdminPanel() {
         </button>
         <button
           onClick={() => setActiveTab('blacklist')}
-          className={`flex-1 py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+          className={`flex-1 min-w-[140px] py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
             activeTab === 'blacklist' 
               ? 'bg-rose-600 text-white shadow-lg shadow-rose-600/20' 
               : 'text-slate-400 hover:text-rose-400 hover:bg-rose-500/5'
@@ -1008,6 +1440,17 @@ export default function AdminPanel() {
         >
           <ShieldAlert size={16} />
           Lista Negra / Bloqueos
+        </button>
+        <button
+          onClick={() => setActiveTab('supabase')}
+          className={`flex-1 min-w-[140px] py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+            activeTab === 'supabase' 
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' 
+              : 'text-slate-400 hover:text-emerald-400 hover:bg-emerald-500/5'
+          }`}
+        >
+          <Database size={16} />
+          Migración Supabase
         </button>
       </div>
 
@@ -1637,6 +2080,359 @@ export default function AdminPanel() {
                 </div>
 
             </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* VIEW 4: MIGRACIÓN SUPABASE */}
+      {activeTab === 'supabase' && (
+        <div className="space-y-8 animate-in fade-in duration-300">
+          
+          {/* Top Info Banner */}
+          <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl border border-emerald-500/10 p-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="bg-emerald-500/10 text-emerald-400 text-[9px] font-black tracking-widest uppercase px-2 py-0.5 rounded border border-emerald-500/20">MIGRACIÓN ACTIVA</span>
+                <span className="text-slate-500 text-xs font-mono">Firebase to Supabase v2.0</span>
+              </div>
+              <h3 className="text-xl font-black text-white">Consolidación Sin Pérdidas de Docenty PRO</h3>
+              <p className="text-slate-300 text-xs max-w-2xl leading-relaxed">
+                Este sistema te permite migrar toda la información almacenada en Google Firebase Firestore
+                (Licencias, perfiles, estudiantes, planificaciones, reportes maternales e historial)
+                directamente hacia tu nueva base de datos robusta en Supabase en cuestión de segundos.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 bg-slate-950 p-4 rounded-2xl border border-white/5 shrink-0">
+              <div className="w-10 h-10 bg-emerald-600/10 border border-emerald-500/20 rounded-xl flex items-center justify-center text-emerald-400">
+                <Database size={20} className="animate-pulse" />
+              </div>
+              <div>
+                <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">PROVEEDOR ACTIVO</p>
+                <p className="font-extrabold text-sm font-mono text-white uppercase">{backendProvider === 'supabase' ? '⚡ SUPABASE PG' : '🔥 FIREBASE FIRESTORE'}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Main Layout Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+            
+            {/* Column 1: Config & Engine Switcher */}
+            <div className="space-y-6">
+              
+              {/* Card 1: Select Engine */}
+              <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl border border-white/5 p-6 space-y-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-blue-600/10 border border-blue-500/20 rounded-lg flex items-center justify-center text-blue-400 shrink-0">
+                    <Layers size={16} />
+                  </div>
+                  <div>
+                    <h4 className="font-black text-white text-sm">Cambiar Motor de DB</h4>
+                    <p className="text-slate-400 text-[10px] uppercase tracking-wider">Alternar en tiempo real</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <button
+                    onClick={() => handleSwitchBackend('firebase')}
+                    className={`w-full p-4 rounded-2xl border text-left transition-all ${
+                      backendProvider === 'firebase'
+                        ? 'bg-blue-600/10 border-blue-500 text-white shadow-lg'
+                        : 'bg-slate-950 border-white/5 text-slate-400 hover:border-white/10'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-extrabold text-xs">Google Firebase (Estándar)</span>
+                      {backendProvider === 'firebase' && <span className="w-2 h-2 bg-blue-500 rounded-full animate-ping" />}
+                    </div>
+                    <p className="text-[10px] text-slate-400 leading-normal">Utiliza Firestore estándar. Sujeto a cuotas de lectura diaria gratuitas de Firebase.</p>
+                  </button>
+
+                  <button
+                    onClick={() => handleSwitchBackend('supabase')}
+                    className={`w-full p-4 rounded-2xl border text-left transition-all ${
+                      backendProvider === 'supabase'
+                        ? 'bg-emerald-600/10 border-emerald-500 text-white shadow-lg shadow-emerald-600/5'
+                        : 'bg-slate-950 border-white/5 text-slate-400 hover:border-white/10'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-extrabold text-xs">Supabase PostgreSQL (Acelerado)</span>
+                      {backendProvider === 'supabase' && <span className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />}
+                    </div>
+                    <p className="text-[10px] text-slate-400 leading-normal">Consultas ultrarrápidas, sin cuotas de lectura reducidas. Conexión directa de alto desempeño con Postgres.</p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Card 2: Test Connection */}
+              <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl border border-white/5 p-6 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h4 className="font-black text-white text-xs uppercase tracking-wider text-slate-400">Prueba de Diagnóstico</h4>
+                  {testStatus === 'success' && <span className="text-emerald-400 text-xs font-mono font-bold">● ONLINE</span>}
+                  {testStatus === 'testing' && <span className="text-amber-400 text-xs font-mono font-bold animate-pulse">TESTING...</span>}
+                  {testStatus === 'failed' && <span className="text-red-400 text-xs font-mono font-bold">● OFFLINE</span>}
+                  {testStatus === 'idle' && <span className="text-slate-500 text-xs font-mono">--</span>}
+                </div>
+
+                {testMessage && (
+                  <div className={`p-4 rounded-xl text-xs font-mono leading-relaxed break-all ${
+                    testStatus === 'success' ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-500/20' :
+                    testStatus === 'failed' ? 'bg-red-950/40 text-red-300 border border-red-500/20' :
+                    'bg-slate-950 text-slate-300'
+                  }`}>
+                    {testMessage}
+                  </div>
+                )}
+
+                <button
+                  onClick={handleTestConnection}
+                  disabled={testStatus === 'testing'}
+                  className="w-full bg-slate-950 hover:bg-slate-900 border border-white/10 hover:border-white/20 text-white font-bold py-2.5 px-4 rounded-xl transition-all text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+                >
+                  {testStatus === 'testing' ? <Loader2 className="w-4 h-4 animate-spin text-slate-400" /> : <RefreshCw size={14} />}
+                  Probar Conexión Supabase
+                </button>
+              </div>
+
+            </div>
+
+            {/* Column 2: Live Migration Progress */}
+            <div className="lg:col-span-2 space-y-6">
+              
+              <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl border border-white/5 p-6 space-y-6">
+                <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4">
+                  <div>
+                    <h3 className="font-black text-white text-base">Migrador de Datos</h3>
+                    <p className="text-slate-400 text-xs">Copia ordenada de todas tus colecciones en Firebase hacia Supabase.</p>
+                  </div>
+                  <button
+                    onClick={handleMigrateToSupabase}
+                    disabled={isMigratingOverall}
+                    className="bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-black px-6 py-3 rounded-xl flex items-center justify-center gap-2 border border-emerald-500 shadow-lg shadow-emerald-600/10 transition-all text-xs uppercase tracking-wider shrink-0"
+                  >
+                    {isMigratingOverall ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database size={14} />}
+                    Iniciar Migración de Datos
+                  </button>
+                </div>
+
+                {migrationStatus && (
+                  <div className="bg-emerald-600/5 rounded-2xl border border-emerald-500/10 p-4 font-mono text-xs text-slate-300 leading-relaxed text-center">
+                    {migrationStatus}
+                  </div>
+                )}
+
+                {/* Progress Grid List */}
+                <div className="space-y-3.5">
+                  {Object.entries(migrationProgress).map(([key, value]) => {
+                    const label = key.toUpperCase();
+                    return (
+                      <div key={key} className="bg-slate-950 border border-white/5 rounded-2xl p-4 flex items-center justify-between gap-4">
+                        <div className="space-y-1">
+                          <span className="font-extrabold text-[11px] text-white tracking-widest">{label === 'CAMILA' ? 'ANOTACIONES CAMILA' : label === 'LICENCIAS' ? 'CÓDIGOS DE LICENCIA' : label}</span>
+                          <div className="flex items-center gap-2">
+                            {value.status === 'running' && <span className="text-[10px] text-amber-400 font-mono animate-pulse">Migrando en tiempo real...</span>}
+                            {value.status === 'completed' && <span className="text-[10px] text-emerald-400 font-mono">Migrado exitosamente</span>}
+                            {value.status === 'failed' && <span className="text-[10px] text-red-400 font-mono truncate max-w-sm">{value.error}</span>}
+                            {value.status === 'idle' && <span className="text-[10px] text-slate-500 font-mono">Esperando inicio...</span>}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                          {value.status === 'completed' && (
+                            <span className="bg-emerald-500/10 text-emerald-400 font-mono text-[10px] uppercase font-bold px-2 py-0.5 rounded border border-emerald-500/20">
+                              {value.count} FILAS
+                            </span>
+                          )}
+                          {value.status === 'running' && (
+                            <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                          )}
+                          {value.status === 'completed' && (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                          )}
+                          {value.status === 'failed' && (
+                            <ShieldAlert className="w-5 h-5 text-red-500" />
+                          )}
+                          {value.status === 'idle' && (
+                            <div className="w-5 h-5 border border-white/10 rounded-full flex items-center justify-center text-slate-600 text-[9px] font-mono">--</div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+          {/* Database Setup SQL Script Panel */}
+          <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl border border-white/5 p-6 space-y-4">
+            <div className="flex justify-between items-center sm:items-center flex-col sm:flex-row gap-4">
+              <div>
+                <h4 className="font-black text-white text-base">Configuración Estructural (Supabase SQL Editor)</h4>
+                <p className="text-slate-400 text-xs">Copia y ejecuta este script en la sección &quot;SQL Editor&quot; de tu panel de Supabase antes de migrar los datos.</p>
+              </div>
+              <button
+                onClick={() => {
+                  const el = document.getElementById('sql-schema-editor-code') as HTMLTextAreaElement;
+                  if (el) {
+                    el.select();
+                    document.execCommand('copy');
+                    alert('¡Script SQL copiado al portapapeles! Ahora puedes pegarlo en el editor SQL de Supabase.');
+                  }
+                }}
+                className="bg-slate-950 hover:bg-slate-900 border border-white/10 hover:border-white/20 text-white font-bold py-2.5 px-6 rounded-xl transition-all text-xs uppercase tracking-wider flex items-center gap-2 shrink-0"
+              >
+                <Copy size={14} />
+                Copiar Script SQL
+              </button>
+            </div>
+
+            <textarea
+              id="sql-schema-editor-code"
+              readOnly
+              rows={16}
+              value={`-- Habilitar extensiones requeridas
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- 1. profiles
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id TEXT PRIMARY KEY, -- Firebase Auth UID
+  email TEXT UNIQUE NOT NULL,
+  is_active BOOLEAN DEFAULT TRUE,
+  role TEXT DEFAULT 'teacher',
+  generations_count INTEGER DEFAULT 0,
+  access_level TEXT DEFAULT 'pro',
+  activation_code TEXT,
+  expires_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 2. blacklist
+CREATE TABLE IF NOT EXISTS public.blacklist (
+  email TEXT PRIMARY KEY,
+  banned_by TEXT DEFAULT 'sistema',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 3. activation_codes
+CREATE TABLE IF NOT EXISTS public.activation_codes (
+  id TEXT PRIMARY KEY, -- e.g. "META-XXXX-YYYY"
+  status TEXT DEFAULT 'disponible',
+  access_level TEXT DEFAULT 'pro',
+  used_by TEXT,
+  used_by_email TEXT,
+  expires_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 4. estudiantes
+CREATE TABLE IF NOT EXISTS public.estudiantes (
+  id TEXT PRIMARY KEY,
+  nombre TEXT NOT NULL,
+  apellidos TEXT,
+  grado_seccion TEXT NOT NULL,
+  nivel TEXT NOT NULL,
+  fecha_nacimiento TEXT NOT NULL,
+  sexo TEXT NOT NULL,
+  docente_id TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 5. asistencia
+CREATE TABLE IF NOT EXISTS public.asistencia (
+  id TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL,
+  student_name TEXT,
+  date TEXT NOT NULL,
+  estado TEXT NOT NULL,
+  teacher_id TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 6. planificaciones
+CREATE TABLE IF NOT EXISTS public.planificaciones (
+  id TEXT PRIMARY KEY,
+  titulo TEXT NOT NULL,
+  proyecto TEXT,
+  fecha_inicio TEXT,
+  fecha_fin TEXT,
+  nivel TEXT,
+  diagnostico TEXT,
+  proposito TEXT,
+  estrategias TEXT,
+  recursos TEXT,
+  evaluacion TEXT,
+  planes_diarios JSONB DEFAULT '[]'::jsonb,
+  teacher_id TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 7. camila_logs
+CREATE TABLE IF NOT EXISTS public.camila_logs (
+  id TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL,
+  student_name TEXT,
+  notes TEXT NOT NULL,
+  category TEXT NOT NULL,
+  teacher_id TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 8. informes_maternal
+CREATE TABLE IF NOT EXISTS public.informes_maternal (
+  id TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL,
+  student_name TEXT NOT NULL,
+  date TEXT,
+  alimentacion TEXT,
+  sueno TEXT,
+  evacuacion TEXT,
+  higiene TEXT,
+  observaciones TEXT,
+  teacher_id TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 9. ppa (Pedagogy Plan Action)
+CREATE TABLE IF NOT EXISTS public.ppa (
+  id TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL,
+  student_name TEXT,
+  teacher_id TEXT NOT NULL,
+  objetivos TEXT,
+  metas TEXT,
+  diagnostico TEXT,
+  evaluacion TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- 10. reportes
+CREATE TABLE IF NOT EXISTS public.reportes (
+  id TEXT PRIMARY KEY,
+  student_id TEXT NOT NULL,
+  student_name TEXT NOT NULL,
+  tipo TEXT NOT NULL,
+  contenido TEXT NOT NULL,
+  teacher_id TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- Desactivar políticas RLS básicas para facilitar migración del frontend
+ALTER TABLE public.profiles DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.blacklist DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.activation_codes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.estudiantes DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.asistencia DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.planificaciones DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.camila_logs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.informes_maternal DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ppa DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reportes DISABLE ROW LEVEL SECURITY;`}
+              className="w-full bg-slate-950 border border-white/5 rounded-2xl p-4 font-mono text-[11px] leading-relaxed text-slate-400 focus:outline-none focus:border-emerald-500/50 resize-none selection:bg-emerald-500/35 selection:text-white"
+            />
           </div>
 
         </div>

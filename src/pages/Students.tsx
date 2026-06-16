@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, deleteDoc, doc, updateDoc, where } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { SupabaseService } from '../lib/supabaseService';
 import { UserPlus, Loader2, Trash2, Edit2, Cake, Gift, Users, CalendarDays, X } from 'lucide-react';
 
 export interface Student {
@@ -47,6 +48,24 @@ export default function Students() {
   useEffect(() => {
     if (!teacherId) return;
 
+    const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+
+    if (isSupabase) {
+      const fetchStudentsSupabase = async () => {
+        try {
+          const list = await SupabaseService.getEstudiantes(teacherId);
+          setStudents(list);
+          setIsLoading(false);
+        } catch (err) {
+          console.error("Supabase students error:", err);
+          setIsLoading(false);
+        }
+      };
+      fetchStudentsSupabase();
+      const interval = setInterval(fetchStudentsSupabase, 8000); // Poll and reload
+      return () => clearInterval(interval);
+    }
+
     const q = query(
       collection(db, 'estudiantes'),
       where('docenteId', '==', teacherId),
@@ -74,6 +93,43 @@ export default function Students() {
 
     setIsSubmitting(true);
     try {
+      const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+
+      if (isSupabase) {
+        if (editingId) {
+          await SupabaseService.updateEstudiante(editingId, {
+            nombre: nombre.trim(),
+            apellidos: apellidos.trim(),
+            grado_seccion: gradoSeccion.trim(),
+            nivel,
+            fecha_nacimiento: fechaNacimiento,
+            sexo
+          });
+          setEditingId(null);
+        } else {
+          await SupabaseService.addEstudiante({
+            nombre: nombre.trim(),
+            apellidos: apellidos.trim(),
+            grado_seccion: gradoSeccion.trim(),
+            nivel,
+            fecha_nacimiento: fechaNacimiento,
+            sexo
+          }, teacherId);
+        }
+        
+        // Instant refresh
+        const list = await SupabaseService.getEstudiantes(teacherId);
+        setStudents(list);
+
+        setNombre('');
+        setApellidos('');
+        setGradoSeccion('');
+        setFechaNacimiento('');
+        setSexo('V');
+        setIsSubmitting(false);
+        return;
+      }
+
       if (editingId) {
         // Update existing student
         await updateDoc(doc(db, 'estudiantes', editingId), {
@@ -117,6 +173,15 @@ export default function Students() {
   const handleDelete = async (id: string) => {
     if (!window.confirm('¿Estás seguro de que deseas eliminar a este estudiante? Esta acción no se puede deshacer.')) return;
     try {
+      const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+
+      if (isSupabase) {
+        await SupabaseService.deleteEstudiante(id);
+        const list = await SupabaseService.getEstudiantes(teacherId);
+        setStudents(list);
+        return;
+      }
+
       await deleteDoc(doc(db, 'estudiantes', id));
     } catch (error) {
       console.error("Error al eliminar estudiante:", error);

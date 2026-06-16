@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { SupabaseService } from '../lib/supabaseService';
 import { generateContentWithRetry } from '../lib/gemini';
 import { Sparkles, Loader2, FileText, Copy, Printer, X, History, Trash2, Edit3, Save, GraduationCap } from 'lucide-react';
 import Markdown from 'react-markdown';
@@ -80,6 +81,34 @@ export default function PPA() {
   // Fetch History
   useEffect(() => {
     if (!teacherId) return;
+
+    const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+
+    if (isSupabase) {
+      const fetchSupabaseHistory = async () => {
+        try {
+          const list = await SupabaseService.getPlanificaciones(teacherId);
+          const projectsData: PPAProject[] = list.map(item => ({
+            id: item.id,
+            gradoSeccion: item.proyecto || '',
+            nivel: item.nivel || 'Primaria',
+            tema: item.titulo,
+            duracion: item.fechaFin || '',
+            diagnostico: item.diagnostico || '',
+            contenido: item.proposito || '',
+            createdAt: item.createdAt ? new Date(item.createdAt) : new Date()
+          }));
+          setProjects(projectsData);
+          setIsInitialLoading(false);
+        } catch (err) {
+          console.error("Error loading PPAs from Supabase:", err);
+          setIsInitialLoading(false);
+        }
+      };
+      fetchSupabaseHistory();
+      const interval = setInterval(fetchSupabaseHistory, 8000);
+      return () => clearInterval(interval);
+    }
 
     const q = query(
       collection(db, 'proyectos_ppa'),
@@ -241,19 +270,41 @@ REQUISITOS DEL FORMATO OFICIAL:
         contenido: generatedText,
       };
 
-      // Save to Firestore
-      const docRef = await addDoc(collection(db, 'proyectos_ppa'), {
-        teacher_id: teacherId, // New unified isolation field
-        docenteId: teacherId, // Legacy compatibility
-        ...projectData,
-        createdAt: serverTimestamp()
-      });
+      const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+      let docId = '';
 
-      // Increment generationsCount if not admin (admins have unlimited anyway but good to track)
-      const userRef = doc(db, 'users', teacherId);
-      await updateDoc(userRef, {
-        generationsCount: increment(1)
-      });
+      if (isSupabase) {
+        docId = await SupabaseService.addPlanificacion({
+          titulo: projectData.tema,
+          proyecto: projectData.gradoSeccion,
+          fechaInicio: projectData.duracion,
+          fechaFin: projectData.duracion,
+          nivel: projectData.nivel,
+          diagnostico: projectData.diagnostico,
+          proposito: projectData.contenido,
+          estrategias: '',
+          recursos: '',
+          evaluacion: '',
+          planesDiarios: []
+        }, teacherId);
+
+        await SupabaseService.incrementGenerationsCount(teacherId, 1);
+      } else {
+        // Save to Firestore
+        const docRef = await addDoc(collection(db, 'proyectos_ppa'), {
+          teacher_id: teacherId, // New unified isolation field
+          docenteId: teacherId, // Legacy compatibility
+          ...projectData,
+          createdAt: serverTimestamp()
+        });
+        docId = docRef.id;
+
+        // Increment generationsCount if not admin (admins have unlimited anyway but good to track)
+        const userRef = doc(db, 'users', teacherId);
+        await updateDoc(userRef, {
+          generationsCount: increment(1)
+        });
+      }
 
       // Clear form
       setGradoSeccion('');
@@ -263,7 +314,7 @@ REQUISITOS DEL FORMATO OFICIAL:
       
       // Show the generated project in the same tab underneath
       setSelectedProject({
-        id: docRef.id,
+        id: docId,
         ...projectData,
         createdAt: new Date()
       });
@@ -281,12 +332,22 @@ REQUISITOS DEL FORMATO OFICIAL:
     if (!window.confirm('¿Estás seguro de que deseas eliminar este proyecto?')) return;
     
     try {
-      await deleteDoc(doc(db, 'proyectos_ppa', id));
+      const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+      if (isSupabase) {
+        await SupabaseService.deletePlanificacion(id);
+      } else {
+        await deleteDoc(doc(db, 'proyectos_ppa', id));
+      }
+      
       if (selectedProject?.id === id) {
         setSelectedProject(null);
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, 'proyectos_ppa');
+      if (localStorage.getItem('docenty_backend_provider') === 'supabase') {
+        console.error("Error deleting from Supabase:", error);
+      } else {
+        handleFirestoreError(error, OperationType.DELETE, 'proyectos_ppa');
+      }
     }
   };
 
@@ -300,15 +361,40 @@ REQUISITOS DEL FORMATO OFICIAL:
   const handleSaveEdit = async () => {
     if (!selectedProject || !editedTitle.trim() || !editedContent.trim()) return;
     try {
-      const docRef = doc(db, 'proyectos_ppa', selectedProject.id);
-      await updateDoc(docRef, {
-        tema: editedTitle,
-        contenido: editedContent
-      });
+      const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+      if (isSupabase) {
+        const list = await SupabaseService.getPlanificaciones(teacherId);
+        const parent = list.find(p => p.id === selectedProject.id);
+        if (parent) {
+          await SupabaseService.updatePlanificacion(selectedProject.id, {
+            titulo: editedTitle,
+            proyecto: parent.proyecto,
+            fechaInicio: parent.fechaInicio,
+            fechaFin: parent.fechaFin,
+            nivel: parent.nivel,
+            diagnostico: parent.diagnostico,
+            proposito: editedContent,
+            estrategias: parent.estrategias,
+            recursos: parent.recursos,
+            evaluacion: parent.evaluacion,
+            planesDiarios: parent.planesDiarios || []
+          });
+        }
+      } else {
+        const docRef = doc(db, 'proyectos_ppa', selectedProject.id);
+        await updateDoc(docRef, {
+          tema: editedTitle,
+          contenido: editedContent
+        });
+      }
       setSelectedProject(prev => prev ? { ...prev, tema: editedTitle, contenido: editedContent } : null);
       setIsEditing(false);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'proyectos_ppa');
+      if (localStorage.getItem('docenty_backend_provider') === 'supabase') {
+        console.error("Error saving to Supabase:", error);
+      } else {
+        handleFirestoreError(error, OperationType.UPDATE, 'proyectos_ppa');
+      }
     }
   };
 

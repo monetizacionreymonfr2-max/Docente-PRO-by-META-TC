@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { collection, query, orderBy, onSnapshot, doc, setDoc, getDocs, where } from 'firebase/firestore';
 import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { SupabaseService } from '../lib/supabaseService';
 import { Student } from './Students';
 import { Calendar as CalendarIcon, Check, X, Loader2, Printer, BarChart3, ClipboardList, GraduationCap } from 'lucide-react';
 
@@ -36,6 +37,33 @@ export default function Attendance() {
   // Fetch Students
   useEffect(() => {
     if (!teacherId) return;
+
+    const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+    if (isSupabase) {
+      const fetchStudentsSupabase = async () => {
+        try {
+          const list = await SupabaseService.getEstudiantes(teacherId);
+          // Sort by apellidos then nombre client-side for consistent ordering
+          const sorted = list
+            .sort((a: any, b: any) => {
+              const apiA = (a.apellidos || '').trim();
+              const apiB = (b.apellidos || '').trim();
+              const strA = apiA ? `${apiA} ${a.nombre}` : a.nombre;
+              const strB = apiB ? `${apiB} ${b.nombre}` : b.nombre;
+              return strA.localeCompare(strB);
+            });
+          setStudents(sorted);
+          setIsLoading(false);
+        } catch (err) {
+          console.error("Supabase students error:", err);
+          setIsLoading(false);
+        }
+      };
+      fetchStudentsSupabase();
+      const interval = setInterval(fetchStudentsSupabase, 8000);
+      return () => clearInterval(interval);
+    }
+
     const q = query(
       collection(db, 'estudiantes'), 
       where('docenteId', '==', teacherId),
@@ -70,6 +98,19 @@ export default function Attendance() {
     
     const fetchDaily = async () => {
       try {
+        const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+        if (isSupabase) {
+          const list = await SupabaseService.getAsistencia(teacherId);
+          const data: Record<string, boolean> = {};
+          list.forEach((item: any) => {
+            if (item.date === selectedDate) {
+              data[item.studentId] = item.estado === 'asistio';
+            }
+          });
+          setAttendanceData(data);
+          return;
+        }
+
         const q = query(
           collection(db, 'asistencias'),
           where('docenteId', '==', teacherId),
@@ -100,16 +141,28 @@ export default function Attendance() {
         const startDate = `${selectedMonth}-01`;
         const endDate = `${selectedMonth}-31`; // Simple approach for string comparison
 
-        const q = query(
-          collection(db, 'asistencias'),
-          where('docenteId', '==', teacherId),
-          where('fecha', '>=', startDate),
-          where('fecha', '<=', endDate)
-        );
+        let records: any[] = [];
+        const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
 
-        
-        const snapshot = await getDocs(q);
-        const records = snapshot.docs.map(doc => doc.data());
+        if (isSupabase) {
+          const list = await SupabaseService.getAsistencia(teacherId);
+          records = list
+            .filter((item: any) => item.date >= startDate && item.date <= endDate)
+            .map((item: any) => ({
+              estudianteId: item.studentId,
+              fecha: item.date,
+              asistio: item.estado === 'asistio'
+            }));
+        } else {
+          const q = query(
+            collection(db, 'asistencias'),
+            where('docenteId', '==', teacherId),
+            where('fecha', '>=', startDate),
+            where('fecha', '<=', endDate)
+          );
+          const snapshot = await getDocs(q);
+          records = snapshot.docs.map(doc => doc.data());
+        }
 
         // 1. Age and Sex Distribution
         const ageSexDist: Record<number, { V: number, H: number }> = {};
@@ -204,21 +257,49 @@ export default function Attendance() {
     if (!teacherId) return;
     setIsSaving(true);
     try {
-      const promises = students.map(student => {
-        const asistio = attendanceData[student.id] || false;
-        const docId = `${teacherId}_${student.id}_${selectedDate}`;
-        return setDoc(doc(db, 'asistencias', docId), {
-          teacher_id: teacherId, // New unified isolation field
-          docenteId: teacherId, // Legacy compatibility
-          estudianteId: student.id,
-          fecha: selectedDate,
-          asistio
+      const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+
+      if (isSupabase) {
+        const promises = students.map(student => {
+          const asistio = attendanceData[student.id] || false;
+          const docId = `${teacherId}_${student.id}_${selectedDate}`;
+          const displayName = student.apellidos 
+            ? `${student.apellidos}, ${student.nombre}`
+            : student.nombre;
+
+          return SupabaseService.setAsistencia({
+            id: docId,
+            student_id: student.id,
+            student_name: displayName,
+            date: selectedDate,
+            estado: asistio ? 'asistio' : 'falto',
+            teacher_id: teacherId
+          });
         });
-      });
-      await Promise.all(promises);
-      alert('Asistencia guardada correctamente');
+        await Promise.all(promises);
+        alert('Asistencia guardada correctamente en Supabase');
+      } else {
+        const promises = students.map(student => {
+          const asistio = attendanceData[student.id] || false;
+          const docId = `${teacherId}_${student.id}_${selectedDate}`;
+          return setDoc(doc(db, 'asistencias', docId), {
+            teacher_id: teacherId, // New unified isolation field
+            docenteId: teacherId, // Legacy compatibility
+            estudianteId: student.id,
+            fecha: selectedDate,
+            asistio
+          });
+        });
+        await Promise.all(promises);
+        alert('Asistencia guardada correctamente');
+      }
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'asistencias');
+      if (localStorage.getItem('docenty_backend_provider') === 'supabase') {
+        console.error("Error saving attendance in Supabase:", error);
+        alert('Error al guardar asistencia en Supabase');
+      } else {
+        handleFirestoreError(error, OperationType.WRITE, 'asistencias');
+      }
     } finally {
       setIsSaving(false);
     }
