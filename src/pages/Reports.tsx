@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc, updateDoc, increment } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { SupabaseService } from '../lib/supabaseService';
 import { generateContentWithRetry } from '../lib/gemini';
 import { FileBadge, Loader2, Sparkles, Printer, History, X, Save, Trash2, GraduationCap } from 'lucide-react';
 import LimitReachedModal from '../components/LimitReachedModal';
@@ -83,55 +82,46 @@ export default function Reports() {
   useEffect(() => {
     if (!teacherId) return;
 
-    const q = query(
-      collection(db, 'estudiantes'),
-      where('docenteId', '==', teacherId),
-      orderBy('nombre', 'asc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const studentsData: Student[] = [];
-      snapshot.forEach((doc) => {
-        studentsData.push({ id: doc.id, ...doc.data() } as Student);
-      });
-      
-      const sorted = studentsData.sort((a, b) => {
-        const apiA = (a.apellidos || '').trim();
-        const apiB = (b.apellidos || '').trim();
-        const strA = apiA ? `${apiA} ${a.nombre}` : a.nombre;
-        const strB = apiB ? `${apiB} ${b.nombre}` : b.nombre;
-        return strA.localeCompare(strB);
-      });
-      
-      setStudents(sorted);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'estudiantes');
-    });
-
-    return () => unsubscribe();
+    const fetchStudentsSupabase = async () => {
+      try {
+        const list = await SupabaseService.getEstudiantes(teacherId);
+        const sorted = list.sort((a, b) => {
+          const apiA = (a.apellidos || '').trim();
+          const apiB = (b.apellidos || '').trim();
+          const strA = apiA ? `${apiA} ${a.nombre}` : a.nombre;
+          const strB = apiB ? `${apiB} ${b.nombre}` : b.nombre;
+          return strA.localeCompare(strB);
+        });
+        setStudents(sorted);
+      } catch (err) {
+        console.error("Error loading students:", err);
+      }
+    };
+    fetchStudentsSupabase();
   }, [teacherId]);
 
   // Fetch Reports History
   useEffect(() => {
     if (!teacherId) return;
 
-    const q = query(
-      collection(db, 'boletines'),
-      where('docenteId', '==', teacherId),
-      orderBy('createdAt', 'desc')
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const reportsData: Report[] = [];
-      snapshot.forEach((doc) => {
-        reportsData.push({ id: doc.id, ...doc.data() } as Report);
-      });
-      setReports(reportsData);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'boletines');
-    });
-
-    return () => unsubscribe();
+    const fetchReportsSupabase = async () => {
+      try {
+        const list = await SupabaseService.getReportes(teacherId);
+        const reportsData: Report[] = list.map(item => ({
+          id: item.id,
+          estudianteId: item.studentId,
+          calificacion: item.tipo || '',
+          observacion: item.contenido || '',
+          createdAt: item.createdAt ? new Date(item.createdAt) : new Date()
+        }));
+        setReports(reportsData);
+      } catch (err) {
+        console.error("Error loading reports from Supabase:", err);
+      }
+    };
+    fetchReportsSupabase();
+    const interval = setInterval(fetchReportsSupabase, 8000);
+    return () => clearInterval(interval);
   }, [teacherId]);
 
   const handleGenerateObservation = async () => {
@@ -177,10 +167,7 @@ Palabras clave: ${palabrasClave}`;
       setObservacion(response.text || '');
 
       // Increment generationsCount only on successful AI call
-      const userRef = doc(db, 'users', teacherId);
-      await updateDoc(userRef, {
-        generationsCount: increment(1)
-      });
+      await SupabaseService.incrementGenerationsCount(teacherId, 1);
 
     } catch (error: any) {
       console.error("Error generating observation:", error);
@@ -205,11 +192,16 @@ Palabras clave: ${palabrasClave}`;
     setErrorMsg(null);
     setIsSaving(true);
     try {
-      const docRef = await addDoc(collection(db, 'boletines'), {
-        teacher_id: teacherId, // New unified isolation field
-        docenteId: teacherId, // Legacy compatibility
-        ...reportData,
-        createdAt: serverTimestamp()
+      const displayName = selectedStudentData?.apellidos 
+        ? `${selectedStudentData.apellidos}, ${selectedStudentData.nombre}`
+        : (selectedStudentData?.nombre || '');
+
+      const docId = await SupabaseService.addReporte({
+        student_id: selectedStudentId,
+        student_name: displayName,
+        tipo: calificacion.trim(),
+        contenido: observacion.trim(),
+        teacher_id: teacherId
       });
 
       // Clear form
@@ -220,7 +212,7 @@ Palabras clave: ${palabrasClave}`;
       
       // Switch to history tab and select the new report
       setSelectedReport({
-        id: docRef.id,
+        id: docId,
         ...reportData,
         createdAt: new Date()
       });
@@ -228,7 +220,6 @@ Palabras clave: ${palabrasClave}`;
 
     } catch (error) {
       console.error("Error saving report:", error);
-      handleFirestoreError(error, OperationType.CREATE, 'boletines');
       setErrorMsg("Hubo un error al guardar el boletín.");
     } finally {
       setIsSaving(false);
@@ -243,12 +234,12 @@ Palabras clave: ${palabrasClave}`;
     e.stopPropagation();
     if (!window.confirm('¿Deseas eliminar este boletín?')) return;
     try {
-      await deleteDoc(doc(db, 'boletines', id));
+      await SupabaseService.deleteReporte(id);
       if (selectedReport?.id === id) {
         setSelectedReport(null);
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, 'boletines');
+      console.error("Error deleting report:", error);
     }
   };
 

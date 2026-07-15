@@ -1,7 +1,6 @@
 import { useState } from 'react';
-import { signOut } from 'firebase/auth';
-import { doc, runTransaction, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '../lib/firebase';
+import { supabase } from '../lib/supabase';
+import { SupabaseService } from '../lib/supabaseService';
 import { Key, Loader2, ShieldCheck, XCircle, Info, Sparkles } from 'lucide-react';
 import { CamilaInner } from '../pages/Camila';
 
@@ -23,45 +22,11 @@ export default function ActivationModal({ userId, email }: ActivationModalProps)
     setIsLoading(true);
     setError(null);
 
-    const codeId = code.trim().toUpperCase();
-    const codeRef = doc(db, 'activation_codes', codeId);
-    const userRef = doc(db, 'users', userId);
-
     try {
-      await runTransaction(db, async (transaction) => {
-        const codeDoc = await transaction.get(codeRef);
-        
-        if (!codeDoc.exists()) {
-          throw new Error('El código ingresado no es válido.');
-        }
-
-        const codeData = codeDoc.data();
-        if (codeData.status !== 'disponible') {
-          throw new Error('Este código ya ha sido utilizado.');
-        }
-
-        // Calculate expiration: 30 days from now
-        const now = new Date();
-        const expirationDate = new Date(now.getTime() + (30 * 24 * 60 * 60 * 1000));
-
-        // 1. Update code status
-        transaction.update(codeRef, {
-          status: 'usado',
-          usedBy: userId,
-          usedByEmail: email,
-          usedAt: serverTimestamp(),
-          expiresAt: expirationDate
-        });
-
-        // 2. Update user status
-        transaction.update(userRef, {
-          isActive: true,
-          access_level: codeData.access_level || 'pro', // Save the level from the code
-          expiresAt: expirationDate,
-          activatedAt: serverTimestamp(),
-          activationCode: codeId
-        });
-      });
+      const res = await SupabaseService.claimActivationCode(code, userId, email);
+      if (!res.success) {
+        throw new Error(res.message);
+      }
 
       // Browser will refresh or state will update via listener in App.tsx
       window.location.reload(); 
@@ -154,7 +119,7 @@ export default function ActivationModal({ userId, email }: ActivationModalProps)
 
               <button
                 type="button"
-                onClick={() => signOut(auth)}
+                onClick={() => supabase.auth.signOut()}
                 className="w-full bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold py-3 px-4 rounded-xl flex items-center justify-center gap-2 border border-rose-100 transition-all active:scale-[0.98]"
               >
                 Cerrar Sesión (Salir)

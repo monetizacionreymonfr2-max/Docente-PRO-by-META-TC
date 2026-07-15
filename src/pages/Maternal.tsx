@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, where, deleteDoc, doc, updateDoc, increment } from 'firebase/firestore';
-import { db, auth, handleFirestoreError, OperationType } from '../lib/firebase';
+import { SupabaseService } from '../lib/supabaseService';
 import { generateContentWithRetry } from '../lib/gemini';
 import Markdown from 'react-markdown';
 import LimitReachedModal from '../components/LimitReachedModal';
@@ -57,7 +56,7 @@ export default function Maternal() {
   const [selectedStudentId, setSelectedStudentId] = useState('');
   const [comida, setComida] = useState('Muy bien');
   const [sueno, setSueno] = useState('Durmió bien');
-  const [panal, setPanal] = useState('Normal');
+  const [panal, setPanal] = useState('Normal (Orina/Heces)');
   const [actividad, setActividad] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [routines, setRoutines] = useState<RoutineRecord[]>([]);
@@ -110,63 +109,76 @@ export default function Maternal() {
   // Fetch Students (only Maternal)
   useEffect(() => {
     if (!teacherId) return;
-    const q = query(
-      collection(db, 'estudiantes'), 
-      where('docenteId', '==', teacherId), 
-      where('nivel', '==', 'Maternal')
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const studentsData: Student[] = [];
-      snapshot.forEach((doc) => {
-        studentsData.push({ id: doc.id, ...doc.data() } as Student);
-      });
-      setStudents(studentsData);
-      setIsLoading(false);
-    }, (error) => {
-      console.error("Error fetching maternal students:", error);
-      setIsLoading(false);
-    });
-    return () => unsubscribe();
+    const fetchStudents = async () => {
+      try {
+        const list = await SupabaseService.getEstudiantes(teacherId);
+        const maternalStudents = list.filter(s => s.nivel === 'Maternal');
+        setStudents(maternalStudents);
+        setIsLoading(false);
+      } catch (err) {
+        console.error("Error fetching maternal students:", err);
+        setIsLoading(false);
+      }
+    };
+    fetchStudents();
+    const interval = setInterval(fetchStudents, 8000);
+    return () => clearInterval(interval);
   }, [teacherId]);
 
   // Fetch Routine History
   useEffect(() => {
     if (!teacherId || activeTab !== 'routine') return;
-    const q = query(
-      collection(db, 'bitacoras_maternal'), 
-      where('docenteId', '==', teacherId),
-      where('fecha', '==', selectedDate)
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const routineData: RoutineRecord[] = [];
-      snapshot.forEach((doc) => {
-        routineData.push({ id: doc.id, ...doc.data() } as RoutineRecord);
-      });
-      setRoutines(routineData);
-    }, (error) => {
-      console.error("Error fetching maternal routines:", error);
-    });
-    return () => unsubscribe();
+    const fetchRoutines = async () => {
+      try {
+        const list = await SupabaseService.getMaternalReports(teacherId);
+        const dayRoutines = list.filter(r => r.date === selectedDate).map(r => ({
+          id: r.id,
+          estudianteId: r.studentId,
+          fecha: r.date,
+          comida: r.alimentacion,
+          sueno: r.sueno,
+          panal: r.evacuacion,
+          actividad: r.observaciones,
+          createdAt: r.createdAt
+        }));
+        setRoutines(dayRoutines);
+      } catch (err) {
+        console.error("Error fetching maternal routines:", err);
+      }
+    };
+    fetchRoutines();
+    const interval = setInterval(fetchRoutines, 8000);
+    return () => clearInterval(interval);
   }, [teacherId, selectedDate, activeTab]);
 
   // Fetch Maternal Plans History
   useEffect(() => {
     if (!teacherId) return;
-    const q = query(
-      collection(db, 'planificaciones_maternal'),
-      where('docenteId', '==', teacherId),
-      orderBy('createdAt', 'desc')
-    );
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const planData: any[] = [];
-      snapshot.forEach((doc) => {
-        planData.push({ id: doc.id, ...doc.data() });
-      });
-      setPlans(planData);
-    }, (error) => {
-      console.error("Error fetching maternal plans:", error);
-    });
-    return () => unsubscribe();
+    const fetchPlansHistory = async () => {
+      try {
+        const list = await SupabaseService.getPlanificaciones(teacherId);
+        const maternalPlans = list.filter(p => p.nivel === 'Maternal_Plan').map(p => {
+          let extra = {};
+          try {
+            extra = JSON.parse(p.diagnostico || '{}');
+          } catch {}
+          return {
+            id: p.id,
+            tipoPlan: p.proyecto,
+            tituloProyecto: p.titulo,
+            contenido: p.proposito,
+            createdAt: p.createdAt ? new Date(p.createdAt) : new Date(),
+            ...extra
+          };
+        });
+        setPlans(maternalPlans);
+      } catch (err) {
+        console.error("Error fetching maternal plans:", err);
+      }
+    };
+    fetchPlansHistory();
+    const interval = setInterval(fetchPlansHistory, 8000);
+    return () => clearInterval(interval);
   }, [teacherId]);
 
   const handleGeneratePlan = async (e: React.FormEvent) => {
@@ -299,20 +311,38 @@ Usa un tono técnico, lúdico y tierno, respetando siempre el desarrollo fisiol�
         socioProductividad: tipoPlan === 'adaptacion_pa' ? socioProductividad : '',
         contenido: generatedText,
         docenteId: teacherId,
-        createdAt: serverTimestamp()
+        createdAt: new Date().toISOString()
       };
 
-      const docRef = await addDoc(collection(db, 'planificaciones_maternal'), planData);
+      const docId = await SupabaseService.addPlanificacion({
+        titulo: tipoPlan === 'adaptacion_pa' ? tituloProyecto : `Plan Semanal/Quincenal`,
+        proyecto: tipoPlan,
+        fechaInicio: tiempoInicio,
+        fechaFin: tiempoFin,
+        nivel: 'Maternal_Plan',
+        diagnostico: JSON.stringify({
+          institucion,
+          salaEdad,
+          anioEscolar,
+          matriculaVarones: vCount,
+          matriculaHembras: hCount,
+          matriculaTotal: totalCount,
+          peicReferencia: tipoPlan === 'semanal_quincenal' ? peicReferencia : '',
+          enfasisCurriculares: selectedEnfasis,
+          hitosDesarrollo,
+          necesidadesFisiologicas,
+          justificacionPA: tipoPlan === 'adaptacion_pa' ? justificacionPA : '',
+          propositoPA: tipoPlan === 'adaptacion_pa' ? propositoPA : '',
+          socioProductividad: tipoPlan === 'adaptacion_pa' ? socioProductividad : '',
+        }),
+        proposito: generatedText,
+      }, teacherId);
 
-      // Increment generationsCount for the user
-      const userRef = doc(db, 'users', teacherId);
-      await updateDoc(userRef, {
-        generationsCount: increment(1)
-      });
+      await SupabaseService.incrementGenerationsCount(teacherId, 1);
 
       // Select the newly created plan
       setSelectedPlan({
-        id: docRef.id,
+        id: docId,
         ...planData,
         createdAt: new Date()
       });
@@ -330,27 +360,36 @@ Usa un tono técnico, lúdico y tierno, respetando siempre el desarrollo fisiol�
     e.stopPropagation();
     if (!window.confirm('¿Estás seguro de que deseas eliminar esta planificación?')) return;
     try {
-      await deleteDoc(doc(db, 'planificaciones_maternal', id));
+      await SupabaseService.deletePlanificacion(id);
       if (selectedPlan?.id === id) {
         setSelectedPlan(null);
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, 'planificaciones_maternal');
+      console.error("Error deleting maternal plan:", error);
     }
   };
 
   const handleSaveEditPlan = async () => {
     if (!selectedPlan || !editedPlanContent.trim()) return;
     try {
-      const docRef = doc(db, 'planificaciones_maternal', selectedPlan.id);
-      await updateDoc(docRef, {
-        tituloProyecto: editedPlanTitle,
-        contenido: editedPlanContent
-      });
+      const list = await SupabaseService.getPlanificaciones(teacherId);
+      const oldPlan = list.find(p => p.id === selectedPlan.id);
+      if (oldPlan) {
+        await SupabaseService.updatePlanificacion(selectedPlan.id, {
+          titulo: editedPlanTitle,
+          proyecto: oldPlan.proyecto,
+          fechaInicio: oldPlan.fechaInicio,
+          fechaFin: oldPlan.fechaFin,
+          nivel: oldPlan.nivel,
+          diagnostico: oldPlan.diagnostico,
+          proposito: editedPlanContent,
+          planesDiarios: oldPlan.planesDiarios || []
+        });
+      }
       setSelectedPlan(prev => prev ? { ...prev, tituloProyecto: editedPlanTitle, contenido: editedPlanContent } : null);
       setIsEditingPlan(false);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, 'planificaciones_maternal');
+      console.error("Error updating maternal plan:", error);
     }
   };
 
@@ -369,23 +408,24 @@ Usa un tono técnico, lúdico y tierno, respetando siempre el desarrollo fisiol�
 
     setIsSaving(true);
     try {
-      await addDoc(collection(db, 'bitacoras_maternal'), {
-        teacher_id: teacherId, // New unified isolation field
-        docenteId: teacherId, // Legacy compatibility
-        estudianteId: selectedStudentId,
-        fecha: selectedDate,
-        comida,
+      const student = students.find(s => s.id === selectedStudentId);
+      const studentName = student ? `${student.nombre} ${student.apellidos || ''}`.trim() : '';
+
+      await SupabaseService.addMaternalReport({
+        studentId: selectedStudentId,
+        studentName,
+        date: selectedDate,
+        alimentacion: comida,
         sueno,
-        panal,
-        actividad,
-        createdAt: serverTimestamp()
-      });
+        evacuacion: panal,
+        higiene: 'Normal',
+        observaciones: actividad
+      }, teacherId);
       
       setSelectedStudentId('');
       setActividad('');
-      // No alert, use better UI if possible, but keep it simple for now as requested
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, 'bitacoras_maternal');
+      console.error("Error saving maternal routine:", error);
     } finally {
       setIsSaving(false);
     }
@@ -394,9 +434,9 @@ Usa un tono técnico, lúdico y tierno, respetando siempre el desarrollo fisiol�
   const handleDeleteRoutine = async (id: string) => {
     if (!window.confirm('¿Eliminar este registro?')) return;
     try {
-      await deleteDoc(doc(db, 'bitacoras_maternal', id));
+      await SupabaseService.deleteMaternalReport(id);
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, 'bitacoras_maternal');
+      console.error("Error deleting maternal routine:", error);
     }
   };
 

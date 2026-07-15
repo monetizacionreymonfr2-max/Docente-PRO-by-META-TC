@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { signOut } from 'firebase/auth';
-import { auth } from '../../lib/firebase';
+import { supabase } from '../../lib/supabase';
 import AccessProtection from '../AccessProtection';
 import { CamilaInner } from '../../pages/Camila';
 import { 
@@ -89,7 +88,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
       // Limpieza estricta de estado (Limpiar caché local y de sesión)
       localStorage.clear();
       sessionStorage.clear();
-      await signOut(auth);
+      await supabase.auth.signOut();
       // Forzar una recarga para limpiar cualquier estado en memoria (React state)
       window.location.href = '/';
     } catch (error) {

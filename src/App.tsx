@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { onAuthStateChanged } from 'firebase/auth';
-import { doc, onSnapshot, setDoc, serverTimestamp, getDoc, deleteDoc } from 'firebase/firestore';
-import { auth, db } from './lib/firebase';
+import { supabase } from './lib/supabase';
 import { SupabaseService } from './lib/supabaseService';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
@@ -28,186 +26,119 @@ export default function App() {
   const [isBanned, setIsBanned] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Blacklist monitor
+  // Load auth user and profile
   useEffect(() => {
-    if (!user || !user.email) {
-      setIsBanned(false);
-      return;
-    }
+    let authSubscription: any = null;
 
-    const emailKey = user.email.trim().toLowerCase();
-    const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
-
-    if (isSupabase) {
-      const checkBannedSupabase = async () => {
-        try {
-          const banned = await SupabaseService.isEmailBanned(emailKey);
-          setIsBanned(banned);
-        } catch (e) {
-          console.error("Error checking banned email in Supabase:", e);
-        }
-      };
-      checkBannedSupabase();
-      const interval = setInterval(checkBannedSupabase, 8000); // Check every 8s
-      return () => clearInterval(interval);
-    }
-
-    const blacklistRef = doc(db, 'blacklist', emailKey);
-
-    const unsubscribeBanned = onSnapshot(blacklistRef, (snap) => {
-      if (snap.exists()) {
-        setIsBanned(true);
-      } else {
-        setIsBanned(false);
-      }
-    }, (err) => {
-      console.warn("Blacklist subscription warning:", err);
-    });
-
-    return () => unsubscribeBanned();
-  }, [user]);
-
-  useEffect(() => {
-    let unsubscribeProfile: (() => void) | null = null;
-    let fallbackPollInterval: any = null;
-
-    const unsubscribeAuth = onAuthStateChanged(auth, async (authUser) => {
-      // Clean up previous profile subscription if any
-      if (unsubscribeProfile) {
-        unsubscribeProfile();
-        unsubscribeProfile = null;
-      }
-      if (fallbackPollInterval) {
-        clearInterval(fallbackPollInterval);
-        fallbackPollInterval = null;
+    const handleUserAuth = async (authUser: any) => {
+      if (!authUser) {
+        setUser(null);
+        setProfile(null);
+        setIsLoading(false);
+        return;
       }
 
-      if (authUser) {
-        setUser(authUser);
-        const isSupabase = localStorage.getItem('docenty_backend_provider') === 'supabase';
+      setUser(authUser);
+      const userEmail = (authUser.email || '').trim().toLowerCase();
 
-        if (isSupabase) {
-          // Supabase Engine Active for Profile Load
-          const fetchAndSaveProfile = async () => {
-            try {
-              let prof = await SupabaseService.getUserProfile(authUser.uid);
-              if (prof) {
-                setProfile(prof);
-              } else {
-                const userEmail = (authUser.email || '').trim().toLowerCase();
-                const defaultProfile = {
-                  email: userEmail,
-                  isActive: true,
-                  role: isAdminEmail(userEmail) ? 'admin' : 'teacher',
-                  generationsCount: 0,
-                  access_level: 'pro',
-                  activationCode: null,
-                  expiresAt: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString()
-                };
-                await SupabaseService.createUserProfile(authUser.uid, defaultProfile);
-                setProfile(defaultProfile);
-              }
-            } catch (err) {
-              console.error("Supabase profile fetch error:", err);
-            } finally {
-              setIsLoading(false);
-            }
-          };
-
-          fetchAndSaveProfile();
-          fallbackPollInterval = setInterval(fetchAndSaveProfile, 15000); // 15s refresh
-
-          if (isAdminEmail(authUser.email)) {
-            try {
-              const banned = await SupabaseService.isEmailBanned('ugax6060@gmail.com');
-              if (!banned) {
-                await SupabaseService.banEmail('ugax6060@gmail.com', 'sistema_auto_proteccion');
-                console.log("Auto-ban active on Supabase");
-              }
-            } catch (e) {
-              console.error("Failed to auto ban intruder on Supabase", e);
-            }
-          }
+      try {
+        // 1. Check Blacklist
+        const banned = await SupabaseService.isEmailBanned(userEmail);
+        setIsBanned(banned);
+        if (banned) {
+          setIsLoading(false);
           return;
         }
 
-        // Security Shield: Auto-ban the target intruder if non-existent
-        if (isAdminEmail(authUser.email)) {
+        // 2. Load or Create User Profile
+        let prof = await SupabaseService.getUserProfile(authUser.id);
+        if (prof) {
+          setProfile(prof);
+        } else {
+          const defaultProfile = {
+            email: userEmail,
+            isActive: isAdminEmail(userEmail), // Admin is auto-active
+            role: isAdminEmail(userEmail) ? 'admin' : 'teacher',
+            generationsCount: 0,
+            access_level: 'pro',
+            activationCode: null,
+            expiresAt: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString()
+          };
+          await SupabaseService.createUserProfile(authUser.id, defaultProfile);
+          setProfile(defaultProfile);
+        }
+
+        // 3. Security Shield: Auto-ban intruder (ugax6060@gmail.com)
+        if (isAdminEmail(userEmail)) {
           try {
-            const blockRef = doc(db, 'blacklist', 'ugax6060@gmail.com');
-            getDoc(blockRef).then(async (snap) => {
-              if (!snap.exists()) {
-                await setDoc(blockRef, {
-                  email: 'ugax6060@gmail.com',
-                  createdAt: serverTimestamp(),
-                  bannedBy: 'sistema_auto_proteccion'
-                });
-                console.log("Auto-ban trigger for ugax6060@gmail.com executed.");
-              }
-            }).catch(e => console.error("Failed to fetch ban doc check:", e));
+            const blockCheck = await SupabaseService.isEmailBanned('ugax6060@gmail.com');
+            if (!blockCheck) {
+              await SupabaseService.banEmail('ugax6060@gmail.com', 'sistema_auto_proteccion');
+              console.log("Auto-ban active on Supabase");
+            }
           } catch (e) {
-            console.error("Failed to run active auto-blocking:", e);
+            console.error("Failed to auto ban intruder on Supabase", e);
           }
         }
-        
-        // Listen to User Profile in Firestore
-        const userRef = doc(db, 'users', authUser.uid);
-        
-        unsubscribeProfile = onSnapshot(userRef, 
-          async (docSnap) => {
-            if (docSnap.exists()) {
-              setProfile(docSnap.data());
-            } else {
-              // Create profile if missing. Check prepopulated email doc first
-              try {
-                let initialProfile: any = null;
-                const userEmail = (authUser.email || '').trim().toLowerCase();
-                const emailDocRef = doc(db, 'users', userEmail);
-                const emailSnap = await getDoc(emailDocRef);
-                
-                if (emailSnap.exists()) {
-                  const preConfig = emailSnap.data();
-                  initialProfile = {
-                    ...preConfig,
-                    email: userEmail,
-                    createdAt: preConfig.createdAt || serverTimestamp()
-                  };
-                  // Write to the actual uid and delete the temporary email document
-                  await setDoc(userRef, initialProfile);
-                  await deleteDoc(emailDocRef);
-                } else {
-                  initialProfile = {
-                    email: userEmail,
-                    isActive: isAdminEmail(authUser.email), // Admin is auto-active
-                    role: isAdminEmail(authUser.email) ? 'admin' : 'teacher',
-                    generationsCount: 0,
-                    createdAt: serverTimestamp()
-                  };
-                  await setDoc(userRef, initialProfile);
-                }
-                // setProfile will be triggered by onSnapshot when setDoc completes
-              } catch (error) {
-                console.error("Error creating profile:", error);
-              }
-            }
-            setIsLoading(false);
-          },
-          (error) => {
-            console.error("Profile connection error:", error);
-            setIsLoading(false); // Ensure loading stops even on error
-          }
-        );
+      } catch (err) {
+        console.error("Error fetching/saving profile in Supabase:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      const authUser = session?.user || null;
+      if (authUser) {
+        handleUserAuth(authUser);
       } else {
         setUser(null);
         setProfile(null);
+        setIsBanned(false);
         setIsLoading(false);
       }
     });
 
+    authSubscription = subscription;
+
+    // Get initial session
+    const getInitialSession = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          await handleUserAuth(session.user);
+        } else {
+          setIsLoading(false);
+        }
+      } catch (err) {
+        console.error("Error fetching initial session:", err);
+        setIsLoading(false);
+      }
+    };
+
+    getInitialSession();
+
+    // Setup periodic profile refreshing (similar to snapshot)
+    const refreshInterval = setInterval(async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        try {
+          const prof = await SupabaseService.getUserProfile(session.user.id);
+          if (prof) setProfile(prof);
+          const banned = await SupabaseService.isEmailBanned(session.user.email || '');
+          setIsBanned(banned);
+        } catch (e) {
+          console.warn("Periodic profile refresh failed:", e);
+        }
+      }
+    }, 15000);
+
     return () => {
-      unsubscribeAuth();
-      if (unsubscribeProfile) unsubscribeProfile();
-      if (fallbackPollInterval) clearInterval(fallbackPollInterval);
+      if (authSubscription) {
+        authSubscription.unsubscribe();
+      }
+      clearInterval(refreshInterval);
     };
   }, []);
 
@@ -255,7 +186,7 @@ export default function App() {
           
           <div className="mt-8">
             <button
-              onClick={() => auth.signOut()}
+              onClick={() => supabase.auth.signOut()}
               className="w-full bg-red-600/20 hover:bg-red-600/40 text-red-200 border border-red-500/30 font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all shadow-lg shadow-red-950/50"
             >
               Cerrar Sesión (Salir)
@@ -275,18 +206,7 @@ export default function App() {
     if (!profile?.expiresAt) return true; // Legacy or manual active without specific expiration
     
     try {
-      // Check if expired - handle both Timestamp and Date
-      let expirationDate: Date;
-      if (profile.expiresAt?.toDate) {
-        expirationDate = profile.expiresAt.toDate();
-      } else if (profile.expiresAt instanceof Date) {
-        expirationDate = profile.expiresAt;
-      } else if (profile.expiresAt?.seconds) {
-        expirationDate = new Date(profile.expiresAt.seconds * 1000);
-      } else {
-        expirationDate = new Date(profile.expiresAt);
-      }
-
+      const expirationDate = new Date(profile.expiresAt);
       if (isNaN(expirationDate.getTime())) return true;
       return new Date() < expirationDate;
     } catch (e) {
@@ -305,7 +225,7 @@ export default function App() {
     return (
       <BrowserRouter>
         <Routes>
-          <Route path="*" element={<ActivationModal userId={user.uid} email={user.email} />} />
+          <Route path="*" element={<ActivationModal userId={user.id} email={user.email} />} />
         </Routes>
       </BrowserRouter>
     );
@@ -314,7 +234,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} codeId={codeId} generationsCount={generationsCount} teacherId={user.uid} expiresAt={expiresAt} />}>
+        <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} codeId={codeId} generationsCount={generationsCount} teacherId={user.id} expiresAt={expiresAt} />}>
           <Route index element={<Navigate to="/home" replace />} />
           <Route path="home" element={<Home />} />
           <Route path="earn-money" element={<EarnMoney />} />

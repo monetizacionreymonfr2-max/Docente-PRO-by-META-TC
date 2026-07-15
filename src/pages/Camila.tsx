@@ -2,8 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { GoogleGenAI, Type } from '@google/genai';
 import { generateContentWithRetry } from '../lib/gemini';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { SupabaseService } from '../lib/supabaseService';
 import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio, X, Sparkles, MessageCircle } from 'lucide-react';
 import Markdown from 'react-markdown';
 
@@ -380,50 +379,60 @@ Directrices de Ventas:
 
                     // Guardar PPA, Planificación o Plan Maternal
                     if (tipo.includes('maternal')) {
-                      addDoc(collection(db, 'planificaciones_maternal'), {
-                        tipoPlan: 'semanal_quincenal',
-                        institucion: 'C.E.I. Doctor Ramón Castillo',
-                        salaEdad: 'Maternal (0 a 3 años)',
-                        anioEscolar: '2025-2026',
-                        matriculaVarones: 8,
-                        matriculaHembras: 10,
-                        matriculaTotal: 18,
-                        tiempoInicio: new Date().toISOString().split('T')[0],
-                        tiempoFin: new Date(Date.now() + 5*24*60*60*1000).toISOString().split('T')[0],
-                        peicReferencia: 'Proyecto Educativo Productivo e Integrador',
-                        enfasisCurriculares: ['Oralidad, Escritura y Lectura', 'Matemática para la vida'],
-                        hitosDesarrollo: args.resumen || 'Desarrollo motriz y del lenguaje',
-                        necesidadesFisiologicas: 'Alimentación, descanso e higiene',
-                        tituloProyecto: docTitle,
-                        justificacionPA: '',
-                        propositoPA: '',
-                        socioProductividad: '',
-                        contenido: args.contenido_completo || args.resumen || '',
-                        docenteId: teacherId,
-                        createdAt: serverTimestamp()
-                      }).catch(err => console.error(err));
+                      SupabaseService.addPlanificacion({
+                        titulo: docTitle,
+                        proyecto: 'semanal_quincenal',
+                        fechaInicio: new Date().toISOString().split('T')[0],
+                        fechaFin: new Date(Date.now() + 5*24*60*60*1000).toISOString().split('T')[0],
+                        nivel: 'Maternal_Plan',
+                        diagnostico: JSON.stringify({
+                          institucion: 'C.E.I. Doctor Ramón Castillo',
+                          salaEdad: 'Maternal (0 a 3 años)',
+                          anioEscolar: '2025-2026',
+                          matriculaVarones: 8,
+                          matriculaHembras: 10,
+                          matriculaTotal: 18,
+                          peicReferencia: 'Proyecto Educativo Productivo e Integrador',
+                          enfasisCurriculares: ['Oralidad, Escritura y Lectura', 'Matemática para la vida'],
+                          hitosDesarrollo: args.resumen || 'Desarrollo motriz y del lenguaje',
+                          necesidadesFisiologicas: 'Alimentación, descanso e higiene',
+                        }),
+                        proposito: args.contenido_completo || args.resumen || '',
+                      }, teacherId).catch(err => console.error(err));
                     } else if (tipo.includes('proyecto')) {
-                      addDoc(collection(db, 'proyectos_ppa'), {
-                        teacher_id: teacherId, 
-                        docenteId: teacherId,
-                        gradoSeccion: 'Sugerido por Camila',
+                      SupabaseService.addPlanificacion({
+                        titulo: docTitle,
+                        proyecto: docTitle,
+                        fechaInicio: new Date().toISOString().split('T')[0],
+                        fechaFin: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
                         nivel: 'Primaria',
-                        tema: docTitle,
-                        duracion: 'Generado por Asistente',
                         diagnostico: args.resumen || '',
-                        contenido: args.contenido_completo || '',
-                        createdAt: serverTimestamp()
-                      }).catch(err => console.error(err));
+                        proposito: args.contenido_completo || '',
+                        estrategias: '',
+                        recursos: '',
+                        evaluacion: '',
+                        planesDiarios: []
+                      }, teacherId).catch(err => console.error(err));
                     } else {
-                      addDoc(collection(db, 'planificaciones_diarias'), {
-                        teacher_id: teacherId, 
-                        docenteId: teacherId,
-                        ppaId: 'camila-id',
-                        fecha: new Date().toISOString().split('T')[0],
-                        temaDia: docTitle,
-                        contenido: args.contenido_completo || args.resumen || '',
-                        createdAt: serverTimestamp()
-                      }).catch(err => console.error(err));
+                      SupabaseService.addPlanificacion({
+                        titulo: docTitle,
+                        proyecto: docTitle,
+                        fechaInicio: new Date().toISOString().split('T')[0],
+                        fechaFin: new Date().toISOString().split('T')[0],
+                        nivel: 'Primaria',
+                        diagnostico: args.resumen || '',
+                        proposito: '',
+                        estrategias: '',
+                        recursos: '',
+                        evaluacion: '',
+                        planesDiarios: [{
+                          id: crypto.randomUUID(),
+                          fecha: new Date().toISOString().split('T')[0],
+                          temaDia: docTitle,
+                          contenido: args.contenido_completo || args.resumen || '',
+                          createdAt: new Date().toISOString()
+                        }]
+                      }, teacherId).catch(err => console.error(err));
                     }
                     
                     // Responder a la IA para que continúe
@@ -639,50 +648,60 @@ Directrices:
           const tipo = (parsedData.tipo || '').toLowerCase();
           
           if (tipo.includes('maternal')) {
-            await addDoc(collection(db, 'planificaciones_maternal'), {
-              tipoPlan: parsedData.tipoPlan || 'semanal_quincenal',
-              institucion: parsedData.institucion || 'C.E.I. Doctor Ramón Castillo',
-              salaEdad: parsedData.salaEdad || 'Maternal (0 a 3 años)',
-              anioEscolar: parsedData.anioEscolar || '2025-2026',
-              matriculaVarones: parsedData.matriculaVarones || 8,
-              matriculaHembras: parsedData.matriculaHembras || 10,
-              matriculaTotal: (parsedData.matriculaVarones || 8) + (parsedData.matriculaHembras || 10),
-              tiempoInicio: parsedData.tiempoInicio || new Date().toISOString().split('T')[0],
-              tiempoFin: parsedData.tiempoFin || new Date(Date.now() + 5*24*60*60*1000).toISOString().split('T')[0],
-              peicReferencia: parsedData.peicReferencia || 'Proyecto Educativo Productivo e Integrador',
-              enfasisCurriculares: parsedData.enfasisCurriculares || ['Oralidad, Escritura y Lectura', 'Matemática para la vida'],
-              hitosDesarrollo: parsedData.hitosDesarrollo || parsedData.resumen || 'Desarrollo motriz y del lenguaje',
-              necesidadesFisiologicas: parsedData.necesidadesFisiologicas || 'Alimentación, descanso e higiene',
-              tituloProyecto: parsedData.tituloProyecto || parsedData.titulo || 'Plan Maternal',
-              justificacionPA: parsedData.justificacionPA || '',
-              propositoPA: parsedData.propositoPA || '',
-              socioProductividad: parsedData.socioProductividad || '',
-              contenido: parsedData.contenido_completo || rawText.replace(regex, '').trim(),
-              docenteId: teacherId,
-              createdAt: serverTimestamp()
-            });
+            await SupabaseService.addPlanificacion({
+              titulo: parsedData.tituloProyecto || parsedData.titulo || 'Plan Maternal',
+              proyecto: parsedData.tipoPlan || 'semanal_quincenal',
+              fechaInicio: parsedData.tiempoInicio || new Date().toISOString().split('T')[0],
+              fechaFin: parsedData.tiempoFin || new Date(Date.now() + 5*24*60*60*1000).toISOString().split('T')[0],
+              nivel: 'Maternal_Plan',
+              diagnostico: JSON.stringify({
+                institucion: parsedData.institucion || 'C.E.I. Doctor Ramón Castillo',
+                salaEdad: parsedData.salaEdad || 'Maternal (0 a 3 años)',
+                anioEscolar: parsedData.anioEscolar || '2025-2026',
+                matriculaVarones: parsedData.matriculaVarones || 8,
+                matriculaHembras: parsedData.matriculaHembras || 10,
+                matriculaTotal: (parsedData.matriculaVarones || 8) + (parsedData.matriculaHembras || 10),
+                peicReferencia: parsedData.peicReferencia || 'Proyecto Educativo Productivo e Integrador',
+                enfasisCurriculares: parsedData.enfasisCurriculares || ['Oralidad, Escritura y Lectura', 'Matemática para la vida'],
+                hitosDesarrollo: parsedData.hitosDesarrollo || parsedData.resumen || 'Desarrollo motriz y del lenguaje',
+                necesidadesFisiologicas: parsedData.necesidadesFisiologicas || 'Alimentación, descanso e higiene',
+              }),
+              proposito: parsedData.contenido_completo || rawText.replace(regex, '').trim(),
+            }, teacherId);
           } else if (tipo.includes('proyecto')) {
-            await addDoc(collection(db, 'proyectos_ppa'), {
-              teacher_id: teacherId, 
-              docenteId: teacherId,
-              gradoSeccion: 'Generado por Camila',
+            await SupabaseService.addPlanificacion({
+              titulo: parsedData.titulo || 'Sin Título',
+              proyecto: parsedData.titulo || 'Sin Título',
+              fechaInicio: new Date().toISOString().split('T')[0],
+              fechaFin: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
               nivel: 'Primaria',
-              tema: parsedData.titulo || 'Sin Título',
-              duracion: 'Generado por Camila',
               diagnostico: parsedData.resumen || '',
-              contenido: parsedData.contenido_completo || rawText.replace(regex, '').trim(),
-              createdAt: serverTimestamp()
-            });
+              proposito: parsedData.contenido_completo || rawText.replace(regex, '').trim(),
+              estrategias: '',
+              recursos: '',
+              evaluacion: '',
+              planesDiarios: []
+            }, teacherId);
           } else if (tipo.includes('planificacion') || tipo.includes('plan')) {
-            await addDoc(collection(db, 'planificaciones_diarias'), {
-              teacher_id: teacherId, 
-              docenteId: teacherId,
-              ppaId: 'camila-direct',
-              fecha: new Date().toISOString().split('T')[0],
-              temaDia: parsedData.titulo || 'Sin Título',
-              contenido: parsedData.contenido_completo || rawText.replace(regex, '').trim(),
-              createdAt: serverTimestamp()
-            });
+            await SupabaseService.addPlanificacion({
+              titulo: parsedData.titulo || 'Sin Título',
+              proyecto: parsedData.titulo || 'Sin Título',
+              fechaInicio: new Date().toISOString().split('T')[0],
+              fechaFin: new Date().toISOString().split('T')[0],
+              nivel: 'Primaria',
+              diagnostico: parsedData.resumen || '',
+              proposito: '',
+              estrategias: '',
+              recursos: '',
+              evaluacion: '',
+              planesDiarios: [{
+                id: crypto.randomUUID(),
+                fecha: new Date().toISOString().split('T')[0],
+                temaDia: parsedData.titulo || 'Sin Título',
+                contenido: parsedData.contenido_completo || rawText.replace(regex, '').trim(),
+                createdAt: new Date().toISOString()
+              }]
+            }, teacherId);
           }
           
           rawText = rawText.replace(regex, '').trim();
