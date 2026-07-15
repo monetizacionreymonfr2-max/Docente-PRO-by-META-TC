@@ -39,7 +39,17 @@ export default function Login() {
       }
     } catch (err: any) {
       console.error("Auth error:", err);
-      setError(err.message || 'Error en el proceso de autenticación');
+      let errMsg = err.message || 'Error en el proceso de autenticación';
+      
+      if (errMsg.includes('rate limit exceeded') || errMsg.includes('rate_limit')) {
+        errMsg = '⚠️ Has realizado demasiados intentos de registro en poco tiempo. Por seguridad de la plataforma, por favor espera unos 5-10 minutos antes de intentarlo de nuevo, o ponte en contacto con soporte técnico.';
+      } else if (errMsg.includes('invalid claim') || errMsg.includes('Invalid login credentials') || errMsg.includes('invalid_credentials')) {
+        errMsg = '❌ Correo o contraseña incorrectos. Verifica que hayas escrito tus datos correctamente e intenta de nuevo.';
+      } else if (errMsg.includes('already registered') || errMsg.includes('already exists') || errMsg.includes('already_registered')) {
+        errMsg = 'ℹ️ Este correo electrónico ya se encuentra registrado. Selecciona "Iniciar Sesión" arriba e introduce tu contraseña.';
+      }
+      
+      setError(errMsg);
     } finally {
       setIsLoading(false);
     }
