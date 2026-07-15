@@ -150,7 +150,7 @@ export const SupabaseService = {
   },
 
   // --- USER PROFILES ---
-  async getUserProfile(uid: string): Promise<any | null> {
+  async getUserProfile(uid: string, email?: string): Promise<any | null> {
     const { data, error } = await supabase
       .from('profiles')
       .select('*')
@@ -158,29 +158,132 @@ export const SupabaseService = {
       .maybeSingle();
     
     if (error) {
-      console.warn("Error retrieving profile from Supabase:", error);
+      console.warn("Error retrieving profile from Supabase by ID:", error);
       return null;
     }
-    if (!data) return null;
+    
+    if (data) {
+      return {
+        email: data.email,
+        isActive: data.is_active,
+        role: data.role,
+        generationsCount: data.generations_count || 0,
+        access_level: data.access_level,
+        activationCode: data.activation_code,
+        expiresAt: data.expires_at,
+        createdAt: data.created_at
+      };
+    }
 
-    // Map database snake_case to app's camelCase
-    return {
-      email: data.email,
-      isActive: data.is_active,
-      role: data.role,
-      generationsCount: data.generations_count || 0,
-      access_level: data.access_level,
-      activationCode: data.activation_code,
-      expiresAt: data.expires_at,
-      createdAt: data.created_at
-    };
+    // Self-healing check: If not found by ID, but we have an email,
+    // look for a profile with the same email (which might belong to an old session/auth ID)
+    if (email) {
+      const cleanEmail = email.trim().toLowerCase();
+      try {
+        const { data: sameEmailProfile, error: emailError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', cleanEmail)
+          .maybeSingle();
+
+        if (sameEmailProfile && !emailError && sameEmailProfile.id !== uid) {
+          // We found a profile with the same email but a different ID!
+          // Adopt it to migrate all their active status and data to the new UID!
+          const adopted = await this.adoptProfile(sameEmailProfile.id, uid, cleanEmail);
+          if (adopted) return adopted;
+        }
+      } catch (err) {
+        console.warn("Error checking for profile by email during self-healing:", err);
+      }
+    }
+
+    return null;
+  },
+
+  async adoptProfile(oldUid: string, newUid: string, email: string): Promise<any | null> {
+    try {
+      console.log(`[Self-Healing] Adopting profile: migrating from old ID ${oldUid} to new ID ${newUid} for email ${email}`);
+
+      // 1. Get the old profile data
+      const { data: oldProfile, error: getErr } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', oldUid)
+        .maybeSingle();
+
+      if (getErr || !oldProfile) return null;
+
+      // 2. Create the new profile with the old profile's data
+      const { error: insertErr } = await supabase.from('profiles').insert({
+        id: newUid,
+        email: email.trim().toLowerCase(),
+        is_active: oldProfile.is_active,
+        role: oldProfile.role || 'teacher',
+        generations_count: oldProfile.generations_count || 0,
+        access_level: oldProfile.access_level || 'pro',
+        activation_code: oldProfile.activation_code || null,
+        expires_at: oldProfile.expires_at || null,
+        created_at: oldProfile.created_at || new Date().toISOString()
+      });
+
+      if (insertErr) {
+        console.error("[Self-Healing] Failed to insert new adopted profile:", insertErr);
+        // If it failed because a profile already exists for newUid, we'll just update it
+        await supabase.from('profiles').update({
+          is_active: oldProfile.is_active,
+          access_level: oldProfile.access_level,
+          activation_code: oldProfile.activation_code,
+          expires_at: oldProfile.expires_at
+        }).eq('id', newUid);
+      }
+
+      // 3. Migrate related data in other tables from oldUid to newUid
+      const tablesToMigrate = [
+        { name: 'estudiantes', col: 'docente_id' },
+        { name: 'informes_maternal', col: 'teacher_id' },
+        { name: 'asistencia', col: 'teacher_id' },
+        { name: 'planificaciones', col: 'teacher_id' },
+        { name: 'ppa', col: 'teacher_id' },
+        { name: 'reportes', col: 'teacher_id' },
+        { name: 'camila_logs', col: 'teacher_id' }
+      ];
+
+      for (const t of tablesToMigrate) {
+        try {
+          const { error: migrationError } = await supabase
+            .from(t.name)
+            .update({ [t.col]: newUid })
+            .eq(t.col, oldUid);
+          
+          if (migrationError) {
+            console.warn(`[Self-Healing] Table ${t.name} migration partial or failed:`, migrationError.message);
+          } else {
+            console.log(`[Self-Healing] Migrated table ${t.name} successfully`);
+          }
+        } catch (e) {
+          console.warn(`[Self-Healing] Error migrating table ${t.name}:`, e);
+        }
+      }
+
+      // 4. Delete the old profile row to keep the database clean
+      const { error: deleteErr } = await supabase.from('profiles').delete().eq('id', oldUid);
+      if (deleteErr) {
+        console.warn("[Self-Healing] Failed to delete old profile row:", deleteErr);
+      }
+
+      // 5. Return the newly created/updated profile
+      return await this.getUserProfile(newUid);
+    } catch (err) {
+      console.error("[Self-Healing] Error in adoptProfile:", err);
+      return null;
+    }
   },
 
   async createUserProfile(uid: string, profile: any): Promise<void> {
     const payload = {
       id: uid,
       email: (profile.email || '').trim().toLowerCase(),
-      is_active: profile.isActive ?? true,
+      is_active: profile.isActive ?? false,
       role: profile.role || 'teacher',
       generations_count: profile.generationsCount || 0,
       access_level: profile.access_level || 'pro',
@@ -188,8 +291,17 @@ export const SupabaseService = {
       expires_at: profile.expiresAt || null,
       created_at: new Date().toISOString()
     };
-    const { error } = await supabase.from('profiles').upsert(payload);
-    if (error) throw error;
+    
+    // Use insert instead of upsert to prevent overwriting active profiles!
+    const { error } = await supabase.from('profiles').insert(payload);
+    if (error) {
+      // If it's a unique key violation (profile already exists), we can safely ignore it
+      if (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('already exists')) {
+        console.log("[Profiles] Profile already exists, skipping creation to preserve status.");
+        return;
+      }
+      throw error;
+    }
   },
 
   async incrementGenerationsCount(uid: string, inc: number = 1): Promise<void> {
@@ -341,15 +453,38 @@ export const SupabaseService = {
 
       if (updateCodeErr) throw updateCodeErr;
 
-      // Update profile
-      const { error: updateProfileErr } = await supabase.from('profiles').update({
-        is_active: true,
-        access_level: code.access_level,
-        activation_code: code.id,
-        expires_at: expiresISO
-      }).eq('id', userId);
+      // Update profile or insert if it doesn't exist to avoid 0-row updates when a profile row is missing
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
 
-      if (updateProfileErr) throw updateProfileErr;
+      let profileError;
+      if (existingProfile) {
+        const { error } = await supabase.from('profiles').update({
+          is_active: true,
+          access_level: code.access_level,
+          activation_code: code.id,
+          expires_at: expiresISO
+        }).eq('id', userId);
+        profileError = error;
+      } else {
+        const { error } = await supabase.from('profiles').insert({
+          id: userId,
+          email: userEmail.trim().toLowerCase(),
+          is_active: true,
+          role: 'teacher',
+          generations_count: 0,
+          access_level: code.access_level,
+          activation_code: code.id,
+          expires_at: expiresISO,
+          created_at: new Date().toISOString()
+        });
+        profileError = error;
+      }
+
+      if (profileError) throw profileError;
 
       return { success: true, message: `¡Activado exitosamente! Tienes acceso nivel: ${code.access_level.toUpperCase()}` };
     } catch (err: any) {

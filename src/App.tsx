@@ -51,7 +51,7 @@ export default function App() {
         }
 
         // 2. Load or Create User Profile
-        let prof = await SupabaseService.getUserProfile(authUser.id);
+        let prof = await SupabaseService.getUserProfile(authUser.id, userEmail);
         if (prof) {
           setProfile(prof);
         } else {
@@ -124,7 +124,7 @@ export default function App() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         try {
-          const prof = await SupabaseService.getUserProfile(session.user.id);
+          const prof = await SupabaseService.getUserProfile(session.user.id, session.user.email || '');
           if (prof) setProfile(prof);
           const banned = await SupabaseService.isEmailBanned(session.user.email || '');
           setIsBanned(banned);
