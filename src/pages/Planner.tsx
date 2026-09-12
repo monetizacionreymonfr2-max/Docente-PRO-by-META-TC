@@ -572,7 +572,7 @@ ESTRUCTURA OBLIGATORIA:
                   <GraduationCap className="w-4 h-4 text-teal-500" />
                   <span>Docenty<span className="text-teal-500"> PRO</span></span>
                 </div>
-                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest -mt-0.5">by META TC</span>
+                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest -mt-0.5">By Reymon Castillo</span>
               </div>
             )}
             {isEditing ? (

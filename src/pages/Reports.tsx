@@ -556,7 +556,7 @@ Palabras clave: ${palabrasClave}`;
                       <GraduationCap className="w-3.5 h-3.5 text-indigo-500" />
                       <span>Docenty<span className="text-indigo-500"> PRO</span></span>
                     </div>
-                    <span className="text-[6.5px] font-bold text-gray-400 uppercase tracking-widest -mt-1">by META TC</span>
+                    <span className="text-[6.5px] font-bold text-gray-400 uppercase tracking-widest -mt-1">By Reymon Castillo</span>
                   </div>
 
                   {/* Header */}

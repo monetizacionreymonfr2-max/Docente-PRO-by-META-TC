@@ -103,7 +103,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
       <div className="md:hidden fixed top-0 left-0 right-0 h-16 glass-effect text-white flex items-center justify-between px-4 z-20 shadow-md border-b-futuristic-purple/30 no-print">
         <div className="flex items-center gap-2">
           <GraduationCap size={24} className="text-futuristic-accent" />
-          <h1 className="text-lg font-bold tracking-tight">Docenty<span className="text-futuristic-accent"> PRO</span> <span className="text-xs font-normal opacity-80">by META TC</span></h1>
+          <h1 className="text-lg font-bold tracking-tight">Docenty<span className="text-futuristic-accent"> PRO</span> <span className="text-xs font-normal opacity-80">By Reymon Castillo</span></h1>
         </div>
         <button 
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -131,7 +131,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
           <GraduationCap size={28} className="text-futuristic-accent" />
           <div className="hidden md:block">
             <h1 className="text-xl font-bold tracking-tight leading-none">Docenty<span className="text-futuristic-accent"> PRO</span></h1>
-            <span className="text-xs font-medium text-futuristic-accent/60">by META TC</span>
+            <span className="text-xs font-medium text-futuristic-accent/60">By Reymon Castillo</span>
           </div>
           <h1 className="text-xl font-bold tracking-tight md:hidden mt-1 text-futuristic-accent">Menú</h1>
         </div>

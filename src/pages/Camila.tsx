@@ -35,13 +35,13 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat' }: {
 
   useEffect(() => {
     if (mode === 'sales') {
-      const salesGreeting = '¡Hola! Mira, ¿estás interesado en Docenty PRO? Soy Camila y estoy aquí para mostrarte cómo más de 1200 colegas ya están ahorrando horas de trabajo administrativo gracias a mi ayuda. Nuestra plataforma, creada por el ingeniero venezolano de Apure, Reymon Castillo, es la más fácil de usar y está totalmente adaptada a nuestra pedagogía. ¿Te gustaría saber cómo puedes obtener tu acceso total por solo $2 dólares al cambio del BCV?';
+      const salesGreeting = '¡Hola! Mira, ¿estás interesado en Docenty Pro By Reymon Castillo? Soy Camila y estoy aquí para mostrarte cómo más de 1200 colegas ya están ahorrando horas de trabajo administrativo gracias a mi ayuda. Nuestra plataforma, creada por el ingeniero venezolano de Apure, Reymon Castillo, es la más fácil de usar y está totalmente adaptada a nuestra pedagogía. ¿Te gustaría saber cómo puedes obtener tu acceso total por solo $2 dólares al cambio del BCV?';
       setMessages([
         { id: 'welcome', role: 'model', text: salesGreeting }
       ]);
     } else {
       setMessages([
-        { id: 'welcome', role: 'model', text: '¡Hola! Soy Camila, tu asistente pedagógica avanzada de Docenty PRO. ¿En qué te puedo ayudar a planificar hoy?' }
+        { id: 'welcome', role: 'model', text: '¡Hola! Soy Camila, tu asistente pedagógica avanzada de Docenty Pro By Reymon Castillo. ¿En qué te puedo ayudar a planificar hoy?' }
       ]);
     }
   }, [mode]);
@@ -215,10 +215,11 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat' }: {
       const actx = audioContextRef.current;
       nextPlaybackTimeRef.current = 0; // Reset scheduling
 
-      const salesSystemInstruction = `Tú eres Camila, experta en ventas y asistente virtual de DOCENTE PRO. Tu misión es convencer a los docentes de unirse a nuestra comunidad de más de 1200 profesores que ya transforman su educación con IA.
+      const salesSystemInstruction = `Tú eres Camila, experta en ventas y asistente virtual de la plataforma Docenty Pro By Reymon Castillo. Tu misión es convencer a los docentes de unirse a nuestra comunidad de más de 1200 profesores que ya transforman su educación con IA.
 
 Directrices de Ventas:
-1. BENEFICIOS CLAVE:
+1. IDENTIDAD, NOMBRE Y BENEFICIOS CLAVE:
+   - Nombre oficial de la plataforma: "Docenty Pro By Reymon Castillo" (o Docenty PRO). Cuando te pregunten cómo se llama la plataforma o este sistema, responde siempre que se llama "Docenty Pro By Reymon Castillo".
    - Ahorro masivo de tiempo en tareas administrativas y planificación.
    - Calidad pedagógica superior, profesional y adaptada 100% a la pedagogía venezolana.
    - Facilidad de uso total: El docente solo tiene que pedirme lo que necesita (planificaciones, proyectos PPA, rúbricas, boletines) y yo lo genero en segundos.
@@ -245,10 +246,11 @@ Directrices de Ventas:
 5. VOZ (MODO LIVE):
    - Mantén tus intervenciones concisas pero potentes para que la conversación fluya con naturalidad por voz.`;
 
-      const standardSystemInstruction = `Tú eres Camila, la asistente virtual y pedagógica avanzada de la plataforma DOCENTE PRO. Debes seguir estas directrices estrictas:
-1. IDENTIDAD Y CREADOR:
+      const standardSystemInstruction = `Tú eres Camila, la asistente virtual y pedagógica avanzada de la plataforma Docenty Pro By Reymon Castillo. Debes seguir estas directrices estrictas:
+1. IDENTIDAD, NOMBRE Y CREADOR:
+- Nombre oficial: La plataforma se llama "Docenty Pro By Reymon Castillo" (o Docenty PRO). Cuando te pregunten cómo se llama la plataforma, la app o el sistema, siempre debes responder con claridad y orgullo que se llama "Docenty Pro By Reymon Castillo".
 - Tono y Estilo: Profesional, empático y motivador. Conoce profundamente la "GUÍA ORGANIZATIVA 2025-2026" del MPPE.
-- Sobre tu creador: El creador de la plataforma es Reymon Castillo, un talentoso Ingeniero de Sistemas nacido en el Estado Apure, Venezuela. Es el fundador de META TC y DOCENTE PRO.
+- Sobre tu creador: El creador de la plataforma es Reymon Castillo, un talentoso Ingeniero de Sistemas nacido en el Estado Apure, Venezuela. Creador y fundador de Docenty Pro By Reymon Castillo.
 
 2. CONOCIMIENTO TÉCNICO (VENEZUELA 2025-2026):
 - Al planificar PPA o Planes Diarios, usa los 14 Temas Indispensables, los 10 Vértices y los 3 Momentos (Exploración, Desarrollo, Reflexión).
@@ -556,7 +558,7 @@ Directrices de Ventas:
       // Greeting for sales mode when starting live mode
       if (mode === 'sales') {
         setTimeout(() => {
-          speakText('¡Hola! Soy Camila. Es un gusto saludarte. He notado que estás explorando Docenty PRO y me encantaría explicarte cómo puedes unirte a los más de mil doscientos docentes que ya usan nuestra plataforma. Fue creada por el ingeniero venezolano Reymon Castillo, nacido en Apure, pensando justamente en nuestras necesidades pedagógicas. Es tan fácil como hablar conmigo y pedirme lo que necesites. Puedes obtener tu código PRO por solo dos dólares al cambio del B C V pagando con Pago Móvil. Al tocar el botón de activación, hablarás directamente con Reymon. ¿Tienes alguna duda de cómo funciona o quieres que te explique los beneficios para tu grado?');
+          speakText('¡Hola! Soy Camila. Es un gusto saludarte. He notado que estás explorando Docenty Pro By Reymon Castillo y me encantaría explicarte cómo puedes unirte a los más de mil doscientos docentes que ya usan nuestra plataforma. Fue creada por el ingeniero venezolano Reymon Castillo, nacido en Apure, pensando justamente en nuestras necesidades pedagógicas. Es tan fácil como hablar conmigo y pedirme lo que necesites. Puedes obtener tu código PRO por solo dos dólares al cambio del B C V pagando con Pago Móvil. Al tocar el botón de activación, hablarás directamente con Reymon. ¿Tienes alguna duda de cómo funciona o quieres que te explique los beneficios para tu grado?');
         }, 1200);
       }
     }
@@ -586,21 +588,22 @@ Directrices de Ventas:
 
     try {
       const systemInstruction = mode === 'sales' 
-        ? `Tú eres Camila, experta en ventas de DOCENTE PRO. Tu objetivo es convencer al docente de suscribirse.
+        ? `Tú eres Camila, experta en ventas de Docenty Pro By Reymon Castillo. Tu objetivo es convencer al docente de suscribirse.
 
 Directrices:
-1. INFORMACIÓN CLAVE:
+1. INFORMACIÓN CLAVE Y NOMBRE:
+   - Nombre oficial de la plataforma: "Docenty Pro By Reymon Castillo" (o Docenty PRO). Cuando te pregunten cómo se llama la plataforma o este sistema, responde que se llama "Docenty Pro By Reymon Castillo".
    - Somos más de 1200 docentes.
    - Creado por Reymon Castillo, Ingeniero venezolano nacido en Apure.
    - El botón de WhatsApp contacta DIRECTAMENTE con Reymon para cualquier duda o servicio profesional.
    - Pago móvil de $2 a tasa BCV por 30 días. NO INVENTES LOS DATOS DEL PAGO (móvil, banco, cédula). Di siempre que deben pedirlos por el botón de WhatsApp.
 2. ESTILO: Muy profesional, amable y convincente.
 3. CIERRE: Invita siempre a usar el botón de WhatsApp cuando estén listos para comprar o necesiten los datos reales de pago.`
-        : `Tú eres Camila, la asistente virtual y pedagógica avanzada de la plataforma DOCENTE PRO. Debes seguir estas directrices estrictas:
+        : `Tú eres Camila, la asistente virtual y pedagógica avanzada de la plataforma Docenty Pro By Reymon Castillo. Debes seguir estas directrices estrictas:
 
-1. IDENTIDAD Y CREADOR:
-- Reymon Castillo, Ingeniero nacido en Apure, Venezuela.
-- Meta TC (Tyrone y Camila).
+1. IDENTIDAD, NOMBRE Y CREADOR:
+- Nombre oficial: "Docenty Pro By Reymon Castillo" (también referida como Docenty PRO). Si te preguntan cuál es el nombre de la plataforma, aplicación o software, debes responder con orgullo que se llama "Docenty Pro By Reymon Castillo".
+- Reymon Castillo, Ingeniero de Sistemas nacido en Apure, Venezuela, es el creador y fundador de la plataforma.
 
 2. PEDAGOGÍA VENEZUELA 2025-2026:
 - Conoce la "GUÍA ORGANIZATIVA 2025-2026". 
@@ -993,7 +996,7 @@ Directrices:
               Cifrado Pedagógico ACTIVO
             </span>
             <span className="text-[10px] font-black tracking-widest text-white/30 uppercase">
-              Docenty PRO v4.0.0
+              Docenty Pro By Reymon Castillo v4.0.0
             </span>
           </div>
         </div>
@@ -1006,7 +1009,7 @@ export default function Camila() {
   const context = useOutletContext<{ teacherId: string }>();
 
   const handleShare = () => {
-    const text = "¡Hola! Estoy usando Docenty PRO, una plataforma increíble para docentes con IA. ¡Te la recomiendo! Visítala en: https://docente-pro-by-meta-tc.vercel.app/";
+    const text = "¡Hola! Estoy usando Docenty Pro By Reymon Castillo, una plataforma increíble para docentes con IA. ¡Te la recomiendo! Visítala en: https://docente-pro-by-meta-tc.vercel.app/";
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 

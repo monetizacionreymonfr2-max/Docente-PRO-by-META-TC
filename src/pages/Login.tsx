@@ -94,7 +94,7 @@ export default function Login() {
         
         <div className="flex items-center justify-center gap-2 mb-4">
           <div className="h-[1px] w-6 bg-gradient-to-r from-transparent to-white/20"></div>
-          <p className="text-[9px] font-black text-white/40 tracking-[0.3em] uppercase">by META TC</p>
+          <p className="text-[9px] font-black text-white/40 tracking-[0.3em] uppercase">By Reymon Castillo</p>
           <div className="h-[1px] w-6 bg-gradient-to-l from-transparent to-white/20"></div>
         </div>
         
