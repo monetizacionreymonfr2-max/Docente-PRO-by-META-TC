@@ -100,17 +100,28 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
     <div className="flex h-screen hex-bg font-sans overflow-hidden">
       
       {/* Mobile Top Bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 h-16 glass-effect text-white flex items-center justify-between px-4 z-20 shadow-md border-b-futuristic-purple/30 no-print">
-        <div className="flex items-center gap-2">
-          <GraduationCap size={24} className="text-futuristic-accent" />
-          <h1 className="text-lg font-bold tracking-tight">Docenty<span className="text-futuristic-accent"> PRO</span> <span className="text-xs font-normal opacity-80">By Reymon Castillo</span></h1>
+      <div className="md:hidden fixed top-0 left-0 right-0 h-16 glass-effect text-white flex items-center justify-between px-3 z-20 shadow-md border-b-futuristic-purple/30 no-print">
+        <div className="flex items-center gap-2 overflow-hidden">
+          <GraduationCap size={22} className="text-futuristic-accent shrink-0" />
+          <div className="truncate">
+            <h1 className="text-base font-bold tracking-tight truncate leading-tight">Docenty<span className="text-futuristic-accent"> PRO</span></h1>
+            <span className="text-[10px] text-futuristic-accent/70 block leading-none">Reymon Castillo</span>
+          </div>
         </div>
-        <button 
-          onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          className="p-2 text-futuristic-accent hover:text-white focus:outline-none"
-        >
-          {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {!isAdmin && daysRemaining !== null && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-300 text-[11px] font-black tracking-wide shadow-sm">
+              <Clock size={12} className="text-amber-400 shrink-0" />
+              <span>{daysRemaining > 10000 ? 'Vitalicio' : daysRemaining === 1 ? '1 día' : `Quedan ${daysRemaining}d`}</span>
+            </div>
+          )}
+          <button 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="p-2 text-futuristic-accent hover:text-white focus:outline-none"
+          >
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
       </div>
 
       {/* Overlay for mobile */}
@@ -211,12 +222,22 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
         {daysRemaining !== null && !isAdmin && (
           <div className="px-6 py-4 border-t border-white/10 bg-gradient-to-r from-amber-500/10 to-transparent">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-amber-500/20 rounded-lg text-amber-500">
+              <div className="p-2 bg-amber-500/20 rounded-lg text-amber-500 shrink-0">
                 <Clock size={16} />
               </div>
-              <div>
-                <span className="block text-[10px] font-bold uppercase tracking-wider text-amber-500/70">Código PRO</span>
-                <span className="text-xs font-black text-white">Vence en {daysRemaining} días</span>
+              <div className="overflow-hidden">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-amber-500/80">
+                  {daysRemaining > 10000 ? 'Suscripción Activa' : 'Suscripción PRO'}
+                </span>
+                <span className="text-xs font-black text-white block truncate">
+                  {daysRemaining > 10000 
+                    ? 'Acceso Vitalicio' 
+                    : daysRemaining === 1 
+                      ? 'Último día restante' 
+                      : daysRemaining <= 0 
+                        ? 'Suscripción Vencida' 
+                        : `Quedan ${daysRemaining} días`}
+                </span>
               </div>
             </div>
           </div>

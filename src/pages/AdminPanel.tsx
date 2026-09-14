@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { SupabaseService } from '../lib/supabaseService';
+import TimeAdjustmentModal, { TargetSubscription } from '../components/TimeAdjustmentModal';
 import { 
   Ticket, 
   CheckCircle2, 
@@ -9,6 +10,8 @@ import {
   Loader2, 
   Wand2, 
   CalendarDays, 
+  Calendar,
+  Clock,
   RefreshCw, 
   Trash2, 
   Plus, 
@@ -57,6 +60,15 @@ export default function AdminPanel() {
   const [isLoading, setIsLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState<string | false>(false);
   const [hasLoadedCodes, setHasLoadedCodes] = useState(false);
+
+  // Time Adjustment Modal state
+  const [adjustTarget, setAdjustTarget] = useState<TargetSubscription | null>(null);
+  const [isAdjustModalOpen, setIsAdjustModalOpen] = useState(false);
+
+  const openAdjustModal = (target: TargetSubscription) => {
+    setAdjustTarget(target);
+    setIsAdjustModalOpen(true);
+  };
 
   // Users states
   const [users, setUsers] = useState<ProfileUser[]>([]);
@@ -275,14 +287,20 @@ export default function AdminPanel() {
   };
 
   const handleAdjustDays = async (code: Code, days: number) => {
-    if (!code.usedBy || !code.expiresAt) return;
-    
+    const targetId = code.usedBy || code.id;
+    const targetEmail = code.usedByEmail || '';
     const action = days > 0 ? 'sumar' : 'quitar';
-    const confirmAction = window.confirm(`¿Seguro que deseas ${action} ${Math.abs(days)} días a la suscripción de ${code.usedByEmail}?`);
+    const confirmAction = window.confirm(`¿Seguro que deseas ${action} ${Math.abs(days)} días a la suscripción de ${targetEmail || code.id}?`);
     if (!confirmAction) return;
 
     try {
-      await SupabaseService.updateProfileSubscription(code.usedBy, days, code.expiresAt);
+      await SupabaseService.updateProfileSubscription(
+        targetId,
+        days,
+        code.expiresAt,
+        code.id,
+        targetEmail
+      );
       alert(`¡Suscripción actualizada! Se han ${days > 0 ? 'sumado' : 'quitado'} ${Math.abs(days)} días.`);
       fetchCodes();
       fetchUsersProfile();
@@ -374,9 +392,16 @@ export default function AdminPanel() {
     if (!confirmAction) return;
 
     try {
-      await SupabaseService.updateProfileSubscription(user.id, days, user.expiresAt);
+      await SupabaseService.updateProfileSubscription(
+        user.id,
+        days,
+        user.expiresAt,
+        user.activationCode,
+        user.email
+      );
       alert(`Suscripción actualizada para ${user.email}.`);
       fetchUsersProfile();
+      fetchCodes();
     } catch (error: any) {
       console.error("Error adjusting user days:", error);
       alert(`Error: ${error?.message || error}`);
@@ -388,9 +413,10 @@ export default function AdminPanel() {
     if (!confirmAction) return;
 
     try {
-      await SupabaseService.grantLifetimeAccess(user.id);
-      alert(`Acceso vitalicio concedido a ${user.email}.`);
+      await SupabaseService.grantLifetimeAccess(user.id, user.activationCode, user.email);
+      alert(`¡Acceso vitalicio concedido a ${user.email}!`);
       fetchUsersProfile();
+      fetchCodes();
     } catch (error: any) {
       console.error("Error setting user infinite:", error);
       alert(`Error: ${error?.message || error}`);
@@ -481,12 +507,47 @@ export default function AdminPanel() {
     }
   };
 
+  const formatExpirationDate = (expiresAt: any) => {
+    if (!expiresAt) return null;
+    try {
+      const d = new Date(expiresAt);
+      if (isNaN(d.getTime())) return null;
+      return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' });
+    } catch {
+      return null;
+    }
+  };
+
   const getExpirationBadge = (expiresAt: any) => {
-    if (!expiresAt) return <span className="text-gray-400">Sin límite</span>;
+    if (!expiresAt) return <span className="text-gray-400 text-xs">Sin límite</span>;
     const days = calculateDaysLeft(expiresAt);
-    if (days > 10000) return <span className="bg-purple-100 text-purple-700 font-bold px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wider">Vitalicio</span>;
-    if (days <= 0) return <span className="bg-red-100 text-red-700 font-bold px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wider">Vencido</span>;
-    return <span className="bg-sky-100 text-sky-700 font-bold px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wider">{days} días restan</span>;
+    const dateFormatted = formatExpirationDate(expiresAt);
+
+    if (days > 10000) {
+      return (
+        <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-700 font-bold px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider">
+          Vitalicio
+        </span>
+      );
+    }
+    if (days <= 0) {
+      return (
+        <span 
+          className="inline-flex items-center gap-1 bg-red-100 text-red-700 font-bold px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider"
+          title={dateFormatted ? `Expiró el ${dateFormatted}` : 'Vencido'}
+        >
+          Vencido ({Math.abs(days)}d)
+        </span>
+      );
+    }
+    return (
+      <span 
+        className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 font-bold px-2.5 py-0.5 rounded-full text-[10px] uppercase tracking-wider"
+        title={dateFormatted ? `Vence el ${dateFormatted}` : ''}
+      >
+        Quedan {days} días
+      </span>
+    );
   };
 
   const filteredUsers = users.filter(usr => {
@@ -641,25 +702,179 @@ export default function AdminPanel() {
           </div>
 
           <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-            <div className="px-8 py-6 border-b border-gray-50 bg-gray-50/50 flex items-center gap-2">
-              <History size={20} className="text-gray-500" />
-              <h2 className="font-black text-gray-900 uppercase tracking-tight text-sm">Registro de Códigos</h2>
+            <div className="px-6 sm:px-8 py-5 border-b border-gray-50 bg-gray-50/50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <History size={20} className="text-gray-500" />
+                <h2 className="font-black text-gray-900 uppercase tracking-tight text-sm">Registro de Códigos</h2>
+              </div>
+              <span className="text-[11px] font-bold text-slate-500 bg-white border border-slate-200 px-3 py-1 rounded-full">
+                {codes.length} Códigos Registrados
+              </span>
             </div>
-            <div className="overflow-x-auto">
+
+            {/* Mobile View: Cards (Visible only on mobile screens < md) */}
+            <div className="block md:hidden p-4 space-y-3 bg-slate-50/60 divide-y divide-slate-100">
+              {isLoading ? (
+                <div className="py-12 text-center text-gray-500 flex items-center justify-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                  <span>Cargando códigos de activación...</span>
+                </div>
+              ) : codes.length === 0 ? (
+                <div className="py-12 text-center text-gray-500 font-medium">No hay códigos generados.</div>
+              ) : (
+                codes.map((code) => {
+                  const isUsed = code.status === 'usado';
+                  const daysLeft = code.expiresAt ? calculateDaysLeft(code.expiresAt) : null;
+                  const isExp = daysLeft !== null && daysLeft <= 0;
+                  const targetUser = code.usedByEmail || code.usedBy || 'Sin asignar';
+                  
+                  return (
+                    <div key={code.id} className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3 pt-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-black text-sm text-blue-900 tracking-wider">
+                            {code.id}
+                          </span>
+                          <button
+                            onClick={() => copyToClipboard(code.id)}
+                            className="p-1 text-slate-400 hover:text-blue-600 rounded-md transition-colors"
+                            title="Copiar código"
+                          >
+                            <Copy size={14} />
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
+                            code.access_level === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                          }`}>
+                            {code.access_level || 'pro'}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
+                            code.status === 'disponible' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {code.status}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Usuario info */}
+                      {isUsed && (
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-slate-400 font-medium text-[11px]">Usuario:</span>
+                            <span className="font-bold text-slate-800 truncate max-w-[200px]">{targetUser}</span>
+                          </div>
+                          
+                          {/* Contador de tiempo */}
+                          <div className="flex items-center justify-between pt-1 border-t border-slate-200/50">
+                            <span className="text-slate-400 font-medium text-[11px]">Vencimiento:</span>
+                            <div className="text-right">
+                              {code.expiresAt ? (
+                                <>
+                                  <span className={`text-xs font-black block ${isExp ? 'text-red-600' : 'text-blue-600'}`}>
+                                    {isExp ? `VENCIDO (hace ${Math.abs(daysLeft || 0)}d)` : `QUEDAN ${daysLeft} DÍAS`}
+                                  </span>
+                                  {formatExpirationDate(code.expiresAt) && (
+                                    <span className="text-[10px] text-slate-400 block">
+                                      {formatExpirationDate(code.expiresAt)}
+                                    </span>
+                                  )}
+                                </>
+                              ) : (
+                                <span className="text-xs text-slate-400 font-medium">Sin límite fijado</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Botones de acción en móvil */}
+                      <div className="space-y-2 pt-1">
+                        {isUsed && (
+                          <>
+                            <button
+                              onClick={() => openAdjustModal({
+                                id: code.usedBy || code.id,
+                                email: code.usedByEmail,
+                                codeId: code.id,
+                                currentExpiresAt: code.expiresAt
+                              })}
+                              className="w-full py-2 px-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all active:scale-98"
+                            >
+                              <Clock size={14} className="text-blue-600" />
+                              <span>Sumar Días o Meses (+Tiempo)</span>
+                            </button>
+
+                            <div className="flex items-center justify-between gap-1.5 pt-1">
+                              <button
+                                onClick={() => handleAdjustDays(code, 15)}
+                                className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-black border border-slate-200 transition-colors text-center"
+                              >
+                                +15d
+                              </button>
+                              <button
+                                onClick={() => handleAdjustDays(code, 30)}
+                                className="flex-1 py-1.5 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-black shadow-sm transition-colors text-center"
+                              >
+                                +30d (1m)
+                              </button>
+                              <button
+                                onClick={() => handleAdjustDays(code, 60)}
+                                className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-black border border-slate-200 transition-colors text-center"
+                              >
+                                +60d (2m)
+                              </button>
+                              <button
+                                onClick={() => handleAdjustDays(code, -1)}
+                                className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg border border-slate-200"
+                                title="Quitar 1 día"
+                              >
+                                <Minus size={12} />
+                              </button>
+                              <button
+                                onClick={() => handleAdjustDays(code, 1)}
+                                className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg border border-slate-200"
+                                title="Sumar 1 día"
+                              >
+                                <Plus size={12} />
+                              </button>
+                            </div>
+                          </>
+                        )}
+
+                        <div className="flex justify-end pt-1">
+                          <button 
+                            onClick={() => handleDeleteCode(code)}
+                            className="px-2.5 py-1 text-red-400 hover:text-red-600 text-xs font-semibold flex items-center gap-1 transition-colors"
+                          >
+                            <Trash2 size={13} />
+                            <span>Eliminar código</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Desktop View: Wide Table (Visible only on md screens and up) */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
                   <tr className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] border-b border-gray-50">
-                    <th className="px-8 py-4">Código</th>
-                    <th className="px-8 py-4">Nivel</th>
-                    <th className="px-8 py-4">Estado</th>
-                    <th className="px-8 py-4">Usuario</th>
-                    <th className="px-8 py-4 text-right">Acciones</th>
+                    <th className="px-6 py-4">Código</th>
+                    <th className="px-6 py-4">Nivel</th>
+                    <th className="px-6 py-4">Estado</th>
+                    <th className="px-6 py-4">Usuario</th>
+                    <th className="px-6 py-4">Tiempo Restante</th>
+                    <th className="px-6 py-4 text-right">Acciones</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {isLoading ? (
                     <tr>
-                      <td colSpan={5} className="px-8 py-12 text-center text-gray-500 font-medium font-sans">
+                      <td colSpan={6} className="px-8 py-12 text-center text-gray-500 font-medium font-sans">
                         <div className="flex items-center justify-center gap-2">
                           <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
                           <span>Cargando códigos de activación...</span>
@@ -668,93 +883,131 @@ export default function AdminPanel() {
                     </tr>
                   ) : codes.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="px-8 py-12 text-center text-gray-500 font-medium">No hay códigos generados.</td>
+                      <td colSpan={6} className="px-8 py-12 text-center text-gray-500 font-medium">No hay códigos generados.</td>
                     </tr>
                   ) : (
-                    codes.map((code) => (
-                      <tr key={code.id} className="hover:bg-gray-50/50 transition-colors">
-                        <td className="px-8 py-4 font-mono font-bold text-blue-900 tracking-widest">
-                          {code.id}
-                        </td>
-                        <td className="px-8 py-4">
-                          <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${
-                            code.access_level === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
-                          }`}>
-                            {code.access_level || 'pro'}
-                          </span>
-                        </td>
-                        <td className="px-8 py-4">
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                            code.status === 'disponible' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
-                          }`}>
-                            {code.status}
-                          </span>
-                        </td>
-                        <td className="px-8 py-4 text-xs font-medium text-gray-500 truncate max-w-[150px]">
-                          {typeof code.usedByEmail === 'string' ? code.usedByEmail : 
-                           typeof code.usedBy === 'string' ? code.usedBy : '---'}
-                        </td>
-                        <td className="px-8 py-4 text-right">
-                          <div className="flex items-center justify-end gap-3">
-                            {code.status === 'usado' && code.expiresAt && (
-                              <div className="flex items-center gap-4">
-                                <div className="flex flex-col items-end">
-                                  <span className={`text-[10px] font-black uppercase tracking-widest ${
-                                    (calculateDaysLeft(code.expiresAt) || 0) > 0 ? 'text-blue-600' : 'text-red-600'
-                                  }`}>
-                                    {(calculateDaysLeft(code.expiresAt) || 0) > 0 ? 'Quedan' : 'Expiró hace'}
-                                  </span>
-                                  <span className="text-xs font-bold text-gray-900">
-                                    {Math.abs(calculateDaysLeft(code.expiresAt) || 0)} días
-                                  </span>
-                                </div>
-                                <div className="flex items-center bg-gray-50 rounded-xl p-1 border border-gray-100">
-                                  <button
-                                    onClick={() => handleAdjustDays(code, -1)}
-                                    className="p-1.5 text-red-500 hover:bg-white hover:shadow-sm rounded-lg transition-all"
-                                    title="Quitar 1 día"
-                                  >
-                                    <Minus size={14} />
-                                  </button>
-                                  <div className="w-px h-4 bg-gray-200 mx-1" />
-                                  <button
-                                    onClick={() => handleAdjustDays(code, 1)}
-                                    className="p-1.5 text-green-600 hover:bg-white hover:shadow-sm rounded-lg transition-all"
-                                    title="Sumar 1 día"
-                                  >
-                                    <Plus size={14} />
-                                  </button>
-                                  <div className="w-px h-4 bg-gray-200 mx-1" />
-                                  <button
-                                    onClick={() => handleRenew(code)}
-                                    className="p-1.5 text-blue-600 hover:bg-white hover:shadow-sm rounded-lg transition-all"
-                                    title="Plan Mensual (+30 días)"
-                                  >
-                                    <RefreshCw size={14} />
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                            {code.status === 'disponible' && (
-                              <button 
+                    codes.map((code) => {
+                      const days = code.expiresAt ? calculateDaysLeft(code.expiresAt) : null;
+                      const isExp = days !== null && days <= 0;
+                      
+                      return (
+                        <tr key={code.id} className="hover:bg-gray-50/50 transition-colors">
+                          <td className="px-6 py-4 font-mono font-bold text-blue-900 tracking-wider">
+                            <div className="flex items-center gap-2">
+                              <span>{code.id}</span>
+                              <button
                                 onClick={() => copyToClipboard(code.id)}
-                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
-                                title="Copiar Código"
+                                className="p-1 text-slate-400 hover:text-blue-600 rounded transition-colors"
+                                title="Copiar código"
                               >
-                                <Copy size={18} />
+                                <Copy size={13} />
                               </button>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${
+                              code.access_level === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                            }`}>
+                              {code.access_level || 'pro'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                              code.status === 'disponible' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
+                            }`}>
+                              {code.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-xs font-medium text-gray-700 truncate max-w-[170px]">
+                            {typeof code.usedByEmail === 'string' ? code.usedByEmail : 
+                             typeof code.usedBy === 'string' ? code.usedBy : '---'}
+                          </td>
+                          <td className="px-6 py-4">
+                            {code.status === 'usado' ? (
+                              code.expiresAt ? (
+                                <div className="flex flex-col">
+                                  <span className={`text-xs font-black ${isExp ? 'text-red-600' : 'text-blue-600'}`}>
+                                    {isExp ? `VENCIDO (${Math.abs(days || 0)}d)` : `QUEDAN ${days} DÍAS`}
+                                  </span>
+                                  {formatExpirationDate(code.expiresAt) && (
+                                    <span className="text-[10px] text-slate-400">
+                                      Vence: {formatExpirationDate(code.expiresAt)}
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-xs text-gray-400 font-medium">Sin límite</span>
+                              )
+                            ) : (
+                              <span className="text-xs text-gray-400 font-medium">No activado</span>
                             )}
-                            <button 
-                              onClick={() => handleDeleteCode(code)}
-                              className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-                              title="Eliminar Código"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              {code.status === 'usado' && (
+                                <>
+                                  <button
+                                    onClick={() => openAdjustModal({
+                                      id: code.usedBy || code.id,
+                                      email: code.usedByEmail,
+                                      codeId: code.id,
+                                      currentExpiresAt: code.expiresAt
+                                    })}
+                                    className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-2xs hover:shadow-xs active:scale-95"
+                                    title="Sumar días o meses exactos con cálculo automático"
+                                  >
+                                    <Clock size={13} className="text-blue-600" />
+                                    <span>+ Tiempo</span>
+                                  </button>
+
+                                  <div className="flex items-center bg-gray-50 rounded-xl p-0.5 border border-gray-100">
+                                    <button
+                                      onClick={() => handleAdjustDays(code, 15)}
+                                      className="px-1.5 py-1 text-slate-700 hover:bg-white hover:shadow-xs rounded-lg transition-all text-[10px] font-black"
+                                      title="Sumar 15 días"
+                                    >
+                                      +15d
+                                    </button>
+                                    <div className="w-px h-3 bg-gray-200 mx-0.5" />
+                                    <button
+                                      onClick={() => handleAdjustDays(code, 30)}
+                                      className="px-1.5 py-1 text-blue-600 hover:bg-white hover:shadow-xs rounded-lg transition-all text-[10px] font-black"
+                                      title="Sumar 1 mes (30 días)"
+                                    >
+                                      +30d
+                                    </button>
+                                    <div className="w-px h-3 bg-gray-200 mx-0.5" />
+                                    <button
+                                      onClick={() => handleAdjustDays(code, -1)}
+                                      className="p-1 text-red-500 hover:bg-white hover:shadow-xs rounded-lg transition-all"
+                                      title="Quitar 1 día"
+                                    >
+                                      <Minus size={12} />
+                                    </button>
+                                    <div className="w-px h-3 bg-gray-200 mx-0.5" />
+                                    <button
+                                      onClick={() => handleAdjustDays(code, 1)}
+                                      className="p-1 text-green-600 hover:bg-white hover:shadow-xs rounded-lg transition-all"
+                                      title="Sumar 1 día"
+                                    >
+                                      <Plus size={12} />
+                                    </button>
+                                  </div>
+                                </>
+                              )}
+
+                              <button 
+                                onClick={() => handleDeleteCode(code)}
+                                className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors ml-1"
+                                title="Eliminar Código"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -836,11 +1089,14 @@ export default function AdminPanel() {
                       onChange={(e) => setNewDurationDays(e.target.value)}
                       className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3 px-4 text-white text-sm focus:outline-none focus:border-blue-500 transition-colors"
                     >
-                      <option value="15" className="bg-slate-900">15 Días</option>
-                      <option value="30" className="bg-slate-900">30 Días</option>
-                      <option value="90" className="bg-slate-900">90 Días</option>
-                      <option value="365" className="bg-slate-900">1 Año</option>
-                      <option value="infinite" className="bg-slate-900">Vitalicio</option>
+                      <option value="7" className="bg-slate-900">7 Días (1 Semana)</option>
+                      <option value="15" className="bg-slate-900">15 Días (Quincena)</option>
+                      <option value="30" className="bg-slate-900">30 Días (1 Mes)</option>
+                      <option value="60" className="bg-slate-900">60 Días (2 Meses)</option>
+                      <option value="90" className="bg-slate-900">90 Días (3 Meses)</option>
+                      <option value="180" className="bg-slate-900">180 Días (6 Meses)</option>
+                      <option value="365" className="bg-slate-900">1 Año (365 Días)</option>
+                      <option value="infinite" className="bg-slate-900">Vitalicio (Permanente)</option>
                     </select>
                   </div>
                 </div>
@@ -870,25 +1126,165 @@ export default function AdminPanel() {
               </div>
 
               <div className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-                <div className="px-8 py-6 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center">
+                <div className="px-6 sm:px-8 py-5 border-b border-gray-50 bg-gray-50/50 flex justify-between items-center">
                   <div className="flex items-center gap-2">
                     <Users size={20} className="text-gray-500" />
                     <h2 className="font-black text-gray-900 uppercase tracking-tight text-sm">Cuentas Registradas</h2>
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-500 bg-white border border-slate-200 px-2.5 py-1 rounded-full">
                     Total: {hasLoadedUsers ? filteredUsers.length : '—'}
                   </span>
                 </div>
 
-                <div className="overflow-x-auto">
+                {/* Mobile View: User Cards (< md) */}
+                <div className="block md:hidden p-4 space-y-3 bg-slate-50/60 divide-y divide-slate-100">
+                  {usersLoading ? (
+                    <div className="py-12 text-center text-gray-500 flex items-center justify-center gap-2">
+                      <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                      <span>Cargando listado de docentes...</span>
+                    </div>
+                  ) : filteredUsers.length === 0 ? (
+                    <div className="py-12 text-center text-gray-500 font-medium">No se encontraron usuarios.</div>
+                  ) : (
+                    filteredUsers.map((user) => {
+                      const daysLeft = user.expiresAt ? calculateDaysLeft(user.expiresAt) : null;
+                      const isExp = daysLeft !== null && daysLeft <= 0;
+                      const isInf = daysLeft !== null && daysLeft > 10000;
+
+                      return (
+                        <div key={user.id} className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm space-y-3 pt-4">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <span className="font-black text-sm text-slate-900 block truncate" title={user.email}>
+                                {user.email}
+                              </span>
+                              <span className="font-mono text-[9px] text-slate-400 block truncate">
+                                ID: {user.id}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => handleToggleUserActive(user)}
+                              className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider shrink-0 ${
+                                user.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700 font-bold'
+                              }`}
+                            >
+                              {user.isActive ? 'Activo' : 'Suspendido'}
+                            </button>
+                          </div>
+
+                          {/* Subscriptions & Roles summary */}
+                          <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-slate-400 font-medium text-[11px]">Nivel & Rol:</span>
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => handleToggleUserAccessLevel(user)}
+                                  className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                                    user.access_level === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                                  }`}
+                                >
+                                  {user.access_level || 'pro'}
+                                </button>
+                                <button
+                                  onClick={() => handleToggleUserRole(user)}
+                                  className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-wider ${
+                                    user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-slate-200 text-slate-700'
+                                  }`}
+                                >
+                                  {user.role || 'teacher'}
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-1 border-t border-slate-200/50">
+                              <span className="text-slate-400 font-medium text-[11px]">Suscripción:</span>
+                              <div className="text-right">
+                                {user.expiresAt ? (
+                                  <>
+                                    <span className={`text-xs font-black block ${isInf ? 'text-purple-700' : isExp ? 'text-red-600' : 'text-blue-600'}`}>
+                                      {isInf ? 'VITALICIO (Permanente)' : isExp ? `VENCIDO (hace ${Math.abs(daysLeft || 0)}d)` : `QUEDAN ${daysLeft} DÍAS`}
+                                    </span>
+                                    {formatExpirationDate(user.expiresAt) && !isInf && (
+                                      <span className="text-[10px] text-slate-400 block">
+                                        Vence: {formatExpirationDate(user.expiresAt)}
+                                      </span>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-xs text-slate-400 font-medium">Sin límite</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Mobile Action Buttons */}
+                          <div className="space-y-2 pt-1">
+                            <button
+                              onClick={() => openAdjustModal({
+                                id: user.id,
+                                email: user.email,
+                                codeId: user.activationCode,
+                                currentExpiresAt: user.expiresAt
+                              })}
+                              className="w-full py-2 px-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all active:scale-98"
+                            >
+                              <Clock size={14} className="text-blue-600" />
+                              <span>Sumar Días o Meses (+Tiempo)</span>
+                            </button>
+
+                            <div className="flex items-center justify-between gap-1.5">
+                              <button
+                                onClick={() => handleAdjustUserDays(user, 15)}
+                                className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-black border border-slate-200 transition-colors text-center"
+                              >
+                                +15d
+                              </button>
+                              <button
+                                onClick={() => handleAdjustUserDays(user, 30)}
+                                className="flex-1 py-1.5 px-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[10px] font-black shadow-sm transition-colors text-center"
+                              >
+                                +30d (1m)
+                              </button>
+                              <button
+                                onClick={() => handleAdjustUserDays(user, 60)}
+                                className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[10px] font-black border border-slate-200 transition-colors text-center"
+                              >
+                                +60d (2m)
+                              </button>
+                              <button
+                                onClick={() => handleSetUserInfinite(user)}
+                                className="py-1.5 px-2.5 bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 rounded-lg text-[10px] font-black"
+                              >
+                                Vitalicio
+                              </button>
+                            </div>
+
+                            <div className="flex justify-end pt-1">
+                              <button 
+                                onClick={() => handleDeleteUser(user)}
+                                className="px-2.5 py-1 text-red-400 hover:text-red-600 text-xs font-semibold flex items-center gap-1 transition-colors"
+                              >
+                                <Trash2 size={13} />
+                                <span>Eliminar usuario</span>
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Desktop View: Wide Table (>= md) */}
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full text-left">
                     <thead>
                       <tr className="text-xs font-black text-gray-500 uppercase tracking-[0.2em] border-b border-gray-50">
-                        <th className="px-8 py-4">Usuario / Email</th>
-                        <th className="px-8 py-4">Acceso</th>
-                        <th className="px-8 py-4">Rol</th>
-                        <th className="px-8 py-4">Estado</th>
-                        <th className="px-8 py-4 text-right">Acciones</th>
+                        <th className="px-6 py-4">Usuario / Email</th>
+                        <th className="px-6 py-4">Acceso</th>
+                        <th className="px-6 py-4">Rol</th>
+                        <th className="px-6 py-4">Estado</th>
+                        <th className="px-6 py-4 text-right">Acciones</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-50 text-slate-700">
@@ -906,97 +1302,125 @@ export default function AdminPanel() {
                           <td colSpan={5} className="px-8 py-12 text-center text-gray-500 font-medium">No se encontraron usuarios.</td>
                         </tr>
                       ) : (
-                        filteredUsers.map((user) => (
-                          <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
-                            <td className="px-8 py-4 max-w-[200px] truncate">
-                              <div className="flex flex-col">
-                                <span className="font-bold text-gray-900 text-xs">{user.email}</span>
-                                <span className="font-mono text-[9px] text-gray-400 truncate mt-0.5">{user.id}</span>
-                              </div>
-                            </td>
-                            <td className="px-8 py-4 text-xs font-semibold">
-                              <div className="flex flex-col gap-1">
+                        filteredUsers.map((user) => {
+                          const daysLeft = user.expiresAt ? calculateDaysLeft(user.expiresAt) : null;
+                          const isExp = daysLeft !== null && daysLeft <= 0;
+                          const isInf = daysLeft !== null && daysLeft > 10000;
+
+                          return (
+                            <tr key={user.id} className="hover:bg-gray-50/50 transition-colors">
+                              <td className="px-6 py-4 max-w-[200px] truncate">
+                                <div className="flex flex-col">
+                                  <span className="font-bold text-gray-900 text-xs">{user.email}</span>
+                                  <span className="font-mono text-[9px] text-gray-400 truncate mt-0.5">{user.id}</span>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4 text-xs font-semibold">
+                                <div className="flex flex-col gap-1">
+                                  <button
+                                    onClick={() => handleToggleUserAccessLevel(user)}
+                                    className={`self-start px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
+                                      user.access_level === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                                    }`}
+                                    title="Alternar Nivel de Acceso"
+                                  >
+                                    {user.access_level || 'pro'}
+                                  </button>
+                                  <div>{getExpirationBadge(user.expiresAt)}</div>
+                                </div>
+                              </td>
+                              <td className="px-6 py-4">
                                 <button
-                                  onClick={() => handleToggleUserAccessLevel(user)}
-                                  className={`self-start px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${
-                                    user.access_level === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
+                                  onClick={() => handleToggleUserRole(user)}
+                                  className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${
+                                    user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
                                   }`}
-                                  title="Alternar Nivel de Acceso"
+                                  title="Alternar Rol"
                                 >
-                                  {user.access_level || 'pro'}
+                                  {user.role || 'teacher'}
                                 </button>
-                                <span className="text-[10px] text-gray-400 font-medium">{getExpirationBadge(user.expiresAt)}</span>
-                              </div>
-                            </td>
-                            <td className="px-8 py-4">
-                              <button
-                                onClick={() => handleToggleUserRole(user)}
-                                className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${
-                                  user.role === 'admin' ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-600'
-                                }`}
-                                title="Alternar Rol"
-                              >
-                                {user.role || 'teacher'}
-                              </button>
-                            </td>
-                            <td className="px-8 py-4">
-                              <button
-                                onClick={() => handleToggleUserActive(user)}
-                                className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                                  user.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700 font-bold'
-                                }`}
-                                title={user.isActive ? "Suspender Usuario" : "Activar Usuario"}
-                              >
-                                {user.isActive ? 'Activo' : 'Suspendido'}
-                              </button>
-                            </td>
-                            <td className="px-8 py-4 text-right">
-                              <div className="flex items-center justify-end gap-2.5">
-                                <div className="flex items-center bg-gray-50 rounded-xl p-0.5 border border-gray-100 shrink-0">
+                              </td>
+                              <td className="px-6 py-4">
+                                <button
+                                  onClick={() => handleToggleUserActive(user)}
+                                  className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                                    user.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700 font-bold'
+                                  }`}
+                                  title={user.isActive ? "Suspender Usuario" : "Activar Usuario"}
+                                >
+                                  {user.isActive ? 'Activo' : 'Suspendido'}
+                                </button>
+                              </td>
+                              <td className="px-6 py-4 text-right">
+                                <div className="flex items-center justify-end gap-2">
                                   <button
-                                    onClick={() => handleAdjustUserDays(user, -15)}
-                                    className="p-1 text-red-500 hover:bg-white hover:shadow-sm rounded transition-all font-bold text-[9px]"
-                                    title="Quitar 15 días"
+                                    onClick={() => openAdjustModal({
+                                      id: user.id,
+                                      email: user.email,
+                                      codeId: user.activationCode,
+                                      currentExpiresAt: user.expiresAt
+                                    })}
+                                    className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200/80 rounded-xl text-xs font-black flex items-center gap-1.5 transition-all shadow-2xs hover:shadow-xs active:scale-95"
+                                    title="Sumar días o meses exactos a este usuario"
                                   >
-                                    -15d
+                                    <Clock size={13} className="text-blue-600" />
+                                    <span>+ Tiempo</span>
                                   </button>
-                                  <div className="w-px h-3 bg-gray-200 mx-0.5" />
+
+                                  <div className="flex items-center bg-gray-50 rounded-xl p-0.5 border border-gray-100 shrink-0">
+                                    <button
+                                      onClick={() => handleAdjustUserDays(user, -15)}
+                                      className="p-1 text-red-500 hover:bg-white hover:shadow-xs rounded transition-all font-bold text-[9px]"
+                                      title="Quitar 15 días"
+                                    >
+                                      -15d
+                                    </button>
+                                    <div className="w-px h-3 bg-gray-200 mx-0.5" />
+                                    <button
+                                      onClick={() => handleAdjustUserDays(user, 15)}
+                                      className="p-1 text-green-600 hover:bg-white hover:shadow-xs rounded transition-all font-bold text-[9px]"
+                                      title="Sumar 15 días"
+                                    >
+                                      +15d
+                                    </button>
+                                    <div className="w-px h-3 bg-gray-200 mx-0.5" />
+                                    <button
+                                      onClick={() => handleAdjustUserDays(user, 30)}
+                                      className="p-1 text-blue-600 hover:bg-white hover:shadow-xs rounded transition-all font-bold text-[9px]"
+                                      title="Sumar 30 días"
+                                    >
+                                      +30d
+                                    </button>
+                                    <div className="w-px h-3 bg-gray-200 mx-0.5" />
+                                    <button
+                                      onClick={() => handleAdjustUserDays(user, 60)}
+                                      className="p-1 text-slate-700 hover:bg-white hover:shadow-xs rounded transition-all font-bold text-[9px]"
+                                      title="Sumar 60 días (2 meses)"
+                                    >
+                                      +60d
+                                    </button>
+                                  </div>
+
                                   <button
-                                    onClick={() => handleAdjustUserDays(user, 15)}
-                                    className="p-1 text-green-600 hover:bg-white hover:shadow-sm rounded transition-all font-bold text-[9px]"
-                                    title="Sumar 15 días"
+                                    onClick={() => handleSetUserInfinite(user)}
+                                    className="p-1.5 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors border border-purple-200/50 text-[10px] font-black uppercase tracking-wider"
+                                    title="Dar Acceso Vitalicio"
                                   >
-                                    +15d
+                                    Vitalicio
                                   </button>
-                                  <div className="w-px h-3 bg-gray-200 mx-0.5" />
-                                  <button
-                                    onClick={() => handleAdjustUserDays(user, 30)}
-                                    className="p-1 text-blue-600 hover:bg-white hover:shadow-sm rounded transition-all font-bold text-[9px]"
-                                    title="Sumar 30 días"
+
+                                  <button 
+                                    onClick={() => handleDeleteUser(user)}
+                                    className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors ml-1"
+                                    title="Eliminar Perfil"
                                   >
-                                    +30d
+                                    <Trash2 size={16} />
                                   </button>
                                 </div>
-
-                                <button
-                                  onClick={() => handleSetUserInfinite(user)}
-                                  className="p-1.5 bg-purple-50 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors border border-purple-200/50 text-[10px] font-black uppercase tracking-wider"
-                                  title="Dar Acceso Vitalicio"
-                                >
-                                  Vitalicio
-                                </button>
-
-                                <button 
-                                  onClick={() => handleDeleteUser(user)}
-                                  className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                                  title="Eliminar Perfil"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))
+                              </td>
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
@@ -1132,6 +1556,20 @@ export default function AdminPanel() {
           </div>
         </div>
       )}
+
+      {/* Time Adjustment Modal */}
+      <TimeAdjustmentModal
+        isOpen={isAdjustModalOpen}
+        onClose={() => {
+          setIsAdjustModalOpen(false);
+          setAdjustTarget(null);
+        }}
+        target={adjustTarget}
+        onSuccess={() => {
+          fetchCodes();
+          fetchUsersProfile();
+        }}
+      />
     </div>
   );
 }
