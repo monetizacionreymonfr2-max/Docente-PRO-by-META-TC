@@ -15,6 +15,7 @@ import Maternal from './pages/Maternal';
 import AdminPanel from './pages/AdminPanel';
 import Camila from './pages/Camila';
 import ActivationModal from './components/ActivationModal';
+import ResetPasswordModal from './components/ResetPasswordModal';
 import { Loader2, UserX } from 'lucide-react';
 
 const ADMIN_EMAILS = ['monetizacionreymonfr2@gmail.com', 'Tecnomundo235@gmail.com'];
@@ -24,7 +25,15 @@ export default function App() {
   const [user, setUser] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [isBanned, setIsBanned] = useState(false);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Check URL hash for recovery on mount
+  useEffect(() => {
+    if (window.location.hash && window.location.hash.includes('type=recovery')) {
+      setIsPasswordRecovery(true);
+    }
+  }, []);
 
   // Load auth user and profile
   useEffect(() => {
@@ -89,6 +98,10 @@ export default function App() {
 
     // Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+      }
+
       const authUser = session?.user || null;
       if (authUser) {
         handleUserAuth(authUser);
@@ -147,6 +160,17 @@ export default function App() {
       <div className="min-h-screen flex items-center justify-center hex-bg">
         <Loader2 className="w-8 h-8 animate-spin text-futuristic-accent" />
       </div>
+    );
+  }
+
+  if (isPasswordRecovery) {
+    return (
+      <ResetPasswordModal
+        onSuccess={() => {
+          setIsPasswordRecovery(false);
+          window.location.hash = '';
+        }}
+      />
     );
   }
 

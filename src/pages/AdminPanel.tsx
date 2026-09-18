@@ -25,7 +25,8 @@ import {
   UserCheck,
   UserX,
   Sparkles,
-  Check
+  Check,
+  KeyRound
 } from 'lucide-react';
 
 interface Code {
@@ -439,6 +440,22 @@ export default function AdminPanel() {
     } catch (error: any) {
       console.error("Error deleting user:", error);
       alert(`Error: ${error?.message || error}`);
+    }
+  };
+
+  const handleResetUserPassword = async (user: ProfileUser) => {
+    const confirmAction = window.confirm(`¿Deseas enviar un enlace de restablecimiento de contraseña al correo de ${user.email}?`);
+    if (!confirmAction) return;
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(user.email.trim().toLowerCase(), {
+        redirectTo: window.location.origin,
+      });
+      if (error) throw error;
+      alert(`✅ ¡Enlace de recuperación enviado exitosamente a ${user.email}!\n\nEl usuario debe revisar su correo electrónico (bandeja principal o spam) para crear su nueva contraseña.`);
+    } catch (error: any) {
+      console.error("Error sending password reset email:", error);
+      alert(`Error al enviar correo de recuperación: ${error?.message || error}`);
     }
   };
 
@@ -1259,6 +1276,15 @@ export default function AdminPanel() {
                               </button>
                             </div>
 
+                            <button
+                              onClick={() => handleResetUserPassword(user)}
+                              className="w-full py-2 px-3 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all active:scale-98"
+                              title="Enviar enlace para restablecer clave a este usuario"
+                            >
+                              <KeyRound size={14} className="text-amber-600" />
+                              <span>Enviar Enlace Recuperar Clave</span>
+                            </button>
+
                             <div className="flex justify-end pt-1">
                               <button 
                                 onClick={() => handleDeleteUser(user)}
@@ -1407,6 +1433,15 @@ export default function AdminPanel() {
                                     title="Dar Acceso Vitalicio"
                                   >
                                     Vitalicio
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleResetUserPassword(user)}
+                                    className="p-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors border border-amber-200/60 text-[10px] font-black uppercase tracking-wider flex items-center gap-1"
+                                    title={`Enviar enlace de restablecimiento de contraseña a ${user.email}`}
+                                  >
+                                    <KeyRound size={13} />
+                                    <span>Clave</span>
                                   </button>
 
                                   <button 
