@@ -127,21 +127,32 @@ export const SupabaseService = {
 
   async banEmail(email: string, bannedBy: string): Promise<void> {
     const cleanMail = email.trim().toLowerCase();
-    await supabase.from('blacklist').upsert({
-      email: cleanMail,
-      banned_by: bannedBy,
-      created_at: new Date().toISOString()
+    const res = await fetch('/api/admin/blacklist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanMail, bannedBy })
     });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to ban email');
+    }
   },
 
   async unbanEmail(email: string): Promise<void> {
-    await supabase.from('blacklist').delete().eq('email', email.trim().toLowerCase());
+    const res = await fetch(`/api/admin/blacklist/${encodeURIComponent(email.trim().toLowerCase())}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to unban email');
+    }
   },
 
   async getBlacklist(): Promise<any[]> {
-    const { data, error } = await supabase.from('blacklist').select('*').order('created_at', { ascending: false });
-    if (error) throw error;
-    return (data || []).map(b => ({
+    const res = await fetch('/api/admin/blacklist');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch blacklist');
+    return (data || []).map((b: any) => ({
       id: b.email,
       email: b.email,
       bannedBy: b.banned_by,
@@ -313,78 +324,50 @@ export const SupabaseService = {
   },
 
   async updateProfileRole(uid: string, role: 'admin' | 'teacher'): Promise<void> {
-    await supabase.from('profiles').update({ role }).eq('id', uid);
+    const res = await fetch(`/api/admin/users/${uid}/role`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role })
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to update role');
+    }
   },
 
   async updateProfileActive(uid: string, is_active: boolean): Promise<void> {
-    await supabase.from('profiles').update({ is_active }).eq('id', uid);
+    const res = await fetch(`/api/admin/users/${uid}/active`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isActive: is_active })
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to update active status');
+    }
   },
 
   async updateProfileAccessLevel(uid: string, access_level: 'guest' | 'pro'): Promise<void> {
-    await supabase.from('profiles').update({ access_level }).eq('id', uid);
+    const res = await fetch(`/api/admin/users/${uid}/access`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ access_level })
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to update access level');
+    }
   },
 
   async updateProfileSubscription(uid: string, days: number, expiresAtStr?: string, codeId?: string, userEmail?: string): Promise<any> {
-    const now = new Date();
-    let currentExpiresAt: Date;
-    if (expiresAtStr) {
-      currentExpiresAt = new Date(expiresAtStr);
-    } else {
-      const { data } = await supabase.from('profiles').select('expires_at').eq('id', uid).maybeSingle();
-      currentExpiresAt = data?.expires_at ? new Date(data.expires_at) : new Date();
-    }
-    
-    if (isNaN(currentExpiresAt.getTime())) {
-      currentExpiresAt = new Date();
-    }
-
-    // Regla de oro para sumar días/meses:
-    // Si el usuario ya está vencido (fecha en el pasado o hoy), se suma a partir de HOY para que
-    // el contador marque exactamente los días pagados (ej: si compra 30 días, que le queden 30 días).
-    // Si aún tiene días activos a favor, se le suman a su saldo actual para no quitarle lo que le quedaba.
-    let baseDate: Date;
-    if (days > 0) {
-      baseDate = currentExpiresAt.getTime() <= now.getTime() ? now : currentExpiresAt;
-    } else {
-      baseDate = currentExpiresAt;
-    }
-
-    const newExpiration = new Date(baseDate.getTime() + (days * 24 * 60 * 60 * 1000));
-    const newExpiresAtISO = newExpiration.toISOString();
-    const isActive = newExpiration > now;
-
-    // 1. Actualizar tabla profiles
-    await supabase.from('profiles').update({
-      expires_at: newExpiresAtISO,
-      is_active: isActive,
-      access_level: 'pro'
-    }).eq('id', uid);
-
-    if (userEmail) {
-      await supabase.from('profiles').update({
-        expires_at: newExpiresAtISO,
-        is_active: isActive,
-        access_level: 'pro'
-      }).eq('email', userEmail.trim().toLowerCase());
-    }
-
-    // 2. Sincronizar tabla activation_codes para que la vista de códigos no quede desfasada
-    if (codeId) {
-      await supabase.from('activation_codes').update({
-        expires_at: newExpiresAtISO
-      }).eq('id', codeId);
-    }
-    await supabase.from('activation_codes').update({
-      expires_at: newExpiresAtISO
-    }).eq('used_by', uid);
-
-    if (userEmail) {
-      await supabase.from('activation_codes').update({
-        expires_at: newExpiresAtISO
-      }).eq('used_by_email', userEmail.trim().toLowerCase());
-    }
-
-    return newExpiresAtISO;
+    const res = await fetch(`/api/admin/users/${uid}/subscription`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ days, expiresAtStr, codeId, userEmail })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to update subscription');
+    return data.newExpiresAtISO;
   },
 
   async setExactSubscription(params: {
@@ -398,127 +381,43 @@ export const SupabaseService = {
     isLifetime?: boolean;
     currentExpiresAtStr?: string;
   }): Promise<{ newExpiresAtISO: string; daysRemaining: number }> {
-    const now = new Date();
-    let newExpiration: Date;
-
-    if (params.isLifetime) {
-      newExpiration = new Date();
-      newExpiration.setFullYear(newExpiration.getFullYear() + 100);
-    } else if (params.exactDateISO) {
-      newExpiration = new Date(params.exactDateISO);
-      // Asegurar fin del día seleccionado
-      newExpiration.setHours(23, 59, 59, 999);
-    } else if (params.exactDaysFromNow !== undefined) {
-      newExpiration = new Date(now.getTime() + (params.exactDaysFromNow * 24 * 60 * 60 * 1000));
-    } else {
-      // Suma de días y/o meses
-      const totalDays = (params.daysToAdd || 0) + ((params.monthsToAdd || 0) * 30);
-      let currentExp: Date | null = null;
-      if (params.currentExpiresAtStr) {
-        currentExp = new Date(params.currentExpiresAtStr);
-        if (isNaN(currentExp.getTime())) currentExp = null;
-      }
-      
-      let baseDate = now;
-      if (currentExp && currentExp.getTime() > now.getTime() && totalDays > 0) {
-        // Aún tiene días válidos: extender sobre su fecha existente
-        baseDate = currentExp;
-      } else {
-        // Estaba vencido o sin fecha: sumar a partir de hoy
-        baseDate = now;
-      }
-      newExpiration = new Date(baseDate.getTime() + (totalDays * 24 * 60 * 60 * 1000));
-    }
-
-    const newExpiresAtISO = newExpiration.toISOString();
-    const isActive = newExpiration > now;
-
-    // Actualizar tabla profiles
-    if (params.uid) {
-      await supabase.from('profiles').update({
-        expires_at: newExpiresAtISO,
-        is_active: isActive,
-        access_level: 'pro'
-      }).eq('id', params.uid);
-    }
-    if (params.email) {
-      await supabase.from('profiles').update({
-        expires_at: newExpiresAtISO,
-        is_active: isActive,
-        access_level: 'pro'
-      }).eq('email', params.email.trim().toLowerCase());
-    }
-
-    // Actualizar tabla activation_codes
-    if (params.codeId) {
-      await supabase.from('activation_codes').update({
-        expires_at: newExpiresAtISO
-      }).eq('id', params.codeId);
-    }
-    if (params.uid) {
-      await supabase.from('activation_codes').update({
-        expires_at: newExpiresAtISO
-      }).eq('used_by', params.uid);
-    }
-    if (params.email) {
-      await supabase.from('activation_codes').update({
-        expires_at: newExpiresAtISO
-      }).eq('used_by_email', params.email.trim().toLowerCase());
-    }
-
-    const diffDays = Math.ceil((newExpiration.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    return {
-      newExpiresAtISO,
-      daysRemaining: diffDays > 0 ? diffDays : 0
-    };
+    const uid = params.uid || 'global';
+    const res = await fetch(`/api/admin/users/${uid}/subscription`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to set exact subscription');
+    return data;
   },
 
   async grantLifetimeAccess(uid: string, codeId?: string, userEmail?: string): Promise<any> {
-    const infiniteDate = new Date();
-    infiniteDate.setFullYear(infiniteDate.getFullYear() + 100);
-    const dateStr = infiniteDate.toISOString();
-
-    const { error } = await supabase.from('profiles').update({
-      expires_at: dateStr,
-      is_active: true,
-      access_level: 'pro'
-    }).eq('id', uid);
-
-    if (userEmail) {
-      await supabase.from('profiles').update({
-        expires_at: dateStr,
-        is_active: true,
-        access_level: 'pro'
-      }).eq('email', userEmail.trim().toLowerCase());
-    }
-
-    if (codeId) {
-      await supabase.from('activation_codes').update({
-        expires_at: dateStr
-      }).eq('id', codeId);
-    }
-    await supabase.from('activation_codes').update({
-      expires_at: dateStr
-    }).eq('used_by', uid);
-
-    if (userEmail) {
-      await supabase.from('activation_codes').update({
-        expires_at: dateStr
-      }).eq('used_by_email', userEmail.trim().toLowerCase());
-    }
-
-    if (error) throw error;
-    return dateStr;
+    const res = await fetch(`/api/admin/users/${uid}/subscription`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isLifetime: true, codeId, userEmail })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to grant lifetime access');
+    return data.newExpiresAtISO;
   },
 
   async deleteUserProfile(uid: string): Promise<void> {
-    await supabase.from('profiles').delete().eq('id', uid);
+    const res = await fetch(`/api/admin/users/${uid}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to delete user profile');
+    }
   },
 
   async getUsersProfiles(): Promise<any[]> {
-    const { data, error } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
-    if (error) throw error;
-    return (data || []).map(d => ({
+    const res = await fetch('/api/admin/users');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch users profiles');
+    return (data || []).map((d: any) => ({
       id: d.id,
       email: d.email,
       isActive: d.is_active,
@@ -533,9 +432,10 @@ export const SupabaseService = {
 
   // --- ACTIVATION CODES ---
   async getActivationCodes(): Promise<any[]> {
-    const { data, error } = await supabase.from('activation_codes').select('*').order('created_at', { ascending: false });
-    if (error) throw error;
-    return (data || []).map(c => ({
+    const res = await fetch('/api/admin/codes');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to fetch activation codes');
+    return (data || []).map((c: any) => ({
       id: c.id,
       code: c.id,
       status: c.status,
@@ -548,19 +448,25 @@ export const SupabaseService = {
   },
 
   async generateCode(codeId: string, level: 'guest' | 'pro'): Promise<void> {
-    await supabase.from('activation_codes').insert({
-      id: codeId,
-      status: 'disponible',
-      access_level: level,
-      used_by: null,
-      used_by_email: null,
-      expires_at: null,
-      created_at: new Date().toISOString()
+    const res = await fetch('/api/admin/codes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codeId, level })
     });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to generate code');
+    }
   },
 
   async deleteCode(codeId: string): Promise<void> {
-    await supabase.from('activation_codes').delete().eq('id', codeId);
+    const res = await fetch(`/api/admin/codes/${encodeURIComponent(codeId)}`, {
+      method: 'DELETE'
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || 'Failed to delete code');
+    }
   },
 
   async claimActivationCode(codeId: string, userId: string, userEmail: string): Promise<{ success: boolean; message: string }> {
