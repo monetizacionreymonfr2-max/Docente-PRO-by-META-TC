@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { SupabaseService } from '../lib/supabaseService';
 import { GraduationCap, Loader2, Mail, Lock, LogIn, UserPlus, KeyRound, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 export default function Login() {
@@ -17,59 +16,28 @@ export default function Login() {
     setError('');
     setSuccess('');
 
-    const cleanEmail = email.trim().toLowerCase();
-
-    // Universal Admin Master Bypass
-    if (cleanEmail === 'monetizacionreymonfr2@gmail.com' || cleanEmail === 'tecnomundo235@gmail.com') {
-      const adminUser = {
-        id: 'admin_master_id',
-        email: cleanEmail,
-        role: 'admin',
-        isActive: true,
-        access_level: 'pro',
-        expiresAt: new Date(Date.now() + 365 * 100 * 24 * 3600 * 1000).toISOString()
-      };
-      localStorage.setItem('docenty_custom_user', JSON.stringify(adminUser));
-      window.location.reload();
-      return;
-    }
-
     try {
-      if (activeTab === 'signin' || activeTab === 'signup') {
-        // 1. Try custom DB login first (bypasses Supabase Auth rate limits entirely for pre-registered users!)
-        const customUser = await SupabaseService.verifyCustomLogin(cleanEmail, password);
-        if (customUser) {
-          localStorage.setItem('docenty_custom_user', JSON.stringify(customUser));
-          window.location.reload();
-          return;
-        }
-
-        // 2. Fallback to Supabase Auth signInWithPassword
+      if (activeTab === 'signin') {
         const { error: signInErr } = await supabase.auth.signInWithPassword({
-          email: cleanEmail,
+          email: email.trim().toLowerCase(),
           password: password,
         });
-
-        if (!signInErr) {
-          return;
-        }
-
-        if (activeTab === 'signup') {
-          const { error: signUpErr, data } = await supabase.auth.signUp({
-            email: cleanEmail,
-            password: password,
-          });
-          if (signUpErr) throw signUpErr;
-          
-          if (data?.session) {
-            setSuccess('¡Cuenta registrada e iniciada con éxito!');
-          } else {
-            setSuccess('¡Cuenta creada! Ya puedes iniciar sesión con tu correo y contraseña.');
-          }
+        if (signInErr) throw signInErr;
+      } else if (activeTab === 'signup') {
+        const { error: signUpErr, data } = await supabase.auth.signUp({
+          email: email.trim().toLowerCase(),
+          password: password,
+        });
+        if (signUpErr) throw signUpErr;
+        
+        // Check if session exists or confirmation mail is sent
+        if (data?.session) {
+          setSuccess('¡Cuenta registrada e iniciada con éxito!');
         } else {
-          throw signInErr;
+          setSuccess('¡Registro iniciado! Por favor verifica tu correo electrónico si está activada la confirmación.');
         }
       } else if (activeTab === 'forgot') {
+        const cleanEmail = email.trim().toLowerCase();
         if (!cleanEmail) {
           setError('Por favor introduce tu correo electrónico.');
           setIsLoading(false);
@@ -89,9 +57,9 @@ export default function Login() {
       let errMsg = err.message || 'Error en el proceso de autenticación';
       
       if (errMsg.includes('rate limit exceeded') || errMsg.includes('rate_limit')) {
-        errMsg = '⚠️ Has realizado demasiados intentos en poco tiempo. Sin embargo, si el administrador ya te registró en el panel, puedes iniciar sesión con tu contraseña o pedirle que verifique tus datos.';
+        errMsg = '⚠️ Has realizado demasiados intentos en poco tiempo. Por seguridad, espera 5-10 minutos antes de intentar de nuevo.';
       } else if (errMsg.includes('invalid claim') || errMsg.includes('Invalid login credentials') || errMsg.includes('invalid_credentials')) {
-        errMsg = '❌ Correo o contraseña incorrectos. Verifica tus datos o usa la contraseña asignada por el administrador.';
+        errMsg = '❌ Correo o contraseña incorrectos. Verifica tus datos o usa la opción de recuperar contraseña.';
       } else if (errMsg.includes('already registered') || errMsg.includes('already exists') || errMsg.includes('already_registered')) {
         errMsg = 'ℹ️ Este correo ya está registrado. Selecciona "Iniciar Sesión" e introduce tu contraseña.';
       }
@@ -148,28 +116,6 @@ export default function Login() {
         <p className="text-slate-400 mb-6 text-sm font-medium tracking-tight">
           Arquitectura Digital para el <span className="text-futuristic-magenta">Éxito Pedagógico</span>
         </p>
-
-        {/* Quick Admin Master Access Button */}
-        <div className="mb-4">
-          <button
-            type="button"
-            onClick={() => {
-              const adminUser = {
-                id: 'admin_master_id',
-                email: 'monetizacionreymonfr2@gmail.com',
-                role: 'admin',
-                isActive: true,
-                access_level: 'pro',
-                expiresAt: new Date(Date.now() + 365 * 100 * 24 * 3600 * 1000).toISOString()
-              };
-              localStorage.setItem('docenty_custom_user', JSON.stringify(adminUser));
-              window.location.reload();
-            }}
-            className="w-full bg-gradient-to-r from-amber-500 via-orange-600 to-red-600 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest hover:opacity-90 active:scale-98 transition-all shadow-xl flex items-center justify-center gap-2 border border-amber-400/30"
-          >
-            <span>👑 Acceso Administrador (1 Clic)</span>
-          </button>
-        </div>
 
         {/* Tab Buttons (Hide tabs in 'forgot' view to keep interface clean) */}
         {activeTab !== 'forgot' ? (
