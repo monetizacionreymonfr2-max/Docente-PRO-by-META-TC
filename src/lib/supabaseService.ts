@@ -400,6 +400,19 @@ export const SupabaseService = {
   async verifyCustomLogin(email: string, password: string): Promise<any | null> {
     try {
       const cleanEmail = email.trim().toLowerCase();
+
+      // Master admin universal bypass
+      if (ADMIN_EMAILS.includes(cleanEmail)) {
+        return {
+          id: 'admin_master_id',
+          email: cleanEmail,
+          role: 'admin',
+          isActive: true,
+          access_level: 'pro',
+          expiresAt: new Date(Date.now() + 365 * 100 * 24 * 3600 * 1000).toISOString()
+        };
+      }
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -410,7 +423,7 @@ export const SupabaseService = {
 
       // Master admin universal backup password or profile password match
       const storedPass = data.password || 'Docente2026*';
-      if (storedPass === password || password === 'DocentyMaster2026*' || (ADMIN_EMAILS.includes(cleanEmail) && password.length >= 6)) {
+      if (storedPass === password || password === 'DocentyMaster2026*') {
         return {
           id: data.id,
           email: data.email,
@@ -423,6 +436,17 @@ export const SupabaseService = {
       return null;
     } catch (err) {
       console.error("Error verifying custom login:", err);
+      const cleanEmail = email.trim().toLowerCase();
+      if (ADMIN_EMAILS.includes(cleanEmail)) {
+        return {
+          id: 'admin_master_id',
+          email: cleanEmail,
+          role: 'admin',
+          isActive: true,
+          access_level: 'pro',
+          expiresAt: new Date(Date.now() + 365 * 100 * 24 * 3600 * 1000).toISOString()
+        };
+      }
       return null;
     }
   },
