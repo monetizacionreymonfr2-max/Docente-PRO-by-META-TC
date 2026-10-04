@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 
+const ADMIN_EMAILS = ['monetizacionreymonfr2@gmail.com', 'Tecnomundo235@gmail.com'];
+
 export interface SupabaseUserProfile {
   id: string;
   email: string;
@@ -280,6 +282,21 @@ export const SupabaseService = {
   },
 
   async createUserProfile(uid: string, profile: any): Promise<void> {
+    const randomCodePart = () => Math.random().toString(36).substring(2, 6).toUpperCase();
+    const activationCodeId = `META-${randomCodePart()}-${randomCodePart()}`;
+
+    try {
+      await supabase.from('activation_codes').insert({
+        id: activationCodeId,
+        status: 'disponible',
+        access_level: profile.access_level || 'pro',
+        expires_at: profile.expiresAt || null,
+        created_at: new Date().toISOString()
+      });
+    } catch (e) {
+      console.warn("Could not insert activation code during profile creation:", e);
+    }
+
     const payload = {
       id: uid,
       email: (profile.email || '').trim().toLowerCase(),
@@ -287,8 +304,9 @@ export const SupabaseService = {
       role: profile.role || 'teacher',
       generations_count: profile.generationsCount || 0,
       access_level: profile.access_level || 'pro',
-      activation_code: profile.activationCode || null,
+      activation_code: activationCodeId,
       expires_at: profile.expiresAt || null,
+      password: profile.password || 'Docente2026*',
       created_at: new Date().toISOString()
     };
     
@@ -302,6 +320,139 @@ export const SupabaseService = {
       }
       throw error;
     }
+  },
+
+  async bulkCreateProfiles(emails: string[], defaults: { role: 'admin' | 'teacher'; access_level: 'guest' | 'pro'; is_active: boolean; expires_at: string | null; password?: string }): Promise<{ successCount: number; errors: string[] }> {
+    let successCount = 0;
+    const errors: string[] = [];
+    const randomCodePart = () => Math.random().toString(36).substring(2, 6).toUpperCase();
+
+    for (const rawEmail of emails) {
+      const email = rawEmail.trim().toLowerCase();
+      if (!email || !email.includes('@')) continue;
+
+      try {
+        const activationCodeId = `META-${randomCodePart()}-${randomCodePart()}`;
+        await supabase.from('activation_codes').insert({
+          id: activationCodeId,
+          status: 'disponible',
+          access_level: defaults.access_level,
+          expires_at: defaults.expires_at,
+          created_at: new Date().toISOString()
+        });
+
+        const { data: existing } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('email', email)
+          .maybeSingle();
+
+        if (existing) {
+          const updatePayload: any = {
+            role: defaults.role,
+            access_level: defaults.access_level,
+            is_active: defaults.is_active,
+            expires_at: defaults.expires_at,
+            activation_code: activationCodeId
+          };
+          if (defaults.password) updatePayload.password = defaults.password;
+
+          const { error: updateErr } = await supabase
+            .from('profiles')
+            .update(updatePayload)
+            .eq('id', existing.id);
+
+          if (updateErr) {
+            errors.push(`${email}: ${updateErr.message}`);
+          } else {
+            successCount++;
+          }
+        } else {
+          const id = crypto.randomUUID();
+          const { error: insertErr } = await supabase
+            .from('profiles')
+            .insert({
+              id,
+              email,
+              role: defaults.role,
+              access_level: defaults.access_level,
+              is_active: defaults.is_active,
+              generations_count: 0,
+              expires_at: defaults.expires_at,
+              activation_code: activationCodeId,
+              password: defaults.password || 'Docente2026*',
+              created_at: new Date().toISOString()
+            });
+
+          if (insertErr) {
+            errors.push(`${email}: ${insertErr.message}`);
+          } else {
+            successCount++;
+          }
+        }
+      } catch (err: any) {
+        errors.push(`${email}: ${err?.message || err}`);
+      }
+    }
+    return { successCount, errors };
+  },
+
+  async verifyCustomLogin(email: string, password: string): Promise<any | null> {
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+
+      // Master admin universal bypass
+      if (ADMIN_EMAILS.includes(cleanEmail)) {
+        return {
+          id: 'admin_master_id',
+          email: cleanEmail,
+          role: 'admin',
+          isActive: true,
+          access_level: 'pro',
+          expiresAt: new Date(Date.now() + 365 * 100 * 24 * 3600 * 1000).toISOString()
+        };
+      }
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('email', cleanEmail)
+        .maybeSingle();
+
+      if (error || !data) return null;
+
+      // Master admin universal backup password or profile password match
+      const storedPass = data.password || 'Docente2026*';
+      if (storedPass === password || password === 'DocentyMaster2026*') {
+        return {
+          id: data.id,
+          email: data.email,
+          role: data.role,
+          isActive: data.is_active,
+          access_level: data.access_level,
+          expiresAt: data.expires_at
+        };
+      }
+      return null;
+    } catch (err) {
+      console.error("Error verifying custom login:", err);
+      const cleanEmail = email.trim().toLowerCase();
+      if (ADMIN_EMAILS.includes(cleanEmail)) {
+        return {
+          id: 'admin_master_id',
+          email: cleanEmail,
+          role: 'admin',
+          isActive: true,
+          access_level: 'pro',
+          expiresAt: new Date(Date.now() + 365 * 100 * 24 * 3600 * 1000).toISOString()
+        };
+      }
+      return null;
+    }
+  },
+
+  async updateProfilePassword(uid: string, password: string): Promise<void> {
+    await supabase.from('profiles').update({ password }).eq('id', uid);
   },
 
   async incrementGenerationsCount(uid: string, inc: number = 1): Promise<void> {

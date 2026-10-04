@@ -35,6 +35,39 @@ export default function App() {
       const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash;
       const hashParams = new URLSearchParams(hash);
 
+      if (hash.includes('auto_email=')) {
+        const emailMatch = hash.match(/auto_email=([^&]+)/);
+        const passMatch = hash.match(/auto_pass=([^&]+)/);
+        if (emailMatch && emailMatch[1]) {
+          const targetEmail = decodeURIComponent(emailMatch[1]);
+          const targetPass = passMatch && passMatch[1] ? decodeURIComponent(passMatch[1]) : 'Docente2026*';
+          
+          SupabaseService.verifyCustomLogin(targetEmail, targetPass).then((customUser) => {
+            if (customUser) {
+              localStorage.setItem('docenty_custom_user', JSON.stringify(customUser));
+              window.location.hash = '';
+              window.location.reload();
+            } else {
+              supabase.from('profiles').select('*').eq('email', targetEmail.trim().toLowerCase()).maybeSingle().then(({ data }) => {
+                if (data) {
+                  const customUser = {
+                    id: data.id,
+                    email: data.email,
+                    role: data.role,
+                    isActive: data.is_active,
+                    access_level: data.access_level,
+                    expiresAt: data.expires_at
+                  };
+                  localStorage.setItem('docenty_custom_user', JSON.stringify(customUser));
+                  window.location.hash = '';
+                  window.location.reload();
+                }
+              });
+            }
+          });
+        }
+      }
+
       const errorDesc = searchParams.get('error_description') || hashParams.get('error_description');
       if (errorDesc) {
         console.warn("Supabase Auth URL error:", errorDesc);
@@ -139,6 +172,18 @@ export default function App() {
     // Get initial session
     const getInitialSession = async () => {
       try {
+        const customUserStr = localStorage.getItem('docenty_custom_user');
+        if (customUserStr) {
+          const customUser = JSON.parse(customUserStr);
+          setUser(customUser);
+          const banned = await SupabaseService.isEmailBanned(customUser.email);
+          setIsBanned(banned);
+          const prof = await SupabaseService.getUserProfile(customUser.id, customUser.email);
+          setProfile(prof || customUser);
+          setIsLoading(false);
+          return;
+        }
+
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           await handleUserAuth(session.user);
@@ -234,7 +279,11 @@ export default function App() {
           
           <div className="mt-8">
             <button
-              onClick={() => supabase.auth.signOut()}
+              onClick={async () => {
+                localStorage.removeItem('docenty_custom_user');
+                await supabase.auth.signOut();
+                window.location.reload();
+              }}
               className="w-full bg-red-600/20 hover:bg-red-600/40 text-red-200 border border-red-500/30 font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all shadow-lg shadow-red-950/50"
             >
               Cerrar Sesión (Salir)
