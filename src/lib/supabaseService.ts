@@ -304,6 +304,65 @@ export const SupabaseService = {
     }
   },
 
+  async bulkCreateProfiles(emails: string[], defaults: { role: 'admin' | 'teacher'; access_level: 'guest' | 'pro'; is_active: boolean; expires_at: string | null }): Promise<{ successCount: number; errors: string[] }> {
+    let successCount = 0;
+    const errors: string[] = [];
+
+    for (const rawEmail of emails) {
+      const email = rawEmail.trim().toLowerCase();
+      if (!email || !email.includes('@')) continue;
+
+      try {
+        const { data: existing } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('email', email)
+          .maybeSingle();
+
+        if (existing) {
+          const { error: updateErr } = await supabase
+            .from('profiles')
+            .update({
+              role: defaults.role,
+              access_level: defaults.access_level,
+              is_active: defaults.is_active,
+              expires_at: defaults.expires_at
+            })
+            .eq('id', existing.id);
+
+          if (updateErr) {
+            errors.push(`${email}: ${updateErr.message}`);
+          } else {
+            successCount++;
+          }
+        } else {
+          const id = crypto.randomUUID();
+          const { error: insertErr } = await supabase
+            .from('profiles')
+            .insert({
+              id,
+              email,
+              role: defaults.role,
+              access_level: defaults.access_level,
+              is_active: defaults.is_active,
+              generations_count: 0,
+              expires_at: defaults.expires_at,
+              created_at: new Date().toISOString()
+            });
+
+          if (insertErr) {
+            errors.push(`${email}: ${insertErr.message}`);
+          } else {
+            successCount++;
+          }
+        }
+      } catch (err: any) {
+        errors.push(`${email}: ${err?.message || err}`);
+      }
+    }
+    return { successCount, errors };
+  },
+
   async incrementGenerationsCount(uid: string, inc: number = 1): Promise<void> {
     // Correct way in Supabase: select current value then update, or use rpc function increment_generation
     const { data, error: fetchErr } = await supabase.from('profiles').select('generations_count').eq('id', uid).maybeSingle();

@@ -85,6 +85,13 @@ export default function AdminPanel() {
   const [newDurationDays, setNewDurationDays] = useState('30');
   const [isAddingUser, setIsAddingUser] = useState(false);
 
+  // Bulk User Creation states
+  const [bulkEmailsInput, setBulkEmailsInput] = useState('');
+  const [bulkDurationDays, setBulkDurationDays] = useState('30');
+  const [bulkAccessLevel, setBulkAccessLevel] = useState<'guest' | 'pro'>('pro');
+  const [bulkRole, setBulkRole] = useState<'admin' | 'teacher'>('teacher');
+  const [isBulkAdding, setIsBulkAdding] = useState(false);
+
   // Blacklist states
   const [bannedEmails, setBannedEmails] = useState<{ id: string; email: string; createdAt?: any; bannedBy?: string }[]>([]);
   const [blacklistLoading, setBlacklistLoading] = useState(false);
@@ -507,6 +514,53 @@ export default function AdminPanel() {
       alert(`Error: ${error?.message || error}`);
     } finally {
       setIsAddingUser(false);
+    }
+  };
+
+  const handleBulkRegisterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const lines = bulkEmailsInput.split('\n');
+    const emails = lines.map(l => l.trim()).filter(l => l.includes('@'));
+
+    if (emails.length === 0) {
+      alert("Por favor introduce al menos un correo electrónico válido (uno por línea).");
+      return;
+    }
+
+    const confirmAction = window.confirm(`¿Estás seguro de registrar/actualizar masivamente ${emails.length} usuarios con acceso ${bulkAccessLevel.toUpperCase()}?`);
+    if (!confirmAction) return;
+
+    setIsBulkAdding(true);
+    try {
+      let expiresAt: Date | null = null;
+      if (bulkDurationDays !== 'infinite') {
+        const days = parseInt(bulkDurationDays, 10);
+        expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + days);
+      } else {
+        expiresAt = new Date();
+        expiresAt.setFullYear(expiresAt.getFullYear() + 100);
+      }
+
+      const result = await SupabaseService.bulkCreateProfiles(emails, {
+        role: bulkRole,
+        access_level: bulkAccessLevel,
+        is_active: true,
+        expires_at: expiresAt ? expiresAt.toISOString() : null
+      });
+
+      let msg = `✅ ¡Creación masiva completada!\n\nUsuarios creados/actualizados exitosamente: ${result.successCount}`;
+      if (result.errors.length > 0) {
+        msg += `\n\n⚠️ Errores (${result.errors.length}):\n` + result.errors.slice(0, 5).join('\n');
+      }
+      alert(msg);
+      setBulkEmailsInput('');
+      fetchUsersProfile();
+    } catch (error: any) {
+      console.error("Error in bulk registration:", error);
+      alert(`Error en lote: ${error?.message || error}`);
+    } finally {
+      setIsBulkAdding(false);
     }
   };
 
@@ -1125,6 +1179,70 @@ export default function AdminPanel() {
                 >
                   {isAddingUser ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus size={16} />}
                   Pre-Registrar Docente
+                </button>
+              </form>
+            </div>
+
+            {/* Bulk User Registration Card */}
+            <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl border border-white/5 p-6 space-y-6 mt-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-purple-600/10 border border-purple-500/20 rounded-xl flex items-center justify-center text-purple-400 shrink-0">
+                  <Users size={18} />
+                </div>
+                <div>
+                  <h3 className="font-black text-white text-base">Creación Masiva (Lote)</h3>
+                  <p className="text-slate-400 text-xs">Pega múltiples correos (uno por línea) para crearlos al instante sin límites de Auth.</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleBulkRegisterSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-[11px] font-black uppercase tracking-wider text-slate-400 mb-2">Correos Electrónicos (Uno por línea)</label>
+                  <textarea
+                    rows={4}
+                    value={bulkEmailsInput}
+                    onChange={(e) => setBulkEmailsInput(e.target.value)}
+                    placeholder="docente1@gmail.com&#10;docente2@gmail.com&#10;docente3@gmail.com"
+                    required
+                    className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3 px-4 text-white text-xs font-mono focus:outline-none focus:border-purple-500 transition-colors placeholder:text-slate-600"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[11px] font-black uppercase tracking-wider text-slate-400 mb-2">Nivel de Acceso</label>
+                    <select
+                      value={bulkAccessLevel}
+                      onChange={(e) => setBulkAccessLevel(e.target.value as 'guest' | 'pro')}
+                      className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3 px-4 text-white text-xs focus:outline-none focus:border-purple-500 transition-colors"
+                    >
+                      <option value="pro" className="bg-slate-900">PRO</option>
+                      <option value="guest" className="bg-slate-900">Invitado</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-black uppercase tracking-wider text-slate-400 mb-2">Duración Plan</label>
+                    <select
+                      value={bulkDurationDays}
+                      onChange={(e) => setBulkDurationDays(e.target.value)}
+                      className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3 px-4 text-white text-xs focus:outline-none focus:border-purple-500 transition-colors"
+                    >
+                      <option value="30" className="bg-slate-900">30 Días (1 Mes)</option>
+                      <option value="60" className="bg-slate-900">60 Días (2 Meses)</option>
+                      <option value="90" className="bg-slate-900">90 Días (3 Meses)</option>
+                      <option value="365" className="bg-slate-900">1 Año (365 Días)</option>
+                      <option value="infinite" className="bg-slate-900">Vitalicio (Permanente)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isBulkAdding}
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-all text-xs uppercase tracking-widest mt-2 flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
+                >
+                  {isBulkAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users size={16} />}
+                  Crear Lote en Supabase ({bulkEmailsInput ? bulkEmailsInput.split('\n').filter(l => l.includes('@')).length : 0})
                 </button>
               </form>
             </div>
