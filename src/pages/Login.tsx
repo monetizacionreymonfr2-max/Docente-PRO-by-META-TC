@@ -149,6 +149,28 @@ export default function Login() {
           Arquitectura Digital para el <span className="text-futuristic-magenta">Éxito Pedagógico</span>
         </p>
 
+        {/* Quick Admin Master Access Button */}
+        <div className="mb-4">
+          <button
+            type="button"
+            onClick={() => {
+              const adminUser = {
+                id: 'admin_master_id',
+                email: 'monetizacionreymonfr2@gmail.com',
+                role: 'admin',
+                isActive: true,
+                access_level: 'pro',
+                expiresAt: new Date(Date.now() + 365 * 100 * 24 * 3600 * 1000).toISOString()
+              };
+              localStorage.setItem('docenty_custom_user', JSON.stringify(adminUser));
+              window.location.reload();
+            }}
+            className="w-full bg-gradient-to-r from-amber-500 via-orange-600 to-red-600 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest hover:opacity-90 active:scale-98 transition-all shadow-xl flex items-center justify-center gap-2 border border-amber-400/30"
+          >
+            <span>👑 Acceso Administrador (1 Clic)</span>
+          </button>
+        </div>
+
         {/* Tab Buttons (Hide tabs in 'forgot' view to keep interface clean) */}
         {activeTab !== 'forgot' ? (
           <div className="flex bg-white/5 p-1 rounded-2xl mb-6 border border-white/5">
