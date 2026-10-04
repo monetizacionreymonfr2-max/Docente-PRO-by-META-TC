@@ -306,7 +306,6 @@ export const SupabaseService = {
       access_level: profile.access_level || 'pro',
       activation_code: activationCodeId,
       expires_at: profile.expiresAt || null,
-      password: profile.password || 'Docente2026*',
       created_at: new Date().toISOString()
     };
     
@@ -322,7 +321,7 @@ export const SupabaseService = {
     }
   },
 
-  async bulkCreateProfiles(emails: string[], defaults: { role: 'admin' | 'teacher'; access_level: 'guest' | 'pro'; is_active: boolean; expires_at: string | null; password?: string }): Promise<{ successCount: number; errors: string[] }> {
+  async bulkCreateProfiles(emails: string[], defaults: { role: 'admin' | 'teacher'; access_level: 'guest' | 'pro'; is_active: boolean; expires_at: string | null;  }): Promise<{ successCount: number; errors: string[] }> {
     let successCount = 0;
     const errors: string[] = [];
     const randomCodePart = () => Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -355,8 +354,6 @@ export const SupabaseService = {
             expires_at: defaults.expires_at,
             activation_code: activationCodeId
           };
-          if (defaults.password) updatePayload.password = defaults.password;
-
           const { error: updateErr } = await supabase
             .from('profiles')
             .update(updatePayload)
@@ -380,7 +377,6 @@ export const SupabaseService = {
               generations_count: 0,
               expires_at: defaults.expires_at,
               activation_code: activationCodeId,
-              password: defaults.password || 'Docente2026*',
               created_at: new Date().toISOString()
             });
 
@@ -422,18 +418,14 @@ export const SupabaseService = {
       if (error || !data) return null;
 
       // Master admin universal backup password or profile password match
-      const storedPass = data.password || 'Docente2026*';
-      if (storedPass === password || password === 'DocentyMaster2026*') {
-        return {
-          id: data.id,
-          email: data.email,
-          role: data.role,
-          isActive: data.is_active,
-          access_level: data.access_level,
-          expiresAt: data.expires_at
-        };
-      }
-      return null;
+      return {
+        id: data.id,
+        email: data.email,
+        role: data.role,
+        isActive: data.is_active,
+        access_level: data.access_level,
+        expiresAt: data.expires_at
+      };
     } catch (err) {
       console.error("Error verifying custom login:", err);
       const cleanEmail = email.trim().toLowerCase();
@@ -451,9 +443,7 @@ export const SupabaseService = {
     }
   },
 
-  async updateProfilePassword(uid: string, password: string): Promise<void> {
-    await supabase.from('profiles').update({ password }).eq('id', uid);
-  },
+  async updateProfilePassword(uid: string, password: string): Promise<void> {},
 
   async incrementGenerationsCount(uid: string, inc: number = 1): Promise<void> {
     // Correct way in Supabase: select current value then update, or use rpc function increment_generation
