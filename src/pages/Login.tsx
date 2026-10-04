@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { SupabaseService } from '../lib/supabaseService';
 import { GraduationCap, Loader2, Mail, Lock, LogIn, UserPlus, KeyRound, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 export default function Login() {
@@ -16,28 +17,44 @@ export default function Login() {
     setError('');
     setSuccess('');
 
+    const cleanEmail = email.trim().toLowerCase();
+
     try {
-      if (activeTab === 'signin') {
+      if (activeTab === 'signin' || activeTab === 'signup') {
+        // 1. Try custom DB login first (bypasses Supabase Auth rate limits entirely for pre-registered users!)
+        const customUser = await SupabaseService.verifyCustomLogin(cleanEmail, password);
+        if (customUser) {
+          localStorage.setItem('docenty_custom_user', JSON.stringify(customUser));
+          window.location.reload();
+          return;
+        }
+
+        // 2. Fallback to Supabase Auth signInWithPassword
         const { error: signInErr } = await supabase.auth.signInWithPassword({
-          email: email.trim().toLowerCase(),
+          email: cleanEmail,
           password: password,
         });
-        if (signInErr) throw signInErr;
-      } else if (activeTab === 'signup') {
-        const { error: signUpErr, data } = await supabase.auth.signUp({
-          email: email.trim().toLowerCase(),
-          password: password,
-        });
-        if (signUpErr) throw signUpErr;
-        
-        // Check if session exists or confirmation mail is sent
-        if (data?.session) {
-          setSuccess('¡Cuenta registrada e iniciada con éxito!');
+
+        if (!signInErr) {
+          return;
+        }
+
+        if (activeTab === 'signup') {
+          const { error: signUpErr, data } = await supabase.auth.signUp({
+            email: cleanEmail,
+            password: password,
+          });
+          if (signUpErr) throw signUpErr;
+          
+          if (data?.session) {
+            setSuccess('¡Cuenta registrada e iniciada con éxito!');
+          } else {
+            setSuccess('¡Cuenta creada! Ya puedes iniciar sesión con tu correo y contraseña.');
+          }
         } else {
-          setSuccess('¡Registro iniciado! Por favor verifica tu correo electrónico si está activada la confirmación.');
+          throw signInErr;
         }
       } else if (activeTab === 'forgot') {
-        const cleanEmail = email.trim().toLowerCase();
         if (!cleanEmail) {
           setError('Por favor introduce tu correo electrónico.');
           setIsLoading(false);
@@ -57,9 +74,9 @@ export default function Login() {
       let errMsg = err.message || 'Error en el proceso de autenticación';
       
       if (errMsg.includes('rate limit exceeded') || errMsg.includes('rate_limit')) {
-        errMsg = '⚠️ Has realizado demasiados intentos en poco tiempo. Por seguridad, espera 5-10 minutos antes de intentar de nuevo.';
+        errMsg = '⚠️ Has realizado demasiados intentos en poco tiempo. Sin embargo, si el administrador ya te registró en el panel, puedes iniciar sesión con tu contraseña o pedirle que verifique tus datos.';
       } else if (errMsg.includes('invalid claim') || errMsg.includes('Invalid login credentials') || errMsg.includes('invalid_credentials')) {
-        errMsg = '❌ Correo o contraseña incorrectos. Verifica tus datos o usa la opción de recuperar contraseña.';
+        errMsg = '❌ Correo o contraseña incorrectos. Verifica tus datos o usa la contraseña asignada por el administrador.';
       } else if (errMsg.includes('already registered') || errMsg.includes('already exists') || errMsg.includes('already_registered')) {
         errMsg = 'ℹ️ Este correo ya está registrado. Selecciona "Iniciar Sesión" e introduce tu contraseña.';
       }

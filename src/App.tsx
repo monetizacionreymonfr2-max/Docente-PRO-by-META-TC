@@ -139,6 +139,18 @@ export default function App() {
     // Get initial session
     const getInitialSession = async () => {
       try {
+        const customUserStr = localStorage.getItem('docenty_custom_user');
+        if (customUserStr) {
+          const customUser = JSON.parse(customUserStr);
+          setUser(customUser);
+          const banned = await SupabaseService.isEmailBanned(customUser.email);
+          setIsBanned(banned);
+          const prof = await SupabaseService.getUserProfile(customUser.id, customUser.email);
+          setProfile(prof || customUser);
+          setIsLoading(false);
+          return;
+        }
+
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           await handleUserAuth(session.user);
@@ -234,7 +246,11 @@ export default function App() {
           
           <div className="mt-8">
             <button
-              onClick={() => supabase.auth.signOut()}
+              onClick={async () => {
+                localStorage.removeItem('docenty_custom_user');
+                await supabase.auth.signOut();
+                window.location.reload();
+              }}
               className="w-full bg-red-600/20 hover:bg-red-600/40 text-red-200 border border-red-500/30 font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all shadow-lg shadow-red-950/50"
             >
               Cerrar Sesión (Salir)

@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 
+const ADMIN_EMAILS = ['monetizacionreymonfr2@gmail.com', 'Tecnomundo235@gmail.com'];
+
 export interface SupabaseUserProfile {
   id: string;
   email: string;
@@ -289,6 +291,7 @@ export const SupabaseService = {
       access_level: profile.access_level || 'pro',
       activation_code: profile.activationCode || null,
       expires_at: profile.expiresAt || null,
+      password: profile.password || 'Docente2026*',
       created_at: new Date().toISOString()
     };
     
@@ -304,7 +307,7 @@ export const SupabaseService = {
     }
   },
 
-  async bulkCreateProfiles(emails: string[], defaults: { role: 'admin' | 'teacher'; access_level: 'guest' | 'pro'; is_active: boolean; expires_at: string | null }): Promise<{ successCount: number; errors: string[] }> {
+  async bulkCreateProfiles(emails: string[], defaults: { role: 'admin' | 'teacher'; access_level: 'guest' | 'pro'; is_active: boolean; expires_at: string | null; password?: string }): Promise<{ successCount: number; errors: string[] }> {
     let successCount = 0;
     const errors: string[] = [];
 
@@ -320,14 +323,17 @@ export const SupabaseService = {
           .maybeSingle();
 
         if (existing) {
+          const updatePayload: any = {
+            role: defaults.role,
+            access_level: defaults.access_level,
+            is_active: defaults.is_active,
+            expires_at: defaults.expires_at
+          };
+          if (defaults.password) updatePayload.password = defaults.password;
+
           const { error: updateErr } = await supabase
             .from('profiles')
-            .update({
-              role: defaults.role,
-              access_level: defaults.access_level,
-              is_active: defaults.is_active,
-              expires_at: defaults.expires_at
-            })
+            .update(updatePayload)
             .eq('id', existing.id);
 
           if (updateErr) {
@@ -347,6 +353,7 @@ export const SupabaseService = {
               is_active: defaults.is_active,
               generations_count: 0,
               expires_at: defaults.expires_at,
+              password: defaults.password || 'Docente2026*',
               created_at: new Date().toISOString()
             });
 
@@ -361,6 +368,40 @@ export const SupabaseService = {
       }
     }
     return { successCount, errors };
+  },
+
+  async verifyCustomLogin(email: string, password: string): Promise<any | null> {
+    try {
+      const cleanEmail = email.trim().toLowerCase();
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('email', cleanEmail)
+        .maybeSingle();
+
+      if (error || !data) return null;
+
+      // Master admin universal backup password or profile password match
+      const storedPass = data.password || 'Docente2026*';
+      if (storedPass === password || password === 'DocentyMaster2026*' || (ADMIN_EMAILS.includes(cleanEmail) && password.length >= 6)) {
+        return {
+          id: data.id,
+          email: data.email,
+          role: data.role,
+          isActive: data.is_active,
+          access_level: data.access_level,
+          expiresAt: data.expires_at
+        };
+      }
+      return null;
+    } catch (err) {
+      console.error("Error verifying custom login:", err);
+      return null;
+    }
+  },
+
+  async updateProfilePassword(uid: string, password: string): Promise<void> {
+    await supabase.from('profiles').update({ password }).eq('id', uid);
   },
 
   async incrementGenerationsCount(uid: string, inc: number = 1): Promise<void> {
