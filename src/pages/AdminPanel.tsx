@@ -290,6 +290,12 @@ export default function AdminPanel() {
     alert(`Código ${text} copiado!`);
   };
 
+  const copyDirectLoginLink = (user: ProfileUser) => {
+    const loginLink = `${window.location.origin}/#auto_email=${encodeURIComponent(user.email)}&auto_pass=${encodeURIComponent((user as any).password || 'Docente2026*')}`;
+    navigator.clipboard.writeText(loginLink);
+    alert(`🔗 ¡Enlace de acceso directo copiado para ${user.email}!\n\nEnvíale este enlace al docente por WhatsApp. Al abrirlo, ingresará a su cuenta con un solo clic.`);
+  };
+
   const handleRenew = async (code: Code) => {
     await handleAdjustDays(code, 30);
   };
@@ -1401,6 +1407,15 @@ export default function AdminPanel() {
                             >
                               <KeyRound size={14} className="text-amber-600" />
                               <span>Enviar Enlace Recuperar Clave</span>
+                            </button>
+
+                            <button
+                              onClick={() => copyDirectLoginLink(user)}
+                              className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all active:scale-98"
+                              title="Copiar enlace de acceso de 1 clic"
+                            >
+                              <Copy size={14} className="text-emerald-600" />
+                              <span>🔗 Copiar Enlace de Acceso 1 Clic</span>
                             </button>
 
                             <div className="flex justify-end pt-1">

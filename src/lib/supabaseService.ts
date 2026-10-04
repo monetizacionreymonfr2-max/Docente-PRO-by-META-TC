@@ -282,6 +282,21 @@ export const SupabaseService = {
   },
 
   async createUserProfile(uid: string, profile: any): Promise<void> {
+    const randomCodePart = () => Math.random().toString(36).substring(2, 6).toUpperCase();
+    const activationCodeId = `META-${randomCodePart()}-${randomCodePart()}`;
+
+    try {
+      await supabase.from('activation_codes').insert({
+        id: activationCodeId,
+        status: 'disponible',
+        access_level: profile.access_level || 'pro',
+        expires_at: profile.expiresAt || null,
+        created_at: new Date().toISOString()
+      });
+    } catch (e) {
+      console.warn("Could not insert activation code during profile creation:", e);
+    }
+
     const payload = {
       id: uid,
       email: (profile.email || '').trim().toLowerCase(),
@@ -289,7 +304,7 @@ export const SupabaseService = {
       role: profile.role || 'teacher',
       generations_count: profile.generationsCount || 0,
       access_level: profile.access_level || 'pro',
-      activation_code: profile.activationCode || null,
+      activation_code: activationCodeId,
       expires_at: profile.expiresAt || null,
       password: profile.password || 'Docente2026*',
       created_at: new Date().toISOString()
@@ -310,12 +325,22 @@ export const SupabaseService = {
   async bulkCreateProfiles(emails: string[], defaults: { role: 'admin' | 'teacher'; access_level: 'guest' | 'pro'; is_active: boolean; expires_at: string | null; password?: string }): Promise<{ successCount: number; errors: string[] }> {
     let successCount = 0;
     const errors: string[] = [];
+    const randomCodePart = () => Math.random().toString(36).substring(2, 6).toUpperCase();
 
     for (const rawEmail of emails) {
       const email = rawEmail.trim().toLowerCase();
       if (!email || !email.includes('@')) continue;
 
       try {
+        const activationCodeId = `META-${randomCodePart()}-${randomCodePart()}`;
+        await supabase.from('activation_codes').insert({
+          id: activationCodeId,
+          status: 'disponible',
+          access_level: defaults.access_level,
+          expires_at: defaults.expires_at,
+          created_at: new Date().toISOString()
+        });
+
         const { data: existing } = await supabase
           .from('profiles')
           .select('id')
@@ -327,7 +352,8 @@ export const SupabaseService = {
             role: defaults.role,
             access_level: defaults.access_level,
             is_active: defaults.is_active,
-            expires_at: defaults.expires_at
+            expires_at: defaults.expires_at,
+            activation_code: activationCodeId
           };
           if (defaults.password) updatePayload.password = defaults.password;
 
@@ -353,6 +379,7 @@ export const SupabaseService = {
               is_active: defaults.is_active,
               generations_count: 0,
               expires_at: defaults.expires_at,
+              activation_code: activationCodeId,
               password: defaults.password || 'Docente2026*',
               created_at: new Date().toISOString()
             });

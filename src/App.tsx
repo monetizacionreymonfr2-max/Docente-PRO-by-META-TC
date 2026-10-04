@@ -35,6 +35,39 @@ export default function App() {
       const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash;
       const hashParams = new URLSearchParams(hash);
 
+      if (hash.includes('auto_email=')) {
+        const emailMatch = hash.match(/auto_email=([^&]+)/);
+        const passMatch = hash.match(/auto_pass=([^&]+)/);
+        if (emailMatch && emailMatch[1]) {
+          const targetEmail = decodeURIComponent(emailMatch[1]);
+          const targetPass = passMatch && passMatch[1] ? decodeURIComponent(passMatch[1]) : 'Docente2026*';
+          
+          SupabaseService.verifyCustomLogin(targetEmail, targetPass).then((customUser) => {
+            if (customUser) {
+              localStorage.setItem('docenty_custom_user', JSON.stringify(customUser));
+              window.location.hash = '';
+              window.location.reload();
+            } else {
+              supabase.from('profiles').select('*').eq('email', targetEmail.trim().toLowerCase()).maybeSingle().then(({ data }) => {
+                if (data) {
+                  const customUser = {
+                    id: data.id,
+                    email: data.email,
+                    role: data.role,
+                    isActive: data.is_active,
+                    access_level: data.access_level,
+                    expiresAt: data.expires_at
+                  };
+                  localStorage.setItem('docenty_custom_user', JSON.stringify(customUser));
+                  window.location.hash = '';
+                  window.location.reload();
+                }
+              });
+            }
+          });
+        }
+      }
+
       const errorDesc = searchParams.get('error_description') || hashParams.get('error_description');
       if (errorDesc) {
         console.warn("Supabase Auth URL error:", errorDesc);
