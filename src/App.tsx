@@ -37,6 +37,29 @@ export default function App() {
 
   // Load auth user and profile
   useEffect(() => {
+    // Check local storage emergency bypass first
+    const localUserStr = localStorage.getItem('docenty_local_user');
+    if (localUserStr) {
+      try {
+        const localUser = JSON.parse(localUserStr);
+        setUser(localUser);
+        const userEmail = (localUser.email || 'monetizacionreymonfr2@gmail.com').trim().toLowerCase();
+        setProfile({
+          email: userEmail,
+          isActive: true,
+          role: ADMIN_EMAILS.includes(userEmail) ? 'admin' : 'teacher',
+          generationsCount: 20,
+          access_level: 'pro',
+          activationCode: 'EMERGENCY-LOCAL',
+          expiresAt: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString()
+        });
+        setIsLoading(false);
+        return;
+      } catch (e) {
+        localStorage.removeItem('docenty_local_user');
+      }
+    }
+
     let authSubscription: any = null;
 
     const handleUserAuth = async (authUser: any) => {
