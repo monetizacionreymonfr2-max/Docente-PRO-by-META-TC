@@ -23,11 +23,10 @@ interface DailyPlan {
 }
 
 export default function Planner() {
-  const { isGuest, generationsCount, teacherId } = useOutletContext<{ isGuest: boolean, generationsCount: number, teacherId: string }>();
+  const { teacherId } = useOutletContext<{ teacherId: string }>();
   const [activeTab, setActiveTab] = useState<'generate' | 'history'>(() => {
     return (localStorage.getItem('planner_active_tab') as 'generate' | 'history') || 'generate';
   });
-  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   
   // Form State
   const [selectedPpaId, setSelectedPpaId] = useState(() => localStorage.getItem('planner_form_ppa') || '');
@@ -132,12 +131,6 @@ export default function Planner() {
     e.preventDefault();
     if (!selectedPpaId || !fecha || !temaDia.trim() || !teacherId) {
       setErrorMsg("Por favor completa todos los campos.");
-      return;
-    }
-
-    // Check Guest limit
-    if (isGuest && generationsCount >= 3) {
-      setIsLimitModalOpen(true);
       return;
     }
 
@@ -617,11 +610,6 @@ ESTRUCTURA OBLIGATORIA:
           </div>
         </div>
       )}
-
-      <LimitReachedModal 
-        isOpen={isLimitModalOpen} 
-        onClose={() => setIsLimitModalOpen(false)} 
-      />
     </div>
   );
 }

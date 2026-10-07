@@ -32,11 +32,10 @@ const calculateAge = (birthDateString: string) => {
 };
 
 export default function Reports() {
-  const { isGuest, generationsCount, teacherId } = useOutletContext<{ isGuest: boolean, generationsCount: number, teacherId: string }>();
+  const { teacherId } = useOutletContext<{ teacherId: string }>();
   const [activeTab, setActiveTab] = useState<'generate' | 'history'>(() => {
     return (localStorage.getItem('reports_active_tab') as 'generate' | 'history') || 'generate';
   });
-  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   
   // Form State
   const [students, setStudents] = useState<Student[]>([]);
@@ -127,12 +126,6 @@ export default function Reports() {
   const handleGenerateObservation = async () => {
     if (!palabrasClave.trim()) {
       setErrorMsg("Por favor, ingresa algunas palabras clave sobre el rendimiento del estudiante.");
-      return;
-    }
-
-    // Check Guest limit
-    if (isGuest && generationsCount >= 3) {
-      setIsLimitModalOpen(true);
       return;
     }
 
@@ -615,11 +608,6 @@ Palabras clave: ${palabrasClave}`;
           </div>
         </div>
       )}
-
-      <LimitReachedModal 
-        isOpen={isLimitModalOpen} 
-        onClose={() => setIsLimitModalOpen(false)} 
-      />
     </div>
   );
 }

@@ -282,7 +282,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} codeId={codeId} generationsCount={generationsCount} teacherId={user.id} expiresAt={expiresAt} />}>
+        <Route path="/" element={<Layout isAdmin={isAdmin} codeId={codeId} teacherId={user.id} expiresAt={expiresAt} />}>
           <Route index element={<Navigate to="/home" replace />} />
           <Route path="home" element={<Home />} />
           <Route path="earn-money" element={<EarnMoney />} />
