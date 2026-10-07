@@ -927,7 +927,7 @@ Directrices:
                       className="flex items-center gap-2 px-6 py-2.5 rounded-full font-black shadow-lg transform active:scale-95 bg-white/5 text-futuristic-accent hover:bg-futuristic-purple/20 border border-futuristic-accent/30 tracking-widest text-[10px] uppercase"
                     >
                       <Radio className="w-4 h-4 mr-1 animate-pulse" />
-                      ACTIVAR SINCRONIZACIÓN LIVE
+                      Hablar con Camila
                     </button>
                   </div>
 

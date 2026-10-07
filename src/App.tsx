@@ -28,36 +28,38 @@ export default function App() {
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check URL hash and search params for recovery or errors on mount
+  // Check URL hash for recovery on mount
   useEffect(() => {
-    try {
-      const searchParams = new URLSearchParams(window.location.search);
-      const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash;
-      const hashParams = new URLSearchParams(hash);
-
-      const errorDesc = searchParams.get('error_description') || hashParams.get('error_description');
-      if (errorDesc) {
-        console.warn("Supabase Auth URL error:", errorDesc);
-        // Clean URL to prevent repeated error messages
-        if (window.history.replaceState) {
-          window.history.replaceState(null, '', window.location.pathname);
-        }
-        alert(`Aviso de recuperación: ${decodeURIComponent(errorDesc.replace(/\+/g, ' '))}`);
-      }
-
-      if (
-        (window.location.hash && window.location.hash.includes('type=recovery')) ||
-        searchParams.get('type') === 'recovery'
-      ) {
-        setIsPasswordRecovery(true);
-      }
-    } catch (e) {
-      console.error("Error parsing recovery parameters:", e);
+    if (window.location.hash && window.location.hash.includes('type=recovery')) {
+      setIsPasswordRecovery(true);
     }
   }, []);
 
   // Load auth user and profile
   useEffect(() => {
+    // Check local storage emergency bypass first
+    const localUserStr = localStorage.getItem('docenty_local_user');
+    if (localUserStr) {
+      try {
+        const localUser = JSON.parse(localUserStr);
+        setUser(localUser);
+        const userEmail = (localUser.email || 'monetizacionreymonfr2@gmail.com').trim().toLowerCase();
+        setProfile({
+          email: userEmail,
+          isActive: true,
+          role: ADMIN_EMAILS.includes(userEmail) ? 'admin' : 'teacher',
+          generationsCount: 20,
+          access_level: 'pro',
+          activationCode: 'EMERGENCY-LOCAL',
+          expiresAt: new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString()
+        });
+        setIsLoading(false);
+        return;
+      } catch (e) {
+        localStorage.removeItem('docenty_local_user');
+      }
+    }
+
     let authSubscription: any = null;
 
     const handleUserAuth = async (authUser: any) => {
@@ -190,9 +192,6 @@ export default function App() {
         onSuccess={() => {
           setIsPasswordRecovery(false);
           window.location.hash = '';
-          if (window.history.replaceState) {
-            window.history.replaceState(null, '', window.location.pathname);
-          }
         }}
       />
     );
