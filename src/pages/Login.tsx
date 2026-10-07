@@ -62,27 +62,12 @@ export default function Login() {
         errMsg = '❌ Correo o contraseña incorrectos. Verifica tus datos o usa la opción de recuperar contraseña.';
       } else if (errMsg.includes('already registered') || errMsg.includes('already exists') || errMsg.includes('already_registered')) {
         errMsg = 'ℹ️ Este correo ya está registrado. Selecciona "Iniciar Sesión" e introduce tu contraseña.';
-      } else if (errMsg.includes('Failed to fetch') || errMsg.includes('fetch failed') || errMsg.includes('NetworkError') || errMsg.includes('network')) {
-        errMsg = '🌐 Error de red (Failed to fetch). Si Supabase no responde, usa el botón de Acceso de Emergencia abajo.';
       }
       
       setError(errMsg);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleEmergencyBypass = () => {
-    const cleanEmail = email.trim().toLowerCase() || 'monetizacionreymonfr2@gmail.com';
-    const mockUser = {
-      id: 'local-user-' + Date.now(),
-      email: cleanEmail,
-    };
-    localStorage.setItem('docenty_local_user', JSON.stringify(mockUser));
-    setSuccess('🚀 Activando modo de emergencia local...');
-    setTimeout(() => {
-      window.location.reload();
-    }, 600);
   };
 
   const handleGoogleLogin = async () => {
@@ -254,16 +239,6 @@ export default function Login() {
             )}
           </button>
         </form>
-
-        <div className="mb-6">
-          <button
-            type="button"
-            onClick={handleEmergencyBypass}
-            className="w-full bg-white/5 hover:bg-white/10 text-futuristic-accent border border-futuristic-accent/30 py-3.5 px-4 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-lg"
-          >
-            <span>🚀 Acceso de Emergencia (Modo Local)</span>
-          </button>
-        </div>
 
         <div className="mt-8 flex items-center justify-center gap-3">
           <div className="w-1.5 h-1.5 rounded-full bg-futuristic-accent animate-pulse"></div>
