@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { SupabaseService } from '../lib/supabaseService';
 import TimeAdjustmentModal, { TargetSubscription } from '../components/TimeAdjustmentModal';
+import { getWhatsAppNumber, setWhatsAppNumber } from '../lib/whatsapp';
 import { 
   Ticket, 
   CheckCircle2, 
@@ -26,7 +27,8 @@ import {
   UserX,
   Sparkles,
   Check,
-  KeyRound
+  KeyRound,
+  MessageCircle
 } from 'lucide-react';
 
 interface Code {
@@ -54,7 +56,23 @@ interface ProfileUser {
 const ADMIN_EMAILS = ['monetizacionreymonfr2@gmail.com', 'Tecnomundo235@gmail.com'];
 
 export default function AdminPanel() {
-  const [activeTab, setActiveTab] = useState<'licencias' | 'usuarios' | 'blacklist'>('licencias');
+  const [activeTab, setActiveTab] = useState<'licencias' | 'usuarios' | 'blacklist' | 'whatsapp'>('licencias');
+
+  // WhatsApp settings states
+  const [whatsappNumberInput, setWhatsappNumberInput] = useState('');
+  const [whatsappSuccessMsg, setWhatsappSuccessMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    setWhatsappNumberInput(getWhatsAppNumber());
+  }, []);
+
+  const handleSaveWhatsApp = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!whatsappNumberInput.trim()) return;
+    setWhatsAppNumber(whatsappNumberInput.trim());
+    setWhatsappSuccessMsg('¡Número de WhatsApp actualizado con éxito en toda la plataforma!');
+    setTimeout(() => setWhatsappSuccessMsg(null), 4000);
+  };
   
   // Codes states
   const [codes, setCodes] = useState<Code[]>([]);
@@ -84,13 +102,6 @@ export default function AdminPanel() {
   const [newIsActive, setNewIsActive] = useState(true);
   const [newDurationDays, setNewDurationDays] = useState('30');
   const [isAddingUser, setIsAddingUser] = useState(false);
-
-  // Bulk User Creation states
-  const [bulkEmailsInput, setBulkEmailsInput] = useState('');
-  const [bulkDurationDays, setBulkDurationDays] = useState('30');
-  const [bulkAccessLevel, setBulkAccessLevel] = useState<'guest' | 'pro'>('pro');
-  const [bulkRole, setBulkRole] = useState<'admin' | 'teacher'>('teacher');
-  const [isBulkAdding, setIsBulkAdding] = useState(false);
 
   // Blacklist states
   const [bannedEmails, setBannedEmails] = useState<{ id: string; email: string; createdAt?: any; bannedBy?: string }[]>([]);
@@ -288,12 +299,6 @@ export default function AdminPanel() {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     alert(`Código ${text} copiado!`);
-  };
-
-  const copyDirectLoginLink = (user: ProfileUser) => {
-    const loginLink = `${window.location.origin}/#auto_email=${encodeURIComponent(user.email)}&auto_pass=${encodeURIComponent((user as any).password || 'Docente2026*')}`;
-    navigator.clipboard.writeText(loginLink);
-    alert(`🔗 ¡Enlace de acceso directo copiado para ${user.email}!\n\nEnvíale este enlace al docente por WhatsApp. Al abrirlo, ingresará a su cuenta con un solo clic.`);
   };
 
   const handleRenew = async (code: Code) => {
@@ -523,53 +528,6 @@ export default function AdminPanel() {
     }
   };
 
-  const handleBulkRegisterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const lines = bulkEmailsInput.split('\n');
-    const emails = lines.map(l => l.trim()).filter(l => l.includes('@'));
-
-    if (emails.length === 0) {
-      alert("Por favor introduce al menos un correo electrónico válido (uno por línea).");
-      return;
-    }
-
-    const confirmAction = window.confirm(`¿Estás seguro de registrar/actualizar masivamente ${emails.length} usuarios con acceso ${bulkAccessLevel.toUpperCase()}?`);
-    if (!confirmAction) return;
-
-    setIsBulkAdding(true);
-    try {
-      let expiresAt: Date | null = null;
-      if (bulkDurationDays !== 'infinite') {
-        const days = parseInt(bulkDurationDays, 10);
-        expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + days);
-      } else {
-        expiresAt = new Date();
-        expiresAt.setFullYear(expiresAt.getFullYear() + 100);
-      }
-
-      const result = await SupabaseService.bulkCreateProfiles(emails, {
-        role: bulkRole,
-        access_level: bulkAccessLevel,
-        is_active: true,
-        expires_at: expiresAt ? expiresAt.toISOString() : null
-      });
-
-      let msg = `✅ ¡Creación masiva completada!\n\nUsuarios creados/actualizados exitosamente: ${result.successCount}`;
-      if (result.errors.length > 0) {
-        msg += `\n\n⚠️ Errores (${result.errors.length}):\n` + result.errors.slice(0, 5).join('\n');
-      }
-      alert(msg);
-      setBulkEmailsInput('');
-      fetchUsersProfile();
-    } catch (error: any) {
-      console.error("Error in bulk registration:", error);
-      alert(`Error en lote: ${error?.message || error}`);
-    } finally {
-      setIsBulkAdding(false);
-    }
-  };
-
   const calculateDaysLeft = (expiresAt: any) => {
     if (!expiresAt) return 0;
     try {
@@ -714,6 +672,17 @@ export default function AdminPanel() {
           <ShieldAlert size={16} />
           Lista Negra / Bloqueos
         </button>
+        <button
+          onClick={() => setActiveTab('whatsapp')}
+          className={`flex-1 min-w-[140px] py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
+            activeTab === 'whatsapp' 
+              ? 'bg-green-600 text-white shadow-lg shadow-green-600/20' 
+              : 'text-slate-400 hover:text-green-400 hover:bg-green-500/5'
+          }`}
+        >
+          <MessageCircle size={16} />
+          WhatsApp
+        </button>
       </div>
 
       {errorMsg && (
@@ -731,20 +700,12 @@ export default function AdminPanel() {
         <div className="space-y-8 animate-in fade-in duration-300">
           <div className="flex justify-end gap-3">
             <button
-              onClick={() => generateCode('guest')}
-              disabled={!!isGenerating}
-              className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-6 rounded-2xl flex items-center gap-3 shadow-lg shadow-amber-500/20 active:scale-95 transition-all text-xs uppercase tracking-wider disabled:opacity-50"
-            >
-              {isGenerating === 'guest' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
-              {isGenerating === 'guest' ? 'Generando...' : 'Código Invitado'}
-            </button>
-            <button
               onClick={() => generateCode('pro')}
               disabled={!!isGenerating}
               className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-2xl flex items-center gap-3 shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-xs uppercase tracking-wider disabled:opacity-50"
             >
               {isGenerating === 'pro' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
-              {isGenerating === 'pro' ? 'Generando...' : 'Código PRO'}
+              {isGenerating === 'pro' ? 'Generando...' : 'Generar Código PRO'}
             </button>
           </div>
 
@@ -1189,70 +1150,6 @@ export default function AdminPanel() {
               </form>
             </div>
 
-            {/* Bulk User Registration Card */}
-            <div className="bg-slate-900/60 backdrop-blur-md rounded-3xl border border-white/5 p-6 space-y-6 mt-6">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-purple-600/10 border border-purple-500/20 rounded-xl flex items-center justify-center text-purple-400 shrink-0">
-                  <Users size={18} />
-                </div>
-                <div>
-                  <h3 className="font-black text-white text-base">Creación Masiva (Lote)</h3>
-                  <p className="text-slate-400 text-xs">Pega múltiples correos (uno por línea) para crearlos al instante sin límites de Auth.</p>
-                </div>
-              </div>
-
-              <form onSubmit={handleBulkRegisterSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-[11px] font-black uppercase tracking-wider text-slate-400 mb-2">Correos Electrónicos (Uno por línea)</label>
-                  <textarea
-                    rows={4}
-                    value={bulkEmailsInput}
-                    onChange={(e) => setBulkEmailsInput(e.target.value)}
-                    placeholder="docente1@gmail.com&#10;docente2@gmail.com&#10;docente3@gmail.com"
-                    required
-                    className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3 px-4 text-white text-xs font-mono focus:outline-none focus:border-purple-500 transition-colors placeholder:text-slate-600"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[11px] font-black uppercase tracking-wider text-slate-400 mb-2">Nivel de Acceso</label>
-                    <select
-                      value={bulkAccessLevel}
-                      onChange={(e) => setBulkAccessLevel(e.target.value as 'guest' | 'pro')}
-                      className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3 px-4 text-white text-xs focus:outline-none focus:border-purple-500 transition-colors"
-                    >
-                      <option value="pro" className="bg-slate-900">PRO</option>
-                      <option value="guest" className="bg-slate-900">Invitado</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-black uppercase tracking-wider text-slate-400 mb-2">Duración Plan</label>
-                    <select
-                      value={bulkDurationDays}
-                      onChange={(e) => setBulkDurationDays(e.target.value)}
-                      className="w-full bg-slate-950/50 border border-white/10 rounded-xl py-3 px-4 text-white text-xs focus:outline-none focus:border-purple-500 transition-colors"
-                    >
-                      <option value="30" className="bg-slate-900">30 Días (1 Mes)</option>
-                      <option value="60" className="bg-slate-900">60 Días (2 Meses)</option>
-                      <option value="90" className="bg-slate-900">90 Días (3 Meses)</option>
-                      <option value="365" className="bg-slate-900">1 Año (365 Días)</option>
-                      <option value="infinite" className="bg-slate-900">Vitalicio (Permanente)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isBulkAdding}
-                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90 disabled:opacity-50 text-white font-bold py-3.5 rounded-xl transition-all text-xs uppercase tracking-widest mt-2 flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20"
-                >
-                  {isBulkAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users size={16} />}
-                  Crear Lote en Supabase ({bulkEmailsInput ? bulkEmailsInput.split('\n').filter(l => l.includes('@')).length : 0})
-                </button>
-              </form>
-            </div>
-
             {/* List and Search of Users (Col 2-3) */}
             <div className="lg:col-span-2 space-y-6">
               <div className="flex bg-slate-900/40 border border-white/5 rounded-2xl py-2 px-4 items-center gap-3">
@@ -1407,15 +1304,6 @@ export default function AdminPanel() {
                             >
                               <KeyRound size={14} className="text-amber-600" />
                               <span>Enviar Enlace Recuperar Clave</span>
-                            </button>
-
-                            <button
-                              onClick={() => copyDirectLoginLink(user)}
-                              className="w-full py-2 px-3 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 rounded-xl text-xs font-black flex items-center justify-center gap-2 transition-all active:scale-98"
-                              title="Copiar enlace de acceso de 1 clic"
-                            >
-                              <Copy size={14} className="text-emerald-600" />
-                              <span>🔗 Copiar Enlace de Acceso 1 Clic</span>
                             </button>
 
                             <div className="flex justify-end pt-1">
@@ -1722,6 +1610,57 @@ export default function AdminPanel() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* VIEW 4: WHATSAPP CONFIG */}
+      {activeTab === 'whatsapp' && (
+        <div className="bg-slate-900/60 border border-white/10 rounded-3xl p-8 max-w-2xl mx-auto shadow-2xl backdrop-blur-md space-y-6 animate-in fade-in duration-300">
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 bg-green-500/20 border border-green-500/30 rounded-2xl flex items-center justify-center text-green-400">
+              <MessageCircle size={30} />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-white">Configuración del Número de WhatsApp</h3>
+              <p className="text-slate-400 text-xs mt-1">Este número se utilizará en todos los botones de contacto, modal de límite alcanzado, asistente Camila y sección de promotores.</p>
+            </div>
+          </div>
+
+          <form onSubmit={handleSaveWhatsApp} className="space-y-6 pt-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
+                Número de WhatsApp (con código de país, ej. 584262953484)
+              </label>
+              <div className="relative">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-green-400 font-black">+</span>
+                <input
+                  type="text"
+                  value={whatsappNumberInput}
+                  onChange={(e) => setWhatsappNumberInput(e.target.value)}
+                  placeholder="584262953484"
+                  className="w-full bg-slate-950/80 border border-white/10 rounded-2xl py-4 pl-10 pr-4 text-white font-bold text-lg focus:outline-none focus:border-green-500 transition-colors"
+                />
+              </div>
+              <p className="text-slate-500 text-[11px] mt-2">
+                Ejemplo para Venezuela: <span className="text-slate-300 font-mono">584126830537</span> o <span className="text-slate-300 font-mono">584262953484</span>. No incluyas espacios, guiones ni símbolo más (+).
+              </p>
+            </div>
+
+            {whatsappSuccessMsg && (
+              <div className="p-4 bg-green-500/10 border border-green-500/30 text-green-300 text-xs font-bold rounded-2xl flex items-center gap-3 animate-in fade-in duration-300">
+                <CheckCircle2 size={18} className="text-green-400 shrink-0" />
+                {whatsappSuccessMsg}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-green-600/30 transition-all active:scale-[0.98] uppercase tracking-wider text-sm flex items-center justify-center gap-2"
+            >
+              <CheckCircle2 size={18} />
+              Guardar Nuevo Número de WhatsApp
+            </button>
+          </form>
         </div>
       )}
 

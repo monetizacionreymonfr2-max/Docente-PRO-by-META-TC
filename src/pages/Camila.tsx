@@ -5,6 +5,7 @@ import { generateContentWithRetry } from '../lib/gemini';
 import { SupabaseService } from '../lib/supabaseService';
 import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio, X, Sparkles, MessageCircle } from 'lucide-react';
 import Markdown from 'react-markdown';
+import { getWhatsAppUrl } from '../lib/whatsapp';
 
 // 1. Buscamos la variable en el formato de Vite (Vercel)
 // 2. Si no está, buscamos en el formato de Node (AI Studio)
@@ -800,7 +801,7 @@ Directrices:
             <div className="space-y-8 pt-4">
               <div className="flex flex-col items-center gap-6">
                 <a
-                  href="https://wa.me/584262953484?text=Hola%20Camila,%20estoy%20convencido.%20Quiero%20comprar%20mi%20código%20PRO."
+                  href={getWhatsAppUrl('Hola Camila, estoy convencido. Quiero comprar mi código PRO.')}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white font-black px-12 py-6 rounded-2xl shadow-[0_15px_30px_rgba(34,197,94,0.3)] transform transition-active hover:scale-105 active:scale-95 text-xl w-full sm:w-auto justify-center group"

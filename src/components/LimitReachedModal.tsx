@@ -1,4 +1,5 @@
 import { Lock, Zap, MessageSquare, ChevronRight } from 'lucide-react';
+import { getWhatsAppUrl } from '../lib/whatsapp';
 
 interface LimitReachedModalProps {
   isOpen: boolean;
@@ -6,9 +7,7 @@ interface LimitReachedModalProps {
 }
 
 export default function LimitReachedModal({ isOpen, onClose }: LimitReachedModalProps) {
-  const WHATSAPP_NUMBER = '584126830537'; // Number from previous context/common VZ number pattern
-  const WHATSAPP_MESSAGE = encodeURIComponent('Hola, vengo de DOCENTE PRO. Alcancé el límite de invitado y quiero adquirir un código PRO por $2 (30 días).');
-  const WHATSAPP_URL = `https://wa.me/${WHATSAPP_NUMBER}?text=${WHATSAPP_MESSAGE}`;
+  const WHATSAPP_URL = getWhatsAppUrl('Hola, vengo de DOCENTE PRO. Alcancé el límite de invitado y quiero adquirir un código PRO por $2 (30 días).');
 
   if (!isOpen) return null;
 

@@ -12,6 +12,7 @@ import {
   Rocket
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { getWhatsAppUrl } from '../lib/whatsapp';
 
 export default function EarnMoney() {
   const containerVariants = {
@@ -29,7 +30,7 @@ export default function EarnMoney() {
 
   const handleJoinChat = () => {
     const text = "Hola Reymon, estoy interesado en el modelo de negocio 'Ganar dinero con docentes'. Me gustaría unirme como promotor.";
-    window.open(`https://wa.me/584262953484?text=${encodeURIComponent(text)}`, '_blank');
+    window.open(getWhatsAppUrl(text), '_blank');
   };
 
   return (

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { SupabaseService } from '../lib/supabaseService';
 import { Key, Loader2, ShieldCheck, XCircle, Info, Sparkles } from 'lucide-react';
 import { CamilaInner } from '../pages/Camila';
+import { getWhatsAppUrl } from '../lib/whatsapp';
 
 interface ActivationModalProps {
   userId: string;
@@ -132,7 +133,7 @@ export default function ActivationModal({ userId, email }: ActivationModalProps)
               Compra tu código PRO por $2 (30 días)
             </p>
             <a
-              href="https://wa.me/584262953484"
+              href={getWhatsAppUrl('Hola, quiero comprar mi código PRO.')}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-green-500/20 active:scale-[0.98] transition-all"
