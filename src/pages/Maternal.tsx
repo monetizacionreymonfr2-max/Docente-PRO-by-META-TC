@@ -46,7 +46,7 @@ interface Milestone {
 }
 
 export default function Maternal() {
-  const { teacherId } = useOutletContext<{ teacherId: string }>();
+  const { isGuest = false, generationsCount = 0, teacherId = '' } = useOutletContext<{ isGuest?: boolean, generationsCount?: number, teacherId?: string }>() || {};
   const [activeTab, setActiveTab] = useState<'routine' | 'milestones' | 'planning'>('routine');
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -99,6 +99,7 @@ export default function Maternal() {
   const [plans, setPlans] = useState<any[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<any | null>(null);
   const [errorMsgPlan, setErrorMsgPlan] = useState<string | null>(null);
+  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
 
   // For inline Editing
   const [isEditingPlan, setIsEditingPlan] = useState(false);
@@ -183,6 +184,11 @@ export default function Maternal() {
   const handleGeneratePlan = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!teacherId) return;
+
+    if (isGuest && generationsCount >= 3) {
+      setIsLimitModalOpen(true);
+      return;
+    }
 
     setIsGeneratingPlan(true);
     setErrorMsgPlan(null);
@@ -1274,6 +1280,11 @@ Usa un tono técnico, lúdico y tierno, respetando siempre el desarrollo fisiol�
         </div>
       )}
 
+      {/* Limit Modal */}
+      <LimitReachedModal 
+        isOpen={isLimitModalOpen} 
+        onClose={() => setIsLimitModalOpen(false)} 
+      />
     </div>
   );
 }

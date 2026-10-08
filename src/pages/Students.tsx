@@ -20,7 +20,7 @@ const MONTHS = [
 ];
 
 export default function Students() {
-  const { isGuest, generationsCount, teacherId } = useOutletContext<{ isGuest: boolean, generationsCount: number, teacherId: string }>();
+  const { isGuest = false, generationsCount = 0, teacherId = '' } = useOutletContext<{ isGuest?: boolean, generationsCount?: number, teacherId?: string }>() || {};
   const [activeTab, setActiveTab] = useState<'list' | 'birthdays'>(() => (localStorage.getItem('students_active_tab') as any) || 'list');
   const [nombre, setNombre] = useState('');
 

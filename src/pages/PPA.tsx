@@ -18,10 +18,11 @@ interface PPAProject {
 }
 
 export default function PPA() {
-  const { teacherId } = useOutletContext<{ teacherId: string }>();
+  const { isGuest = false, generationsCount = 0, teacherId = '' } = useOutletContext<{ isGuest?: boolean, generationsCount?: number, teacherId?: string }>() || {};
   const [activeTab, setActiveTab] = useState<'generate' | 'history'>(() => {
     return (localStorage.getItem('ppa_active_tab') as 'generate' | 'history') || 'generate';
   });
+  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   
   // Form State
   const [gradoSeccion, setGradoSeccion] = useState(() => localStorage.getItem('ppa_form_grado') || '');
@@ -109,6 +110,12 @@ export default function PPA() {
     
     if (!gradoSeccion.trim() || !tema.trim() || !duracion.trim() || !diagnostico.trim() || !teacherId) {
       setErrorMsg("Por favor completa todos los campos requeridos.");
+      return;
+    }
+
+    // Check Guest limit
+    if (isGuest && generationsCount >= 3) {
+      setIsLimitModalOpen(true);
       return;
     }
 
@@ -644,6 +651,11 @@ REQUISITOS DEL FORMATO OFICIAL:
           </div>
         </div>
       )}
+
+      <LimitReachedModal 
+        isOpen={isLimitModalOpen} 
+        onClose={() => setIsLimitModalOpen(false)} 
+      />
     </div>
   );
 }

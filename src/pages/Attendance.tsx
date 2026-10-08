@@ -5,7 +5,7 @@ import { Student } from './Students';
 import { Calendar as CalendarIcon, Check, X, Loader2, Printer, BarChart3, ClipboardList, GraduationCap } from 'lucide-react';
 
 export default function Attendance() {
-  const { isGuest, generationsCount, teacherId } = useOutletContext<{ isGuest: boolean, generationsCount: number, teacherId: string }>();
+  const { isGuest = false, generationsCount = 0, teacherId = '' } = useOutletContext<{ isGuest?: boolean, generationsCount?: number, teacherId?: string }>() || {};
   const [activeTab, setActiveTab] = useState<'daily' | 'monthly'>(() => (localStorage.getItem('attendance_active_tab') as any) || 'daily');
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);

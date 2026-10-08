@@ -3,6 +3,11 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
+// Ensure global isGuest exists so no component or legacy chunk crashes
+if (typeof window !== 'undefined') {
+  (window as any).isGuest = false;
+}
+
 class ErrorBoundary extends Component<{children: ReactNode}, {hasError: boolean, error: Error | null}> {
   constructor(props: {children: ReactNode}) {
     super(props);
