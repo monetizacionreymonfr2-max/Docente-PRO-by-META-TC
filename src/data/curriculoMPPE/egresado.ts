@@ -1,0 +1,63 @@
+export const PERFIL_EGRESADO_MPPE: Record<string, string[]> = {
+  'Prácticas del Lenguaje': [
+    'Expresarse oralmente con relativa eficiencia –según sus posibilidades y diferencias– en variadas situaciones comunicativas, con diversidad de intenciones y propósitos: solicitar, expresar emociones y necesidades, informar, exponer, opinar, discutir, describir, narrar, explicar, protestar, argumentar.',
+    'Participar en debates y discusiones, escuchando con atención, tomando en cuenta el punto de vista de los interlocutores y expresando los desacuerdos con explicaciones y argumentos pertinentes a la situación.',
+    'Reproducir un repertorio relativamente amplio de canciones, cuentos, poemas, coplas y adivinanzas, entre otras expresiones literarias.',
+    'Sentir gusto e interés por leer, y apelar a esta práctica con variados propósitos: para informarse y aprender, seguir instrucciones, recrearse; para incursionar en mundos posibles e imaginarios; buscar información requerida para redactar un texto escrito.',
+    'Usar, con relativa eficiencia, diferentes modalidades de lectura en función del propósito que orienta este acto y del tipo de texto, por ejemplo: exploración rápida “a saltos”, para ubicar ciertos datos puntuales en un escrito; lectura detenida y rigurosa para profundizar sobre algún tema o inferir información implícita necesaria para sustentar un determinado punto de vista.',
+    'Inferir contenidos implícitos en textos de relativa complejidad, así como sintetizar el contenido total en otro título (inferir la macro proposición semántica).',
+    'Inferir intenciones o propósitos del autor de diferentes textos.',
+    'Interpretar información expresada mediante diversidad de recursos gráficos: infografías, mapas, esquemas, etc.',
+    'Expresarse con argumentos, opiniones y posiciones personales frente a contenidos de textos.',
+    'Leer para una audiencia, en forma relativamente fluida y adecuada a la situación comunicativa y al tipo de texto, diferentes tipos de expresiones escritas: cuentos, poemas, textos informativos y noticias, entre otros.',
+    'Distinguir textos de ficción de textos informativos; poseer familiaridad e identificar las diferencias entre los tipos de textos de mayor circulación social: cuentos, poemas, historietas, mitos, leyendas, fábulas, coplas, cartas, notas científicas, instrucciones, noticias, documentos legales (partida de nacimiento, fe de vida, autorizaciones y constancias).',
+    'Interpretar críticamente los textos fundamentales que se trasmiten por los medios de información: noticias, artículos de opinión, propaganda.',
+    'Mostrar capacidad para analizar los recursos utilizados por la publicidad para lograr sus intenciones con respecto a la población destinataria.',
+    'Poseer conocimientos sobre nociones lingüísticas fundamentales: clases de palabras, sinonimia, antonimia, homofonía, parentescos lexicales, concordancia.',
+    'Tener conciencia de la duda ortográfica y apelar a diversos recursos para resolverla en situaciones de escritura: preguntar, consultar el diccionario u otras fuentes, apelar a la regularidad ortográfica vinculada con los parentescos lexicales (familias de palabras).',
+    'Escribir textos poniendo en acción las operaciones básicas de la escritura: planificación, redacción, revisión y edición.',
+    'Planificar y formular las preguntas para llevar a cabo una entrevista.',
+    'Redactar textos utilizando las convenciones ortográficas fundamentales, según las características del género, adecuados en coherencia (organización de las ideas) y utilizando recursos básicos de cohesión (sinónimos, signos de puntuación, anáforas, concordancia).',
+    'Aplicar a la escritura los recursos ortográficos fundamentales: separación entre palabras, acentuación, mayúsculas/minúsculas, signos de puntuación, diferenciaciones literales (b/v; c/s/z; q/c/k; g/j; r/rr; y/ll; y/i).',
+    'Conocer, identificar y utilizar en la producción de textos los recursos literarios básicos: onomatopeya, metáfora, exageración o hipérbole…',
+    'Sintetizar textos utilizando las operaciones fundamentales del resumen: selección, supresión, sinonimia y parafraseo.',
+    'Poseer información básica sobre la existencia, ubicación geográfica y valor de lenguas propias de comunidades que habitan en nuestro territorio.',
+    'Conocer información básica acerca del origen del idioma español y diferencias regionales en el uso del español en Venezuela.',
+    'Disponer de información elemental sobre la existencia y lugares de uso de los idiomas más hablados en el mundo.',
+    'Conocer el origen de ciertas expresiones y palabras de uso frecuente en el español de Venezuela.',
+    'Identificar palabras y expresiones de uso común en la localidad donde se ubica la escuela.',
+    'Identificar variedades lexicales de uso común en su comunidad, es decir, palabras que se dicen de manera diferente a la norma estándar.',
+    'Conocer algunas “curiosidades” de nuestra lengua.',
+    'Aplicar algunas técnicas y estrategias de investigación para indagar acerca de diversos temas de estudio.',
+    'Utilizar los recursos que ofrece la tecnología para satisfacer necesidades de distinta índole.'
+  ],
+  'Matemáticas': [
+    'De 1º a 3º Grado - Orientación espacial y temporal: Que puedan ubicarse en el espacio y en el tiempo, comprendiendo conceptos como “antes” y “después”, o “arriba” y “abajo”.',
+    'De 1º a 3º Grado - Geometría fundamental: Que identifiquen las semejanzas y diferencias entre diversas formas y cuerpos geométricos y sus elementos. Trazar un croquis sencillo partiendo de un punto de referencia y diferenciar entre recta, punto y tipos de rectas.',
+    'De 1º a 3º Grado - Dominio de las operaciones básicas: Dominar las operaciones básicas como la adición, sustracción, multiplicación y división.',
+    'De 1º a 3º Grado - Razonamiento lógico y resolución de problemas: Desarrollar el razonamiento lógico y la capacidad de resolución de problemas cotidianos prácticos (medir objetos, calcular dinero, estimar cantidades).',
+    'De 4º a 6º Grado - Dominio de Instrumentos Geométricos: Manejo de regla, compás y transportador para el trazo preciso de figuras planas y cuerpos geométricos (triángulos, cuadrados, círculos, cubos, prismas).',
+    'De 4º a 6º Grado - Conversión de Unidades de Medida: Habilidad para realizar conversiones de unidades de masa, longitud, área, tiempo, volumen y capacidad.',
+    'De 4º a 6º Grado - Operaciones y Resolución de Problemas con Diversos Conjuntos Numéricos: Operar y resolver problemas complejos con números naturales, decimales, fracciones y potenciación en contextos elaborados.'
+  ],
+  'Ciencias Naturales': [
+    'La observación detallada y sistemática, para identificar características y cambios en su entorno.',
+    'Identificación de problemas o el planteamiento de preguntas que guían su indagación.',
+    'La formulación de hipótesis como posibles explicaciones o soluciones.',
+    'La experimentación para contrastar sus ideas mediante la manipulación y exploración activa.',
+    'La recolección y análisis de datos para interpretar los resultados obtenidos.',
+    'La comunicación de conclusiones, compartiendo sus hallazgos con sus compañeros y docentes.',
+    'Comprender el mundo que les rodea promoviendo la curiosidad, el pensamiento crítico y la capacidad de resolver problemas.',
+    'Manejar hábitos saludables, el respeto y cuidado por el ambiente, y la valoración de la tecnología como parte de la vida diaria.'
+  ],
+  'Identidad': [
+    'Muestra interés y gusto por el saber, donde incorpora crítica y reflexivamente los valores cívicos, socioculturales y espirituales del patrimonio y la identidad nacional.',
+    'Reconoce que vive en un territorio biodiverso y productivo con recursos naturales, históricos y culturales que le permiten desarrollarse optima y sustentablemente en las diferentes actividades económicas, del cual pueda sentirse orgulloso.',
+    'Valora la democracia como el modelo político desarrollado en el país el cual permitirá ejercer su participación protagónica.',
+    'Convive y participa en su comunidad, y en la sociedad, en la búsqueda del bien común.',
+    'Conoce que vive en una sociedad diversa y heredera de las culturas indígenas originarias, africanas y europeas.',
+    'Reconoce que somos partes de un mundo globalizado e interconectado a través de diferentes relaciones de intercambio cultural, político, comercial y financiero.',
+    'Usa, justifica y valora la utilidad de las fuentes para la reconstrucción del pasado histórico.',
+    'Demuestra una actitud positiva hacia el cambio y las innovaciones para mejorar sus condiciones de vida.'
+  ]
+};

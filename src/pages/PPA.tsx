@@ -1,10 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { SupabaseService } from '../lib/supabaseService';
 import { generateContentWithRetry } from '../lib/gemini';
-import { Sparkles, Loader2, FileText, Copy, Printer, X, History, Trash2, Edit3, Save, GraduationCap } from 'lucide-react';
+import { 
+  Sparkles, Loader2, FileText, Copy, Printer, X, History, Trash2, 
+  Edit3, Save, GraduationCap, CheckSquare, Square, ChevronDown, 
+  ChevronRight, RefreshCw, BookOpen, AlertCircle, Check, Info, ShieldCheck
+} from 'lucide-react';
 import Markdown from 'react-markdown';
 import LimitReachedModal from '../components/LimitReachedModal';
+import { 
+  CURRICULO_MPPE_2025_2026, 
+  AREAS_CURRICULARES, 
+  AreaCurricular, 
+  GradoPrimaria,
+  buscarContenidoMasCercano 
+} from '../data/curriculoMPPE';
 
 interface PPAProject {
   id: string;
@@ -31,11 +42,36 @@ export default function PPA() {
   const [duracion, setDuracion] = useState(() => localStorage.getItem('ppa_form_duracion') || '');
   const [diagnostico, setDiagnostico] = useState(() => localStorage.getItem('ppa_form_diagnostico') || '');
   
+  // MPPE 2025-2026 Specific State for Primaria
+  const [gradoPrimaria, setGradoPrimaria] = useState<GradoPrimaria>(() => {
+    const saved = localStorage.getItem('ppa_mppe_grado');
+    return (saved as GradoPrimaria) || '1';
+  });
+  const [seccionPrimaria, setSeccionPrimaria] = useState(() => localStorage.getItem('ppa_mppe_seccion') || 'A');
+  const [selectedAreas, setSelectedAreas] = useState<AreaCurricular[]>(() => {
+    const saved = localStorage.getItem('ppa_mppe_areas');
+    try {
+      return saved ? JSON.parse(saved) : ['Prácticas del Lenguaje'];
+    } catch {
+      return ['Prácticas del Lenguaje'];
+    }
+  });
+  const [selectedAprendizajes, setSelectedAprendizajes] = useState<Record<string, boolean>>({});
+  const [expandedComponents, setExpandedComponents] = useState<Record<string, boolean>>({});
+  const [complementoDocente, setComplementoDocente] = useState(() => localStorage.getItem('ppa_mppe_complemento') || '');
+
+  // Remapping / Migration State
+  const [isRemapModalOpen, setIsRemapModalOpen] = useState(false);
+  const [remapTargetProject, setRemapTargetProject] = useState<PPAProject | null>(null);
+  const [remapSuggestions, setRemapSuggestions] = useState<any[]>([]);
+  const [isApplyingRemap, setIsApplyingRemap] = useState(false);
+  
   const [isGenerating, setIsGenerating] = useState(false);
   const [projects, setProjects] = useState<PPAProject[]>([]);
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<PPAProject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successNotice, setSuccessNotice] = useState<string | null>(null);
 
   // Sync Form to LocalStorage
   useEffect(() => {
@@ -48,7 +84,11 @@ export default function PPA() {
     localStorage.setItem('ppa_form_tema', tema);
     localStorage.setItem('ppa_form_duracion', duracion);
     localStorage.setItem('ppa_form_diagnostico', diagnostico);
-  }, [gradoSeccion, nivel, tema, duracion, diagnostico]);
+    localStorage.setItem('ppa_mppe_grado', gradoPrimaria);
+    localStorage.setItem('ppa_mppe_seccion', seccionPrimaria);
+    localStorage.setItem('ppa_mppe_areas', JSON.stringify(selectedAreas));
+    localStorage.setItem('ppa_mppe_complemento', complementoDocente);
+  }, [gradoSeccion, nivel, tema, duracion, diagnostico, gradoPrimaria, seccionPrimaria, selectedAreas, complementoDocente]);
 
   // Persist selected project ID
   useEffect(() => {
@@ -105,12 +145,144 @@ export default function PPA() {
     return () => clearInterval(interval);
   }, [teacherId]);
 
+  // Helpers for MPPE 2025-2026 selection
+  const toggleArea = (area: AreaCurricular) => {
+    setSelectedAreas(prev => {
+      if (prev.includes(area)) {
+        if (prev.length === 1) return prev; // Keep at least one
+        return prev.filter(a => a !== area);
+      }
+      return [...prev, area];
+    });
+  };
+
+  const toggleComponentAccordion = (key: string) => {
+    setExpandedComponents(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const toggleAprendizaje = (key: string) => {
+    setSelectedAprendizajes(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const selectAllInComponent = (area: AreaCurricular, componente: string, select: boolean) => {
+    const contenidos = CURRICULO_MPPE_2025_2026[area]?.grados[gradoPrimaria]?.[componente] || [];
+    setSelectedAprendizajes(prev => {
+      const next = { ...prev };
+      contenidos.forEach(c => {
+        c.aprendizajesEsperados.forEach((_, idx) => {
+          const key = `${area}:::${componente}:::${c.id}:::${idx}`;
+          if (select) {
+            next[key] = true;
+          } else {
+            delete next[key];
+          }
+        });
+      });
+      return next;
+    });
+  };
+
+  // Count selected aprendizajes for display
+  const selectedCount = useMemo(() => {
+    return Object.values(selectedAprendizajes).filter(Boolean).length;
+  }, [selectedAprendizajes]);
+
+  // Open Remap Modal for existing project
+  const handleOpenRemapModal = (project: PPAProject) => {
+    setRemapTargetProject(project);
+    // Try to guess grade from project.gradoSeccion or default to '1'
+    let detectedGrade: GradoPrimaria = '1';
+    const textToAnalyze = `${project.gradoSeccion} ${project.tema} ${project.diagnostico} ${project.contenido}`;
+    const gradeMatch = textToAnalyze.match(/([1-6])(?:°|ro|do|to|mo|vo|ero)?\s*(?:grado|año)/i);
+    if (gradeMatch && ['1', '2', '3', '4', '5', '6'].includes(gradeMatch[1])) {
+      detectedGrade = gradeMatch[1] as GradoPrimaria;
+    }
+
+    // Find best match for each area
+    const suggestions: any[] = [];
+    AREAS_CURRICULARES.forEach(area => {
+      const match = buscarContenidoMasCercano(detectedGrade, textToAnalyze, area);
+      if (match && match.similitud > 0) {
+        suggestions.push(match);
+      }
+    });
+
+    setRemapSuggestions(suggestions);
+    setIsRemapModalOpen(true);
+  };
+
+  const handleApplyRemap = async () => {
+    if (!remapTargetProject || !teacherId) return;
+    setIsApplyingRemap(true);
+    try {
+      const mppeSection = `\n\n---\n### ALINEACIÓN OFICIAL AL CURRÍCULO MPPE 2025-2026\n*Basado en los lineamientos del MPPE 2025-2026*\n\n` +
+        remapSuggestions.map(s => {
+          return `**Área:** ${s.area}\n` +
+            `* **Componente:** ${s.componente}\n` +
+            `* **Contenido Oficial:** ${s.contenido.contenido}\n` +
+            `* **Aprendizajes Esperados:**\n` +
+            s.contenido.aprendizajesEsperados.map((a: any) => `  - ${a.texto} ${!a.oficial ? '*(Complemento sugerido - no oficial del MPPE)*' : ''}`).join('\n');
+        }).join('\n\n');
+
+      const updatedContent = `${remapTargetProject.contenido.trim()}${mppeSection}`;
+      
+      const list = await SupabaseService.getPlanificaciones(teacherId);
+      const parent = list.find(p => p.id === remapTargetProject.id);
+      if (parent) {
+        await SupabaseService.updatePlanificacion(remapTargetProject.id, {
+          titulo: parent.titulo,
+          proyecto: parent.proyecto || remapTargetProject.gradoSeccion,
+          fechaInicio: parent.fechaInicio,
+          fechaFin: parent.fechaFin,
+          nivel: parent.nivel || 'Primaria',
+          diagnostico: parent.diagnostico,
+          proposito: updatedContent,
+          estrategias: parent.estrategias,
+          recursos: parent.recursos,
+          evaluacion: parent.evaluacion,
+          planesDiarios: parent.planesDiarios || []
+        });
+      }
+
+      const updatedProject = {
+        ...remapTargetProject,
+        contenido: updatedContent
+      };
+      setSelectedProject(updatedProject);
+      setEditedContent(updatedContent);
+      setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
+      setIsRemapModalOpen(false);
+      setSuccessNotice('¡Proyecto actualizado y alineado con éxito al currículo MPPE 2025-2026!');
+      setTimeout(() => setSuccessNotice(null), 5000);
+    } catch (err: any) {
+      console.error("Error applying MPPE remap:", err);
+      alert(`Error al actualizar el proyecto: ${err.message || 'Error desconocido'}`);
+    } finally {
+      setIsApplyingRemap(false);
+    }
+  };
+
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!gradoSeccion.trim() || !tema.trim() || !duracion.trim() || !diagnostico.trim() || !teacherId) {
-      setErrorMsg("Por favor completa todos los campos requeridos.");
-      return;
+    // Validation
+    if (nivel === 'Primaria') {
+      if (selectedCount === 0) {
+        setErrorMsg("Por favor selecciona al menos un Aprendizaje Esperado oficial del currículo MPPE 2025-2026.");
+        return;
+      }
+      if (!tema.trim() || !duracion.trim() || !diagnostico.trim() || !teacherId) {
+        setErrorMsg("Por favor completa todos los campos requeridos.");
+        return;
+      }
+    } else {
+      if (!gradoSeccion.trim() || !tema.trim() || !duracion.trim() || !diagnostico.trim() || !teacherId) {
+        setErrorMsg("Por favor completa todos los campos requeridos.");
+        return;
+      }
     }
 
     // Check Guest limit
@@ -123,41 +295,35 @@ export default function PPA() {
     setErrorMsg(null);
     try {
       let prompt = '';
+      const actualGradoSeccion = nivel === 'Primaria' 
+        ? `${gradoPrimaria}° Grado ${seccionPrimaria ? `Sección "${seccionPrimaria}"` : ''}`.trim()
+        : gradoSeccion.trim();
       
       let levelTitleStr = "EDUCACIÓN PRIMARIA";
       if (nivel === 'Maternal') levelTitleStr = "MATERNAL";
       else if (nivel === 'Preescolar') levelTitleStr = "EDUCACIÓN INICIAL / PREESCOLAR";
       else if (nivel === 'Media') levelTitleStr = "EDUCACIÓN MEDIA";
 
-      const systemInstruction = `Eres un especialista senior en planificación educativa del MPPE (Venezuela), con profundo conocimiento del currículo y de la guía organizativa oficial para el nivel de ${levelTitleStr} 2025-2026. 
+      const systemInstruction = `Eres un especialista senior en planificación educativa del MPPE (Venezuela), con profundo conocimiento del "Documento Educación Primaria 2025-2026" y del currículo oficial para el nivel de ${levelTitleStr}. 
 
-Tu misión es generar Proyectos Pedagógicos de Aula (PPA) para el nivel de ${levelTitleStr} bajo el NUEVO FORMATO VIGENTE. Debes seguir estrictamente estos parámetros respetando el nivel educativo seleccionado por el usuario en todos los elementos teóricos y prácticos:
+Tu misión es generar Proyectos Pedagógicos de Aula (PPA) bajo el NUEVO FORMATO OFICIAL VIGENTE 2025-2026.
+Debes seguir estrictamente estos lineamientos:
 
-Respetar SIEMPRE y sin excepciones el nivel educativo (${nivel}) y el grado o sala especificado por el usuario (${gradoSeccion.trim()}). No asumas ni fuerces cambios a otros niveles o grados (como Primaria o Cuarto Grado) a menos que sea explícitamente solicitado. Coloca de manera clara e inequívoca el nivel y grado indicados.
+1. ENCABEZADO Y VALIDEZ OFICIAL:
+   - Todo PPA de Primaria DEBE incluir de forma clara y destacada en el membrete: "Basado en los lineamientos del MPPE 2025-2026".
+   - Identificación completa (Código de plantel, Logo/Membrete oficial, Docente, Matrícula M/F/T, Año Escolar 2025-2026, Nivel: ${levelTitleStr}, Grado y Sección: ${actualGradoSeccion}).
 
-1. ESTRUCTURA DEL P.A.:
-   - Identificación completa (Código plantel, Logo, Docente, Matrícula M/F/T, Año Escolar 2025-2026, Duración, Nivel Educativo: ${nivel}, Grado/Sección/Sala: ${gradoSeccion.trim()}).
-   - Identificación de PEIC relacionado.
-   - Línea de Investigación (seleccionar de las oficiales: Currículo, Gestión, Clima Escolar, etc.).
-   - Diagnóstico Integral (Cognitivo, socio-emocional, familiar y social).
-   - Propósito (Verbos en infinitivo).
+2. ALINEACIÓN CURRICULAR ESTRICTA:
+   - Por cada área de formación integrada, muestra de forma explícita: Área, Componente, Contenido Oficial y Aprendizajes Esperados Oficiales.
+   - CITA LOS APRENDIZAJES ESPERADOS TAL CUAL vienen en el currículo oficial.
+   - Todo el desarrollo pedagógico (Propósito General, Propósitos Específicos, Actividades por momentos de la clase: Exploración, Desarrollo y Reflexión, Estrategias didácticas y Criterios de Evaluación) debe redactarse enfocado directamente en lograr dichos aprendizajes esperados oficiales.
+   - Si un aprendizaje incluye la indicación "Complemento sugerido (no oficial del MPPE)", señálalo explícitamente.
 
-2. ELEMENTOS INTEGRADORES (TABLA):
-   - Áreas de Formación o Áreas de Aprendizaje correlacionadas con Énfasis Curriculares. (Para Maternal y Preescolar usar áreas de aprendizaje de Educación Inicial: Formación Personal y Social, Relación con los Componentes del Ambiente, Comunicación y Representación).
-   - Temas Indispensables (Seleccionar de los 14 oficiales).
-   - Tema Generador / Componente.
-   - Tejido Temático / Contenido / Aprendizaje Esperado.
-   - Énfasis Curricular.
-   - Vértices del Plan Educativo (Seleccionar del 1 al 10).
+3. RESPETO RIGUROSO DEL NIVEL:
+   - Mantén los contenidos y exigencias estrictamente al nivel del grado indicado (${actualGradoSeccion}). Jamás mezcles contenidos de otros grados.
 
-3. MOMENTOS DE LA CLASE / PLANIFICACIÓN DE LA JORNADA: 
-   - Para Primaria/Media: Exploración, Desarrollo y Reflexión.
-   - Para Maternal/Preescolar: Inicio (Recibimiento), Trabajo Libre en los Espacios, Pequeños Grupos y Cierre.
-
-4. INTENCIONALIDADES:
-   - Aprender a Crear, Conviver y Participar (o Aprender a Convivir en Inicial/Maternal), Valorar y Reflexionar.
-
-Usa un tono técnico-pedagógico impecable, lenguaje oficial actualizado, y asegúrate de estructurar y etiquetar el proyecto basándote enteramente en el nivel (${nivel}) y grado/sección (${gradoSeccion.trim()}) seleccionados por el docente. Jamás insertes notas aclaratorias indicando falsamente que se asume otro grado o nivel.`;
+4. IDENTIDAD Y CONTEXTO VENEZOLANO:
+   - En el área de Identidad (o al trabajar valores comunitarios), contextualiza con la venezolanidad, tradiciones patrias, geografía nacional y el pensamiento de Simón Bolívar y grandes maestros venezolanos.`;
 
       if (nivel === 'Maternal') {
         prompt = `Genera un PPA para el nivel MATERNAL bajo el nuevo formato MPPE 2025-2026.
@@ -191,30 +357,83 @@ ESTRUCTURA TÉCNICA OBLIGATORIA:
 5. PLANIFICACIÓN DE LA JORNADA (Exploración, Desarrollo y Reflexión).
 6. REFERENTES TEÓRICOS PRÁCTICOS.
 7. INTENCIONALIDADES, RECURSOS E INDICADORES.`;
+      } else if (nivel === 'Primaria') {
+        // Collect selected curricular elements
+        let curricularDetails = '';
+        selectedAreas.forEach(area => {
+          const areaObj = CURRICULO_MPPE_2025_2026[area];
+          const componentes = areaObj?.grados[gradoPrimaria] || {};
+          let areaText = `\n### ÁREA: ${area.toUpperCase()}\n`;
+          let areaHasItems = false;
+
+          Object.entries(componentes).forEach(([compName, contenidos]) => {
+            contenidos.forEach(c => {
+              const selectedA = c.aprendizajesEsperados
+                .map((a, idx) => ({ ...a, idx }))
+                .filter(a => selectedAprendizajes[`${area}:::${compName}:::${c.id}:::${a.idx}`]);
+
+              if (selectedA.length > 0) {
+                areaHasItems = true;
+                areaText += `* **Componente:** ${compName}\n`;
+                areaText += `  - **Contenido Oficial:** ${c.contenido}\n`;
+                areaText += `  - **Aprendizajes Esperados Oficiales:**\n`;
+                selectedA.forEach(a => {
+                  areaText += `    • ${a.texto} ${!a.oficial ? '[Complemento sugerido (no oficial del MPPE)]' : ''}\n`;
+                });
+              }
+            });
+          });
+
+          if (areaHasItems) {
+            curricularDetails += areaText;
+          }
+        });
+
+        prompt = `Genera un Proyecto Pedagógico de Aula (PPA) para EDUCACIÓN PRIMARIA (${gradoPrimaria}° Grado) estructurado bajo los lineamientos oficiales del MPPE "Documento Educación Primaria" 2025-2026.
+
+ENCABEZADO OBLIGATORIO:
+**Basado en los lineamientos del MPPE 2025-2026**
+
+DATOS DEL PROYECTO:
+- Grado y Sección: ${actualGradoSeccion}
+- Título del PPA: ${tema}
+- Duración: ${duracion}
+- Diagnóstico Integral: ${diagnostico}
+${complementoDocente ? `- Aporte Complementario del Docente: ${complementoDocente}` : ''}
+
+ELEMENTOS CURRICULARES OFICIALES SELECCIONADOS (CURRÍCULO MPPE 2025-2026):
+${curricularDetails}
+
+ESTRUCTURA DEL DOCUMENTO A GENERAR:
+1. **MEMBRETE OFICIAL Y IDENTIFICACIÓN COMPLETA**:
+   - República Bolivariana de Venezuela, Ministerio del Poder Popular para la Educación.
+   - Año Escolar 2025-2026.
+   - Mención obligatoria: "Basado en los lineamientos del MPPE 2025-2026".
+   - Grado y Sección: ${actualGradoSeccion}.
+2. **PEIC Y LÍNEA DE INVESTIGACIÓN**:
+   - Vinculación con el Proyecto Educativo Integral Comunitario.
+3. **DIAGNÓSTICO INTEGRAL Y PROPÓSITOS**:
+   - Propósito General (en infinitivo).
+   - Propósitos Específicos alineados a los aprendizajes esperados seleccionados.
+4. **TABLA INTEGRADORA CURRICULAR**:
+   - Presentar por cada área: Componente, Contenido Oficial y Aprendizajes Esperados (citados literalmente).
+5. **PLANIFICACIÓN DE ACTIVIDADES DIDÁCTICAS**:
+   - Secuencia organizada en tres momentos pedagógicos: Exploración, Desarrollo y Reflexión.
+   - Actividades articuladas para el logro de los aprendizajes esperados.
+6. **ESTRATEGIAS METODOLÓGICAS Y RECURSOS**:
+   - Estrategias activas y recursos del entorno y la Colección Bicentenario.
+7. **EVALUACIÓN DE LOS APRENDIZAJES**:
+   - Indicadores de logro, técnicas e instrumentos (escala de estimación / registro descriptivo) alineados con los aprendizajes esperados seleccionados.`;
       } else {
-        const nivelText = nivel === 'Media' ? 'EDUCACIÓN MEDIA' : 'EDUCACIÓN PRIMARIA';
-        prompt = `Genera un PPA para ${nivelText} siguiendo estrictamente la "GUÍA ORGANIZATIVA 2025-2026".
-DATOS: Grado/Sección: ${gradoSeccion}, Tema: ${tema}, Duración: ${duracion}, Diagnóstico: ${diagnostico}.
+        prompt = `Genera un PPA para EDUCACIÓN MEDIA siguiendo estrictamente la "GUÍA ORGANIZATIVA 2025-2026".
+DATOS: Año/Sección: ${gradoSeccion}, Tema: ${tema}, Duración: ${duracion}, Diagnóstico: ${diagnostico}.
 
 REQUISITOS DEL FORMATO OFICIAL:
-1. **IDENTIFICACIÓN**: Código del plantel, Logo, Año Escolar 2025-2026, Matrícula proyectada.
-2. **CONTEXTO**: 
-   - PEIC relacionado y Línea de Investigación (Ej: Currículo, Gestión Escolar, Clima Escolar).
-   - Diagnóstico Pedagógico (Integral: cognitivo, socio-emocional y social).
-   - Propósito (Verbos en infinitivo: -ar, -er, -ir).
-3. **TABLA DE CORRELACIÓN CURRICULAR (ESTRICTA)**:
-   Debes usar esta relación:
-   - Lenguaje y Comunicación -> Lengua y Escritura.
-   - Matemáticas -> Matemáticas.
-   - Ciencias Naturales -> Ciencias Naturales.
-   - Ciencias Sociales -> Identidad.
-   - Educ. Física -> Deporte.
-   - Cultura e Idiomas -> Cultura.
-   Incluir: Tema Indispensable (de los 14 oficiales), Tema Generador, Tejido Temático, Énfasis Curricular y Vértices (1 al 10).
-4. **MOMENTOS DE CLASE**: Exploración, Desarrollo y Reflexión.
-5. **ESTRATEGIAS**: Estrategias activas (ABP, Gamificación, Aprendizaje Cooperativo).
-6. **INTENCIONALIDADES**: Aprender a Crear, Aprender a Convivir y Participar, Aprender a Valorar, Aprender a Reflexionar.
-7. **RECOURSOS E INDICADORES DE EVALUACIÓN CUALITATIVA**.`;
+1. IDENTIFICACIÓN: Año Escolar 2025-2026, Matrícula proyectada.
+2. CONTEXTO: PEIC y Línea de Investigación. Diagnóstico Pedagógico y Propósito.
+3. TABLA DE CORRELACIÓN CURRICULAR: Áreas, Temas Indispensables, Tema Generador, Tejido Temático y Vértices (1 al 10).
+4. MOMENTOS DE CLASE: Exploración, Desarrollo y Reflexión.
+5. ESTRATEGIAS, RECURSOS E INDICADORES DE EVALUACIÓN CUALITATIVA.`;
       }
 
       console.log("Generando PPA con prompt:", prompt);
@@ -236,7 +455,7 @@ REQUISITOS DEL FORMATO OFICIAL:
 
       // Capture values for the state before clearing them
       const projectData = {
-        gradoSeccion: gradoSeccion.trim(),
+        gradoSeccion: actualGradoSeccion,
         nivel,
         tema: tema.trim(),
         duracion: duracion.trim(),
@@ -391,36 +610,249 @@ REQUISITOS DEL FORMATO OFICIAL:
                     onChange={(e) => setNivel(e.target.value as any)}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                   >
+                    <option value="Primaria">Educación Primaria (MPPE 2025-2026)</option>
                     <option value="Maternal">Maternal (1-3 años)</option>
                     <option value="Preescolar">Preescolar / Inicial</option>
-                    <option value="Primaria">Primaria (1ro a 6to)</option>
                     <option value="Media">Media (1er a 5to año)</option>
                   </select>
                 </div>
 
-                <div>
-                  <label htmlFor="gradoSeccion" className="block text-sm font-medium text-gray-700 mb-1">
-                    {nivel === 'Maternal' || nivel === 'Preescolar' ? 'Sala / Edad / Sección' : nivel === 'Media' ? 'Año y Sección' : 'Grado y Sección'}
-                  </label>
-                  <input
-                    type="text"
-                    id="gradoSeccion"
-                    required
-                    placeholder={
-                      nivel === 'Maternal' 
-                        ? 'Ej: Lactantes II' 
-                        : nivel === 'Preescolar' 
-                        ? 'Ej: 2do Grupo Sección A' 
-                        : nivel === 'Media' 
-                        ? 'Ej: 3er Año Sección B' 
-                        : 'Ej: 4to Grado A'
-                    }
-                    value={gradoSeccion}
-                    onChange={(e) => setGradoSeccion(e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
-                  />
-                </div>
+                {nivel === 'Primaria' ? (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="gradoPrimaria" className="block text-sm font-medium text-gray-700 mb-1">
+                        Grado Oficial
+                      </label>
+                      <select
+                        id="gradoPrimaria"
+                        value={gradoPrimaria}
+                        onChange={(e) => {
+                          setGradoPrimaria(e.target.value as GradoPrimaria);
+                          setSelectedAprendizajes({}); // Reset checkboxes when grade changes
+                        }}
+                        className="w-full px-3 py-2.5 border border-blue-400 bg-blue-50/30 font-semibold text-blue-900 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      >
+                        <option value="1">1° Grado</option>
+                        <option value="2">2° Grado</option>
+                        <option value="3">3° Grado</option>
+                        <option value="4">4° Grado</option>
+                        <option value="5">5° Grado</option>
+                        <option value="6">6° Grado</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="seccionPrimaria" className="block text-sm font-medium text-gray-700 mb-1">
+                        Sección
+                      </label>
+                      <input
+                        type="text"
+                        id="seccionPrimaria"
+                        placeholder="Ej: A"
+                        value={seccionPrimaria}
+                        onChange={(e) => setSeccionPrimaria(e.target.value)}
+                        className="w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label htmlFor="gradoSeccion" className="block text-sm font-medium text-gray-700 mb-1">
+                      {nivel === 'Maternal' || nivel === 'Preescolar' ? 'Sala / Edad / Sección' : 'Año y Sección'}
+                    </label>
+                    <input
+                      type="text"
+                      id="gradoSeccion"
+                      required
+                      placeholder={
+                        nivel === 'Maternal' 
+                          ? 'Ej: Lactantes II' 
+                          : nivel === 'Preescolar' 
+                          ? 'Ej: 2do Grupo Sección A' 
+                          : 'Ej: 3er Año Sección B'
+                      }
+                      value={gradoSeccion}
+                      onChange={(e) => setGradoSeccion(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
+                    />
+                  </div>
+                )}
               </div>
+
+              {/* MPPE 2025-2026: ÁREAS Y APRENDIZAJES SELECCIONABLES (SÓLO PRIMARIA) */}
+              {nivel === 'Primaria' && (
+                <div className="bg-slate-50 border border-blue-200 rounded-xl p-5 space-y-5">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="bg-blue-600 text-white p-1.5 rounded-lg">
+                        <BookOpen className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-gray-900 text-sm sm:text-base flex items-center gap-2">
+                          Currículo MPPE 2025-2026 ({gradoPrimaria}° Grado)
+                          <span className="text-[10px] bg-green-100 text-green-800 font-extrabold px-2 py-0.5 rounded-full border border-green-300 uppercase">Oficial</span>
+                        </h3>
+                        <p className="text-xs text-gray-500">Selecciona las áreas y los aprendizajes esperados oficiales.</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs font-bold text-blue-700 bg-blue-100 px-3 py-1 rounded-full border border-blue-200">
+                        {selectedCount} aprendizaje(s) seleccionado(s)
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Multi-Area Selection (Enfoque integrador) */}
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 mb-2">
+                      Áreas Priorizadas a Integrar en el PPA:
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                      {AREAS_CURRICULARES.map(area => {
+                        const isSelected = selectedAreas.includes(area);
+                        return (
+                          <button
+                            type="button"
+                            key={area}
+                            onClick={() => toggleArea(area)}
+                            className={`p-2.5 text-xs font-semibold rounded-lg border transition-all text-left flex items-center justify-between ${
+                              isSelected
+                                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                                : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400 hover:bg-blue-50/40'
+                            }`}
+                          >
+                            <span className="truncate">{area}</span>
+                            {isSelected ? <Check className="w-3.5 h-3.5 ml-1 flex-shrink-0" /> : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Componentes y Contenidos de las Áreas Seleccionadas */}
+                  <div className="space-y-4">
+                    {selectedAreas.map(area => {
+                      const areaData = CURRICULO_MPPE_2025_2026[area];
+                      const componentes = areaData?.grados[gradoPrimaria] || {};
+                      const componenteKeys = Object.keys(componentes);
+
+                      return (
+                        <div key={area} className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-xs">
+                          <div className="bg-gradient-to-r from-slate-100 to-gray-50 px-4 py-2.5 border-b border-gray-200 flex items-center justify-between">
+                            <span className="text-xs font-bold text-blue-900 uppercase tracking-wide">
+                              Área: {area}
+                            </span>
+                            <span className="text-[11px] text-gray-500 font-medium">
+                              {componenteKeys.length} componente(s)
+                            </span>
+                          </div>
+
+                          <div className="divide-y divide-gray-100">
+                            {componenteKeys.map(compName => {
+                              const accordKey = `${area}__${compName}`;
+                              const isExpanded = expandedComponents[accordKey] !== false; // Default expanded
+                              const contenidos = componentes[compName];
+
+                              return (
+                                <div key={compName} className="p-3">
+                                  <div className="flex items-center justify-between gap-2 mb-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleComponentAccordion(accordKey)}
+                                      className="flex items-center gap-1.5 text-left font-bold text-sm text-gray-800 hover:text-blue-600"
+                                    >
+                                      {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
+                                      <span>Componente: {compName}</span>
+                                    </button>
+                                    <div className="flex gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => selectAllInComponent(area, compName, true)}
+                                        className="text-[11px] text-blue-600 hover:underline font-medium"
+                                      >
+                                        Marcar todos
+                                      </button>
+                                      <span className="text-gray-300">|</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => selectAllInComponent(area, compName, false)}
+                                        className="text-[11px] text-gray-500 hover:underline font-medium"
+                                      >
+                                        Limpiar
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {isExpanded && (
+                                    <div className="pl-5 space-y-3 mt-2">
+                                      {contenidos.map(item => (
+                                        <div key={item.id} className="bg-slate-50/70 p-3 rounded-lg border border-gray-200/80">
+                                          <div className="text-xs font-bold text-gray-900 mb-1.5 flex items-start gap-1.5">
+                                            <span className="text-blue-600 font-extrabold">•</span>
+                                            <span>Contenido: {item.contenido}</span>
+                                          </div>
+                                          {item.notaEditorial && (
+                                            <div className="mb-2 text-[10px] text-slate-500 italic bg-amber-50/60 p-1.5 rounded border border-amber-200/50">
+                                              Nota: {item.notaEditorial}
+                                            </div>
+                                          )}
+                                          <div className="space-y-1.5 pl-3">
+                                            {item.aprendizajesEsperados.map((a, aIdx) => {
+                                              const checkKey = `${area}:::${compName}:::${item.id}:::${aIdx}`;
+                                              const isChecked = !!selectedAprendizajes[checkKey];
+                                              return (
+                                                <label 
+                                                  key={aIdx} 
+                                                  className={`flex items-start gap-2.5 p-2 rounded cursor-pointer transition-colors text-xs leading-relaxed ${
+                                                    isChecked ? 'bg-blue-50 text-blue-950 font-medium' : 'hover:bg-gray-100 text-gray-700'
+                                                  }`}
+                                                >
+                                                  <input
+                                                    type="checkbox"
+                                                    checked={isChecked}
+                                                    onChange={() => toggleAprendizaje(checkKey)}
+                                                    className="mt-0.5 rounded text-blue-600 focus:ring-blue-500 h-4 w-4 border-gray-300"
+                                                  />
+                                                  <div className="flex-1">
+                                                    <span>{a.texto}</span>
+                                                    {!a.oficial && (
+                                                      <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                                        Complemento sugerido (no oficial del MPPE)
+                                                      </span>
+                                                    )}
+                                                  </div>
+                                                </label>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Complemento Adicional del Docente (No reemplaza el currículo) */}
+                  <div className="pt-2 border-t border-blue-100">
+                    <label htmlFor="complementoDocente" className="block text-xs font-bold text-gray-700 mb-1">
+                      Aporte o Contexto Adicional del Docente (Opcional - complemento, no sustituye el currículo oficial):
+                    </label>
+                    <textarea
+                      id="complementoDocente"
+                      rows={2}
+                      placeholder="Ej: Se enfocará en la huerta escolar comunitaria y en la flora del estado Apure..."
+                      value={complementoDocente}
+                      onChange={(e) => setComplementoDocente(e.target.value)}
+                      className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-none bg-white"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label htmlFor="duracion" className="block text-sm font-medium text-gray-700 mb-1">
@@ -540,9 +972,26 @@ REQUISITOS DEL FORMATO OFICIAL:
                   <h3 className="font-bold text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors">
                     {project.tema}
                   </h3>
-                  <p className="text-sm text-gray-500 line-clamp-3">
+                  <p className="text-sm text-gray-500 line-clamp-3 mb-3">
                     {project.diagnostico}
                   </p>
+
+                  {/* Quick Remap Action */}
+                  <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenRemapModal(project);
+                      }}
+                      className="text-[11px] text-blue-700 hover:text-blue-900 font-semibold flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md border border-blue-200 transition-colors"
+                      title="Actualizar y alinear con el currículo oficial MPPE 2025-2026"
+                    >
+                      <RefreshCw className="w-3 h-3 text-blue-600" />
+                      <span>Actualizar a MPPE 2025-2026</span>
+                    </button>
+                    <span className="text-[10px] text-gray-400 font-medium">MPPE 2025-2026</span>
+                  </div>
                 </div>
               );
             })
@@ -565,7 +1014,17 @@ REQUISITOS DEL FORMATO OFICIAL:
               <X className="w-4 h-4" />
               Cerrar Vista
             </button>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              {!isGuest && !isEditing && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); handleOpenRemapModal(selectedProject); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition-colors shadow-xs"
+                  title="Alinear y remapear a los contenidos oficiales del MPPE 2025-2026"
+                >
+                  <RefreshCw className="w-4 h-4 text-indigo-600" />
+                  <span>Actualizar al currículo MPPE 2025-2026</span>
+                </button>
+              )}
               {!isGuest && !isEditing && (
                 <button 
                   onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
@@ -616,6 +1075,13 @@ REQUISITOS DEL FORMATO OFICIAL:
                 <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest -mt-0.5">By Reymon Castillo</span>
               </div>
             )}
+
+            {/* MPPE 2025-2026 Official Tag in Project */}
+            <div className="mb-4 inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs font-bold text-blue-800">
+              <ShieldCheck className="w-4 h-4 text-blue-600" />
+              <span>Basado en los lineamientos del MPPE 2025-2026</span>
+            </div>
+
             {isEditing ? (
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Título del Proyecto</label>
@@ -647,6 +1113,109 @@ REQUISITOS DEL FORMATO OFICIAL:
               ) : (
                 <Markdown>{selectedProject.contenido}</Markdown>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Remap / Migration Modal */}
+      {isRemapModalOpen && remapTargetProject && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+            <div className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white p-5 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <BookOpen className="w-6 h-6 text-blue-200" />
+                <div>
+                  <h3 className="font-bold text-lg">Actualizar al Currículo MPPE 2025-2026</h3>
+                  <p className="text-xs text-blue-100">Revisión y confirmación de alineación curricular</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsRemapModalOpen(false)} 
+                className="text-white/80 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-4">
+              <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-3.5 text-xs flex items-start gap-2.5">
+                <Info className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
+                <div>
+                  <strong>Política de Resguardo de Datos:</strong> Tu proyecto original no será borrado ni sustituido sin confirmación. Se anexará una sección técnica oficial que vincula el PPA con los componentes, contenidos y aprendizajes esperados oficiales del MPPE 2025-2026.
+                </div>
+              </div>
+
+              <div className="border border-gray-200 rounded-lg p-4 bg-slate-50">
+                <div className="text-xs text-gray-500 font-semibold mb-1">Proyecto a actualizar:</div>
+                <div className="font-bold text-gray-900 text-base">{remapTargetProject.tema}</div>
+                <div className="text-xs text-gray-600 mt-1">{remapTargetProject.gradoSeccion} • {remapTargetProject.nivel}</div>
+              </div>
+
+              <div>
+                <div className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-2">
+                  Alineación Oficial Sugerida por Similitud Temática:
+                </div>
+                {remapSuggestions.length === 0 ? (
+                  <div className="text-center py-6 text-sm text-gray-500 bg-gray-50 rounded-lg border border-gray-200">
+                    No se detectaron coincidencias automáticas directas. Se anexarán los lineamientos generales del grado.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {remapSuggestions.map((sug, i) => (
+                      <div key={i} className="border border-blue-200 bg-blue-50/40 rounded-lg p-3 text-xs space-y-1">
+                        <div className="flex items-center justify-between font-bold text-blue-900">
+                          <span>Área: {sug.area}</span>
+                          <span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-mono">
+                            Componente: {sug.componente}
+                          </span>
+                        </div>
+                        <div className="text-gray-800 font-medium">
+                          <strong>Contenido Oficial:</strong> {sug.contenido.contenido}
+                        </div>
+                        <div className="text-gray-600 pt-1">
+                          <strong>Aprendizajes Esperados:</strong>
+                          <ul className="list-disc pl-4 mt-0.5 space-y-0.5">
+                            {sug.contenido.aprendizajesEsperados.map((ae: any, idx: number) => (
+                              <li key={idx}>
+                                {ae.texto} {!ae.oficial && <span className="text-[10px] text-amber-700 font-bold">(Complemento sugerido)</span>}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-gray-200 bg-gray-50 p-4 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setIsRemapModalOpen(false)}
+                className="px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200 rounded-lg transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isApplyingRemap}
+                onClick={handleApplyRemap}
+                className="px-5 py-2 text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
+              >
+                {isApplyingRemap ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Actualizando...</span>
+                  </>
+                ) : (
+                  <>
+                    <Check className="w-4 h-4" />
+                    <span>Confirmar y Actualizar Proyecto</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
         </div>
