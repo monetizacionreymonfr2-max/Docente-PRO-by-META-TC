@@ -243,7 +243,7 @@ Directrices de Ventas:
    - Honestidad: No inventes funciones. Si no sabes algo, redirige a la consulta por WhatsApp con Reymon.
    - Cierre de ventas: Pregunta de vez en cuando si el docente tiene alguna duda o si necesita más información para tomar la decisión.
 
-5. VOZ (MODO LIVE):
+5. CONVERSACIÓN POR VOZ (HABLAR CON CAMILA):
    - Mantén tus intervenciones concisas pero potentes para que la conversación fluya con naturalidad por voz.`;
 
       const standardSystemInstruction = `Tú eres Camila, la asistente virtual y pedagógica avanzada de la plataforma Docenty Pro By Reymon Castillo. Debes seguir estas directrices estrictas:
@@ -509,10 +509,10 @@ Directrices de Ventas:
       
       let errorMsg = err.message || JSON.stringify(err);
       if (errorMsg.includes("Permission denied")) {
-        errorMsg = "Acceso Denegado (Permission Denied). Esto puede deberse a que tu API Key no tiene permisos para el modelo Live o estás en una región no soportada.";
+        errorMsg = "Acceso Denegado (Permission Denied). Esto puede deberse a que tu API Key no tiene permisos para hablar con Camila por voz o estás en una región no soportada.";
       }
       
-      alert("Hubo un error conectando a la API en vivo: " + errorMsg);
+      alert("Hubo un error al iniciar la conversación con Camila: " + errorMsg);
     }
   };
 
@@ -897,12 +897,12 @@ Directrices:
                    className="flex items-center gap-4 px-12 py-6 rounded-2xl font-black shadow-[0_15px_40px_rgba(112,0,255,0.3)] transform active:scale-95 bg-gradient-to-r from-futuristic-purple to-futuristic-magenta text-white hover:to-indigo-600 transition-all group border border-white/20"
                  >
                    <Radio className="w-10 h-10 group-hover:scale-110 transition-transform text-futuristic-accent" />
-                   <span className="text-2xl uppercase tracking-tighter">SINCRONIZACIÓN LIVE</span>
+                   <span className="text-2xl uppercase tracking-tighter">HABLAR CON CAMILA</span>
                  </button>
                ) : (
                  <div className="flex flex-col items-center justify-center p-2 animate-in fade-in zoom-in-95 duration-500 w-full">
                   <div className="text-futuristic-accent font-black mb-8 flex items-center gap-3 bg-white/5 px-8 py-4 rounded-full border border-futuristic-accent/30 shadow-[0_0_20px_rgba(0,242,255,0.2)] animate-pulse tracking-widest text-lg uppercase">
-                    <Radio className="w-8 h-8" /> RECEPTOR ACTIVO
+                    <Radio className="w-8 h-8" /> CAMILA TE ESCUCHA
                   </div>
                   <button
                     type="button"
@@ -910,7 +910,7 @@ Directrices:
                     className="bg-red-600/20 hover:bg-red-600/40 text-red-100 rounded-2xl font-black px-20 py-6 border border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.2)] flex items-center justify-center gap-5 text-2xl active:scale-95 transition-all group"
                   >
                     <VolumeX className="w-10 h-10 group-hover:rotate-12 transition-transform" />
-                    DESCONECTAR
+                    TERMINAR CONVERSACIÓN
                   </button>
                 </div>
                )}
@@ -919,7 +919,7 @@ Directrices:
             <>
               {!isLiveMode ? (
                 <>
-                  {/* Modo Live Toggle */}
+                  {/* Modo Voz / Hablar con Camila Toggle */}
                   <div className="flex justify-center transition-opacity mb-2">
                     <button
                       type="button"
@@ -927,7 +927,7 @@ Directrices:
                       className="flex items-center gap-2 px-6 py-2.5 rounded-full font-black shadow-lg transform active:scale-95 bg-white/5 text-futuristic-accent hover:bg-futuristic-purple/20 border border-futuristic-accent/30 tracking-widest text-[10px] uppercase"
                     >
                       <Radio className="w-4 h-4 mr-1 animate-pulse" />
-                      ACTIVAR SINCRONIZACIÓN LIVE
+                      HABLAR CON CAMILA
                     </button>
                   </div>
 
@@ -975,7 +975,7 @@ Directrices:
               ) : (
                 <div className="flex flex-col items-center justify-center p-2 pb-4 animate-in fade-in zoom-in-95 duration-500 w-full">
                   <div className="text-futuristic-accent font-black mb-6 flex items-center gap-3 bg-white/5 px-8 py-4 rounded-full border border-futuristic-accent/30 shadow-[0_0_20px_rgba(0,242,255,0.2)] animate-pulse tracking-widest text-lg uppercase">
-                    <Radio className="w-6 h-6" /> RECEPTOR ACTIVO
+                    <Radio className="w-6 h-6" /> CAMILA TE ESCUCHA
                   </div>
                   <button
                     type="button"
@@ -983,7 +983,7 @@ Directrices:
                     className="bg-red-600/20 hover:bg-red-600/40 text-red-100 rounded-2xl font-black px-20 py-6 border border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.2)] flex items-center justify-center gap-5 text-2xl active:scale-95 transition-all group w-full sm:w-auto"
                   >
                     <VolumeX className="w-10 h-10 group-hover:rotate-12 transition-transform" />
-                    DESCONECTAR
+                    TERMINAR CONVERSACIÓN
                   </button>
                 </div>
               )}
