@@ -1,6 +1,6 @@
 import {StrictMode, Component, ReactNode} from 'react';
 import {createRoot} from 'react-dom/client';
-import App from './App.tsx';
+import App from './App';
 import './index.css';
 
 // Ensure global isGuest exists so no component or legacy chunk crashes
