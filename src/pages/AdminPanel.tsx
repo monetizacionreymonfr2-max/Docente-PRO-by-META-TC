@@ -27,8 +27,7 @@ import {
   UserX,
   Sparkles,
   Check,
-  KeyRound,
-  MessageCircle
+  KeyRound
 } from 'lucide-react';
 
 interface Code {
@@ -56,23 +55,7 @@ interface ProfileUser {
 const ADMIN_EMAILS = ['monetizacionreymonfr2@gmail.com', 'Tecnomundo235@gmail.com'];
 
 export default function AdminPanel() {
-  const [activeTab, setActiveTab] = useState<'licencias' | 'usuarios' | 'blacklist' | 'whatsapp'>('licencias');
-
-  // WhatsApp settings states
-  const [whatsappNumberInput, setWhatsappNumberInput] = useState('');
-  const [whatsappSuccessMsg, setWhatsappSuccessMsg] = useState<string | null>(null);
-
-  useEffect(() => {
-    setWhatsappNumberInput(getWhatsAppNumber());
-  }, []);
-
-  const handleSaveWhatsApp = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!whatsappNumberInput.trim()) return;
-    setWhatsAppNumber(whatsappNumberInput.trim());
-    setWhatsappSuccessMsg('¡Número de WhatsApp actualizado con éxito en toda la plataforma!');
-    setTimeout(() => setWhatsappSuccessMsg(null), 4000);
-  };
+  const [activeTab, setActiveTab] = useState<'licencias' | 'usuarios' | 'blacklist'>('licencias');
   
   // Codes states
   const [codes, setCodes] = useState<Code[]>([]);
@@ -672,17 +655,6 @@ export default function AdminPanel() {
           <ShieldAlert size={16} />
           Lista Negra / Bloqueos
         </button>
-        <button
-          onClick={() => setActiveTab('whatsapp')}
-          className={`flex-1 min-w-[140px] py-3 px-4 rounded-xl font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'whatsapp' 
-              ? 'bg-green-600 text-white shadow-lg shadow-green-600/20' 
-              : 'text-slate-400 hover:text-green-400 hover:bg-green-500/5'
-          }`}
-        >
-          <MessageCircle size={16} />
-          WhatsApp
-        </button>
       </div>
 
       {errorMsg && (
@@ -700,12 +672,20 @@ export default function AdminPanel() {
         <div className="space-y-8 animate-in fade-in duration-300">
           <div className="flex justify-end gap-3">
             <button
+              onClick={() => generateCode('guest')}
+              disabled={!!isGenerating}
+              className="bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-6 rounded-2xl flex items-center gap-3 shadow-lg shadow-amber-500/20 active:scale-95 transition-all text-xs uppercase tracking-wider disabled:opacity-50"
+            >
+              {isGenerating === 'guest' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
+              {isGenerating === 'guest' ? 'Generando...' : 'Código Invitado'}
+            </button>
+            <button
               onClick={() => generateCode('pro')}
               disabled={!!isGenerating}
               className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-2xl flex items-center gap-3 shadow-lg shadow-blue-500/20 active:scale-95 transition-all text-xs uppercase tracking-wider disabled:opacity-50"
             >
               {isGenerating === 'pro' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
-              {isGenerating === 'pro' ? 'Generando...' : 'Generar Código PRO'}
+              {isGenerating === 'pro' ? 'Generando...' : 'Código PRO'}
             </button>
           </div>
 
@@ -1610,57 +1590,6 @@ export default function AdminPanel() {
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* VIEW 4: WHATSAPP CONFIG */}
-      {activeTab === 'whatsapp' && (
-        <div className="bg-slate-900/60 border border-white/10 rounded-3xl p-8 max-w-2xl mx-auto shadow-2xl backdrop-blur-md space-y-6 animate-in fade-in duration-300">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-green-500/20 border border-green-500/30 rounded-2xl flex items-center justify-center text-green-400">
-              <MessageCircle size={30} />
-            </div>
-            <div>
-              <h3 className="text-xl font-black text-white">Configuración del Número de WhatsApp</h3>
-              <p className="text-slate-400 text-xs mt-1">Este número se utilizará en todos los botones de contacto, modal de límite alcanzado, asistente Camila y sección de promotores.</p>
-            </div>
-          </div>
-
-          <form onSubmit={handleSaveWhatsApp} className="space-y-6 pt-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-                Número de WhatsApp (con código de país, ej. 584262953484)
-              </label>
-              <div className="relative">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-green-400 font-black">+</span>
-                <input
-                  type="text"
-                  value={whatsappNumberInput}
-                  onChange={(e) => setWhatsappNumberInput(e.target.value)}
-                  placeholder="584262953484"
-                  className="w-full bg-slate-950/80 border border-white/10 rounded-2xl py-4 pl-10 pr-4 text-white font-bold text-lg focus:outline-none focus:border-green-500 transition-colors"
-                />
-              </div>
-              <p className="text-slate-500 text-[11px] mt-2">
-                Ejemplo para Venezuela: <span className="text-slate-300 font-mono">584126830537</span> o <span className="text-slate-300 font-mono">584262953484</span>. No incluyas espacios, guiones ni símbolo más (+).
-              </p>
-            </div>
-
-            {whatsappSuccessMsg && (
-              <div className="p-4 bg-green-500/10 border border-green-500/30 text-green-300 text-xs font-bold rounded-2xl flex items-center gap-3 animate-in fade-in duration-300">
-                <CheckCircle2 size={18} className="text-green-400 shrink-0" />
-                {whatsappSuccessMsg}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              className="w-full bg-green-600 hover:bg-green-500 text-white font-black py-4 rounded-2xl shadow-lg shadow-green-600/30 transition-all active:scale-[0.98] uppercase tracking-wider text-sm flex items-center justify-center gap-2"
-            >
-              <CheckCircle2 size={18} />
-              Guardar Nuevo Número de WhatsApp
-            </button>
-          </form>
         </div>
       )}
 
