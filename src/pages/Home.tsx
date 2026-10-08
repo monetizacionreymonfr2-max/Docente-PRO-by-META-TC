@@ -14,8 +14,7 @@ import {
   Terminal
 } from 'lucide-react';
 import { motion } from 'motion/react';
-import softwareIllustration from '../assets/images/software_architecture_illustration_1791367250667.jpg';
-import { getWhatsAppUrl } from '../lib/whatsapp';
+import { openWhatsApp } from '../lib/whatsapp';
 
 export default function Home() {
   const containerVariants = {
@@ -33,7 +32,7 @@ export default function Home() {
 
   const handleWhatsAppContact = () => {
     const text = "Hola Reymon, vengo de la plataforma Docenty PRO. Me gustaría consultar sobre tus servicios de programación y desarrollo web.";
-    window.open(getWhatsAppUrl(text), '_blank');
+    openWhatsApp(text);
   };
 
   return (
@@ -135,12 +134,11 @@ export default function Home() {
         
         <div className="relative glass-effect rounded-[3rem] p-8 md:p-16 neon-border">
           <div className="flex flex-col lg:flex-row gap-12 items-center">
-             <div className="w-48 h-48 md:w-64 md:h-64 rounded-[3rem] overflow-hidden border-2 border-futuristic-purple/50 shadow-[0_0_30px_rgba(112,0,255,0.3)] rotate-3">
-               <img 
-                 src={softwareIllustration} 
-                 alt="Software Architecture & Code" 
-                 className="w-full h-full object-cover object-center hover:scale-105 transition-transform duration-500" 
-               />
+            <div className="w-48 h-48 md:w-64 md:h-64 rounded-[3rem] overflow-hidden border-2 border-futuristic-purple/50 shadow-[0_0_30px_rgba(112,0,255,0.3)] rotate-3">
+               {/* This would be an image of Reymon, using a fallback for now */}
+               <div className="w-full h-full bg-gradient-to-tr from-slate-900 to-futuristic-purple flex items-center justify-center">
+                  <User size={80} className="text-white/20" />
+               </div>
             </div>
             
             <div className="flex-1 space-y-6 text-center lg:text-left">
