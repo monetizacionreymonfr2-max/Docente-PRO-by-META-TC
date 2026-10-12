@@ -8,7 +8,7 @@ export interface Student {
   nombre: string;
   apellidos?: string;
   gradoSeccion: string;
-  nivel: 'Primaria' | 'Maternal' | 'Preescolar' | 'Media';
+  nivel: 'Primaria' | 'Maternal' | 'Preescolar' | 'Media' | 'Especial';
   fechaNacimiento: string;
   sexo: 'V' | 'H';
   createdAt: any;
@@ -29,7 +29,7 @@ export default function Students() {
   }, [activeTab]);
   const [apellidos, setApellidos] = useState('');
   const [gradoSeccion, setGradoSeccion] = useState('');
-  const [nivel, setNivel] = useState<'Primaria' | 'Maternal' | 'Preescolar' | 'Media'>('Primaria');
+  const [nivel, setNivel] = useState<'Primaria' | 'Maternal' | 'Preescolar' | 'Media' | 'Especial'>('Primaria');
   const [fechaNacimiento, setFechaNacimiento] = useState('');
   const [sexo, setSexo] = useState<'V' | 'H'>('V');
   const [sortBy, setSortBy] = useState<'nombre' | 'apellido'>('apellido');
@@ -251,18 +251,25 @@ export default function Students() {
                     <option value="Preescolar">Preescolar / Inicial</option>
                     <option value="Primaria">Primaria (1ro a 6to)</option>
                     <option value="Media">Media (1er a 5to año)</option>
+                    <option value="Especial">Educación Especial / TEL / IEE</option>
                   </select>
                 </div>
 
                 <div>
                   <label htmlFor="gradoSeccion" className="block text-sm font-medium text-gray-700 mb-1">
-                    {nivel === 'Maternal' || nivel === 'Preescolar' ? 'Sala / Edad / Sección' : nivel === 'Media' ? 'Año y Sección' : 'Grado y Sección'}
+                    {nivel === 'Maternal' || nivel === 'Preescolar' ? 'Sala / Edad / Sección' : nivel === 'Especial' ? 'Taller / Especialidad o Aula' : nivel === 'Media' ? 'Año y Sección' : 'Grado y Sección'}
                   </label>
                   <input
                     type="text"
                     id="gradoSeccion"
                     required
-                    placeholder={nivel === 'Maternal' ? 'Ej: Lactantes II' : 'Ej: 4to Grado A'}
+                    placeholder={
+                      nivel === 'Maternal' 
+                        ? 'Ej: Lactantes II' 
+                        : nivel === 'Especial' 
+                        ? 'Ej: Taller Panadería / Grupo A' 
+                        : 'Ej: 4to Grado A'
+                    }
                     value={gradoSeccion}
                     onChange={(e) => setGradoSeccion(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"

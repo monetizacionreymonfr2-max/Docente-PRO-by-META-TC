@@ -249,11 +249,11 @@ Directrices de Ventas:
       const standardSystemInstruction = `Tú eres Camila, la asistente virtual y pedagógica avanzada de la plataforma Docenty Pro By Reymon Castillo. Debes seguir estas directrices estrictas:
 1. IDENTIDAD, NOMBRE Y CREADOR:
 - Nombre oficial: La plataforma se llama "Docenty Pro By Reymon Castillo" (o Docenty PRO). Cuando te pregunten cómo se llama la plataforma, la app o el sistema, siempre debes responder con claridad y orgullo que se llama "Docenty Pro By Reymon Castillo".
-- Tono y Estilo: Profesional, empático y motivador. Conoce profundamente la "GUÍA ORGANIZATIVA 2025-2026" y el "Documento Educación Primaria 2025-2026" del MPPE.
+- Tono y Estilo: Profesional, empático y motivador. Conoce profundamente la "GUÍA ORGANIZATIVA 2026-2027" y el "Documento Educación Primaria 2026-2027" del MPPE.
 - Sobre tu creador: El creador de la plataforma es Reymon Castillo, un talentoso Ingeniero de Sistemas nacido en el Estado Apure, Venezuela. Creador y fundador de Docenty Pro By Reymon Castillo.
 
-2. CURRÍCULO OFICIAL EDUCACIÓN PRIMARIA MPPE 2025-2026:
-- A partir de hoy, TODO Proyecto Pedagógico de Aula (PPA) o planificación de Primaria debe basarse en el "Documento Educación Primaria 2025-2026" del MPPE e incluir siempre la mención: "Basado en los lineamientos del MPPE 2025-2026".
+2. CURRÍCULO OFICIAL EDUCACIÓN PRIMARIA MPPE 2026-2027:
+- A partir de hoy, TODO Proyecto Pedagógico de Aula (PPA) o planificación de Primaria debe basarse en el "Documento Educación Primaria 2026-2027" del MPPE e incluir siempre la mención: "Basado en los lineamientos del MPPE 2026-2027".
 - Domina las cuatro áreas priorizadas oficiales y sus componentes:
   1) Prácticas del Lenguaje: Lectura, Escritura, Oralidad.
   2) Matemáticas: Geometría, Magnitudes y Medidas, Números y Operaciones, Estadística y Probabilidad.
@@ -262,14 +262,26 @@ Directrices de Ventas:
 - Redacta propósito, actividades didácticas (Exploración, Desarrollo, Reflexión), estrategias y evaluación estrictamente alineados con los aprendizajes esperados oficiales del grado, citándolos tal cual.
 - Respeta estrictamente el nivel del grado (1° a 6°): jamás mezcles contenidos de otros grados.
 - Contexto venezolano: En el área Identidad, enfatiza la historia patria, valores bolivarianos, el amor a la República y el arraigo comunitario.
-- Si el docente solicita un contenido o tema que no pertenezca al currículo oficial para ese grado, adviértele amablemente que no forma parte del currículo oficial del MPPE 2025-2026 y sugiérele el componente y contenido oficial más cercano.
+- Si el docente solicita un contenido o tema que no pertenezca al currículo oficial para ese grado, adviértele amablemente que no forma parte del currículo oficial del MPPE 2026-2027 y sugiérele el componente y contenido oficial más cercano.
 
 3. NIVEL MATERNAL (0 a 3 AÑOS):
 - Si el usuario te indica que es docente de Maternal, o te pide planificaciones de Maternal (ej. Maternal I, Maternal II, Maternal III o Sala Cuna):
   a) Áreas Oficiales: Estructura siempre bajo las dos grandes áreas oficiales: "Formación Personal, Social y Comunicación" y "Relación entre los Componentes del Ambiente" (cada una con sus componentes y finalidades del cuadro organizador).
   b) Momentos de la Jornada: Define actividades para los momentos de: Recibimiento, Cuidado Diario/Fisiológico (Alimentación, Aseo, Descanso/Hábitos de higiene), Actividad Central, Juego Libre en Espacios (Expresar y Crear, Armar y Construir, Experimentar y Descubrir, Imitar y Representar) y Despedida.
   c) Evaluación: Utiliza como técnicas de evaluación el Registro Descriptivo o las Escalas de Estimación del Desarrollo Evolutivo.
-  d) Para guardar una planificación o proyecto de maternal, usa el tipo "maternal" en el parámetro "tipo" de la herramienta o formato JSON.`;
+  d) Para guardar una planificación o proyecto de maternal, usa el tipo "maternal" en el parámetro "tipo" de la herramienta o formato JSON.
+
+4. MODALIDAD DE EDUCACIÓN ESPECIAL (Lineamientos MPPE 2026-2027):
+- Tienes conocimiento exhaustivo de la Modalidad de Educación Especial en Venezuela. Atiendes docentes que trabajan con niños, adolescentes y jóvenes con condiciones del neurodesarrollo o discapacidad: Trastorno del Espectro Autista (TEA / Autismo), Síndrome de Down, Discapacidad Intelectual, TDAH, Compromiso Motor, Hipoacusia/Sordera (LSV), Baja Visión/Ceguera (Braille), y Aulas Integradas en escuelas regulares.
+- Dominas los servicios de Educación Especial: Talleres de Educación Laboral (TEL), Institutos de Educación Especial (IEE), Aulas Integradas / UPE, CAIPA y CDIT.
+- Aplica siempre el Diseño Universal para el Aprendizaje (DUA):
+  * Múltiples Formas de Representación (El Qué: claves visuales, pictogramas, modelado concreto).
+  * Múltiples Formas de Acción y Expresión (El Cómo: tableros de comunicación, trabajo práctico manual, simulación).
+  * Múltiples Formas de Implicación (El Por Qué: motivación, rincones sensoriales, trabajo cooperativo).
+- Ajustes Razonables: Agendas visuales anticipatorias, instrucciones concretas paso a paso, dosificación de tiempos, reducción de sobrecarga sensorial.
+- Enfoque Socioproductivo en Talleres de Educación Laboral (TEL): Línea de producción por fases (Paso 1 al 6), Plan de Inversión, e Informe Financiero.
+- Planificación Semanal con los 3 momentos DUA: Conceptualización (Representación), Generalización (Acción y Expresión) y Sistematización (Implicación).
+- Para guardar un proyecto o planificación de educación especial, usa el tipo "especial" en el parámetro "tipo".`;
 
       // 2. ESPERAMOS que la sesión se conecte completamente.
       const session = await (ai as any).live.connect({
@@ -387,8 +399,31 @@ Directrices de Ventas:
                       text: `*(Guardando automáticamente "${docTitle}" en el gestor de ${tipo.includes('plan') ? 'planificaciones' : 'proyectos'}...)*` 
                     }]);
 
-                    // Guardar PPA, Planificación o Plan Maternal
-                    if (tipo.includes('maternal')) {
+                    // Guardar PPA, Planificación, Plan Maternal o Educación Especial
+                    if (tipo.includes('especial')) {
+                      SupabaseService.addPlanificacion({
+                        titulo: docTitle,
+                        proyecto: 'PA Socioproductivo - Educación Especial',
+                        fechaInicio: new Date().toISOString().split('T')[0],
+                        fechaFin: new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
+                        nivel: 'Educación Especial',
+                        diagnostico: JSON.stringify({
+                          institucion: args.institucion || 'Taller de Educación Laboral',
+                          servicio: args.servicio || 'TEL',
+                          condicion: args.condicion || 'Trastorno del Espectro Autista (TEA)',
+                          especialidad: args.especialidad || 'Socioproductiva',
+                          mencion: args.mencion || 'Auxiliar Técnico',
+                          lapso: args.lapso || 'I Momento Pedagógico',
+                          anioEscolar: '2026-2027',
+                          docente: 'Docente Especialista',
+                          resumen: args.resumen || 'Diagnóstico y caracterización de Educación Especial'
+                        }),
+                        proposito: args.contenido_completo || args.resumen || '',
+                        estrategias: '',
+                        recursos: '',
+                        evaluacion: ''
+                      }, teacherId).catch(err => console.error(err));
+                    } else if (tipo.includes('maternal')) {
                       SupabaseService.addPlanificacion({
                         titulo: docTitle,
                         proyecto: 'semanal_quincenal',
@@ -398,7 +433,7 @@ Directrices de Ventas:
                         diagnostico: JSON.stringify({
                           institucion: 'C.E.I. Doctor Ramón Castillo',
                           salaEdad: 'Maternal (0 a 3 años)',
-                          anioEscolar: '2025-2026',
+                          anioEscolar: '2026-2027',
                           matriculaVarones: 8,
                           matriculaHembras: 10,
                           matriculaTotal: 18,
@@ -613,8 +648,8 @@ Directrices:
 - Nombre oficial: "Docenty Pro By Reymon Castillo" (también referida como Docenty PRO). Si te preguntan cuál es el nombre de la plataforma, aplicación o software, debes responder con orgullo que se llama "Docenty Pro By Reymon Castillo".
 - Reymon Castillo, Ingeniero de Sistemas nacido en Apure, Venezuela, es el creador y fundador de la plataforma.
 
-2. CURRÍCULO OFICIAL EDUCACIÓN PRIMARIA MPPE 2025-2026:
-- A partir de hoy, TODO Proyecto Pedagógico de Aula (PPA) o planificación de Primaria generado debe alinearse con el documento oficial del MPPE "Documento Educación Primaria 2025-2026" e incluir la mención: "Basado en los lineamientos del MPPE 2025-2026".
+2. CURRÍCULO OFICIAL EDUCACIÓN PRIMARIA MPPE 2026-2027:
+- A partir de hoy, TODO Proyecto Pedagógico de Aula (PPA) o planificación de Primaria generado debe alinearse con el documento oficial del MPPE "Documento Educación Primaria 2026-2027" e incluir la mención: "Basado en los lineamientos del MPPE 2026-2027".
 - Domina las cuatro áreas priorizadas oficiales y sus componentes:
   1) Prácticas del Lenguaje: Lectura, Escritura, Oralidad.
   2) Matemáticas: Geometría, Magnitudes y Medidas, Números y Operaciones, Estadística y Probabilidad.
@@ -630,7 +665,32 @@ Directrices:
   a) Áreas Oficiales: Estructura siempre bajo las dos grandes áreas oficiales: "Formación Personal, Social y Comunicación" y "Relación entre los Componentes del Ambiente" (cada una con sus componentes y finalidades del cuadro organizador).
   b) Momentos de la Jornada: Define actividades para los momentos de: Recibimiento, Cuidado Diario/Fisiológico (Alimentación, Aseo, Descanso/Hábitos de higiene), Actividad Central, Juego Libre en Espacios (Expresar y Crear, Armar y Construir, Experimentar y Descubrir, Imitar y Representar) y Despedida.
   c) Evaluación: Utiliza como técnicas el Registro Descriptivo o las Escalas de Estimación del Desarrollo Evolutivo.
-  d) Para guardar una planificación o proyecto de maternal, usa el formato de guardado con tipo "maternal".`;
+  d) Para guardar una planificación o proyecto de maternal, usa el formato de guardado con tipo "maternal".
+
+4. MODALIDAD DE EDUCACIÓN ESPECIAL (Lineamientos MPPE 2026-2027):
+- Tienes amplio conocimiento y experiencia técnica en Educación Especial en Venezuela. Atiendes docentes de Talleres de Educación Laboral (TEL), Institutos de Educación Especial (IEE), Aulas Integradas / UPE, CAIPA (Autismo) y CDIT.
+- Condiciones atendidas: Trastorno del Espectro Autista (TEA / autismo), Síndrome de Down, Discapacidad Intelectual, TDAH, Compromiso Motor, Sordera/Hipoacusia (Lengua de Señas Venezolanas - LSV), Ceguera/Baja Visión (Braille) y Dificultades de Aprendizaje.
+- Aplicas rigurosamente el Diseño Universal para el Aprendizaje (DUA):
+  * Múltiples Formas de Representación (claves visuales, pictogramas ARASAAC, muestras reales, modelado).
+  * Múltiples Formas de Acción y Expresión (tableros de comunicación, trabajo manual en taller, dramatizaciones, señalamiento).
+  * Múltiples Formas de Implicación (motivación funcional, micro-metas, trabajo colaborativo, rincones sensoriales).
+- Ajustes Razonables: Instrucciones segmentadas paso a paso, anticipación visual para evitar sobrecarga o ansiedad, dosificación de tiempos y pausas activas.
+- Enfoque Socioproductivo en Taller Laboral: Línea de producción por fases (Paso 1 al 6), Plan de Inversión y cálculo de costos, e Informe Financiero.
+- Planificación Semanal oficial con momentos DUA: Conceptualización (El qué), Generalización (El cómo) y Sistematización (El por qué).
+- Cuando el docente te pida crear o guardar un Proyecto de Aprendizaje Socioproductivo o planificación de Educación Especial, responde con el proyecto completo y al final anexa el bloque oculto:
+  [SAVE_START]{
+    "tipo": "especial",
+    "titulo": "Título del Proyecto de Ed Especial",
+    "institucion": "Taller de Educación Laboral Carabobo",
+    "servicio": "TEL",
+    "condicion": "Trastorno del Espectro Autista (TEA)",
+    "especialidad": "Panadería / Textil / Huerto / etc.",
+    "mencion": "Auxiliar Ocupacional",
+    "lapso": "I Momento Pedagógico",
+    "anioEscolar": "2026-2027",
+    "resumen": "Diagnóstico biopsicosocial...",
+    "contenido_completo": "Texto completo del proyecto..."
+  }[SAVE_END]`;
 
       // Build context history based on current states
       // Avoid Welcome message to prevent bloat if needed, but it helps context
@@ -665,7 +725,32 @@ Directrices:
           
           const tipo = (parsedData.tipo || '').toLowerCase();
           
-          if (tipo.includes('maternal')) {
+          if (tipo.includes('especial')) {
+            await SupabaseService.addPlanificacion({
+              titulo: parsedData.titulo || parsedData.tituloProyecto || 'Proyecto de Educación Especial',
+              proyecto: `${parsedData.servicio || 'TEL'} - ${parsedData.especialidad || 'Socioproductivo'} (${parsedData.mencion || 'General'})`,
+              fechaInicio: parsedData.tiempoInicio || new Date().toISOString().split('T')[0],
+              fechaFin: parsedData.tiempoFin || new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0],
+              nivel: 'Educación Especial',
+              diagnostico: JSON.stringify({
+                institucion: parsedData.institucion || 'Taller de Educación Laboral',
+                servicio: parsedData.servicio || 'TEL',
+                condicion: parsedData.condicion || 'Trastorno del Espectro Autista (TEA)',
+                especialidad: parsedData.especialidad || 'Socioproductiva',
+                mencion: parsedData.mencion || 'General',
+                lapso: parsedData.lapso || 'I Momento Pedagógico',
+                anioEscolar: parsedData.anioEscolar || '2026-2027',
+                docente: parsedData.docente || 'Docente Especialista',
+                participantesV: parsedData.participantesV || 8,
+                participantesH: parsedData.participantesH || 6,
+                resumen: parsedData.resumen || 'Diagnóstico integral de Educación Especial'
+              }),
+              proposito: parsedData.contenido_completo || rawText.replace(regex, '').trim(),
+              estrategias: '',
+              recursos: '',
+              evaluacion: ''
+            }, teacherId);
+          } else if (tipo.includes('maternal')) {
             await SupabaseService.addPlanificacion({
               titulo: parsedData.tituloProyecto || parsedData.titulo || 'Plan Maternal',
               proyecto: parsedData.tipoPlan || 'semanal_quincenal',
@@ -675,7 +760,7 @@ Directrices:
               diagnostico: JSON.stringify({
                 institucion: parsedData.institucion || 'C.E.I. Doctor Ramón Castillo',
                 salaEdad: parsedData.salaEdad || 'Maternal (0 a 3 años)',
-                anioEscolar: parsedData.anioEscolar || '2025-2026',
+                anioEscolar: parsedData.anioEscolar || '2026-2027',
                 matriculaVarones: parsedData.matriculaVarones || 8,
                 matriculaHembras: parsedData.matriculaHembras || 10,
                 matriculaTotal: (parsedData.matriculaVarones || 8) + (parsedData.matriculaHembras || 10),

@@ -1,6 +1,6 @@
 import { ContenidoItem, GradoPrimaria } from './types';
 
-// CURRÍCULO OFICIAL MPPE 2025-2026: IDENTIDAD (Ciencias Sociales, Historia, Geografía y Ciudadanía)
+// CURRÍCULO OFICIAL MPPE 2026-2027: IDENTIDAD (Ciencias Sociales, Historia, Geografía y Ciudadanía)
 // Páginas 127-141 del documento oficial.
 export const IDENTIDAD_DATA: Record<GradoPrimaria, Record<string, ContenidoItem[]>> = {
   '1': {

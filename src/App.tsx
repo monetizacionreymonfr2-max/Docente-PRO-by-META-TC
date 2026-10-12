@@ -12,6 +12,7 @@ import Attendance from './pages/Attendance';
 import Planner from './pages/Planner';
 import Reports from './pages/Reports';
 import Maternal from './pages/Maternal';
+import EducacionEspecial from './pages/EducacionEspecial';
 import AdminPanel from './pages/AdminPanel';
 import Camila from './pages/Camila';
 import ActivationModal from './components/ActivationModal';
@@ -292,6 +293,8 @@ export default function App() {
           <Route path="planner" element={<Planner />} />
           <Route path="reports" element={<Reports />} />
           <Route path="maternal" element={<Maternal />} />
+          <Route path="especial" element={<EducacionEspecial />} />
+          <Route path="educacion-especial" element={<Navigate to="/especial" replace />} />
           <Route path="camila" element={<Camila />} />
           {isAdmin && <Route path="admin" element={<AdminPanel />} />}
         </Route>

@@ -8,7 +8,7 @@ import { PERFIL_EGRESADO_MPPE } from './curriculoMPPE/egresado';
 export * from './curriculoMPPE/types';
 export { PERFIL_EGRESADO_MPPE };
 
-export const CURRICULO_MPPE_2025_2026: Record<AreaCurricular, AreaData> = {
+export const CURRICULO_MPPE_2026_2027: Record<AreaCurricular, AreaData> = {
   'Prácticas del Lenguaje': {
     nombre: 'Prácticas del Lenguaje',
     grados: LENGUAJE_DATA,
@@ -31,6 +31,9 @@ export const CURRICULO_MPPE_2025_2026: Record<AreaCurricular, AreaData> = {
   }
 };
 
+// Alias de retrocompatibilidad
+export const CURRICULO_MPPE_2025_2026 = CURRICULO_MPPE_2026_2027;
+
 export const AREAS_CURRICULARES: AreaCurricular[] = [
   'Prácticas del Lenguaje',
   'Matemáticas',
@@ -39,7 +42,7 @@ export const AREAS_CURRICULARES: AreaCurricular[] = [
 ];
 
 export function getComponentesPorAreaYGrado(area: AreaCurricular, grado: GradoPrimaria): string[] {
-  const areaData = CURRICULO_MPPE_2025_2026[area];
+  const areaData = CURRICULO_MPPE_2026_2027[area];
   if (!areaData || !areaData.grados[grado]) return [];
   return Object.keys(areaData.grados[grado]);
 }
@@ -49,12 +52,12 @@ export function getContenidosPorComponente(
   grado: GradoPrimaria, 
   componente: string
 ): ContenidoItem[] {
-  const areaData = CURRICULO_MPPE_2025_2026[area];
+  const areaData = CURRICULO_MPPE_2026_2027[area];
   if (!areaData || !areaData.grados[grado] || !areaData.grados[grado][componente]) return [];
   return areaData.grados[grado][componente];
 }
 
-// Búsqueda inteligente para remapear proyectos existentes al currículo MPPE 2025-2026
+// Búsqueda inteligente para remapear proyectos existentes al currículo MPPE 2026-2027
 export function buscarContenidoMasCercano(
   grado: GradoPrimaria,
   textoBusqueda: string,
@@ -78,7 +81,7 @@ export function buscarContenidoMasCercano(
   const areasABuscar = areaSugerida ? [areaSugerida] : AREAS_CURRICULARES;
 
   for (const area of areasABuscar) {
-    const areaData = CURRICULO_MPPE_2025_2026[area];
+    const areaData = CURRICULO_MPPE_2026_2027[area];
     if (!areaData || !areaData.grados[grado]) continue;
 
     for (const [componente, listaContenidos] of Object.entries(areaData.grados[grado])) {

@@ -97,10 +97,11 @@ export default function Home() {
             <h2 className="text-3xl font-black text-white italic uppercase tracking-tighter">¿Qué contiene el ecosistema?</h2>
             <ul className="space-y-4">
               {[
-                { label: 'Gestor Avanzado de PPA', desc: 'Proyectos de Aprendizaje estructurados en segundos.' },
+                { label: 'Gestor Avanzado de PPA', desc: 'Proyectos de Aprendizaje estructurados en segundos (Lineamientos 2026-2027).' },
+                { label: 'Educación Especial & Socioproductivo', desc: 'Planes DUA, ajustes para autismo y TEL, plan de inversión y línea de producción.' },
                 { label: 'Control Digital de Asistencia', desc: 'Reportes automáticos por estudiante y sección.' },
                 { label: 'Sección Maternal Especializada', desc: 'Herramientas adaptadas a las primeras etapas.' },
-                { label: 'Planificador de Aula Diario', desc: 'Inicio, desarrollo y cierre optimizados.' },
+                { label: 'Planificador de Aula Diario', desc: 'Inicio, desarrollo y cierre optimizados con DUA.' },
                 { label: 'Generador Pro de Boletines', desc: 'Evaluación cualitativa y cuantitativa fluida.' }
               ].map((item, idx) => (
                 <li key={idx} className="flex gap-4 group">

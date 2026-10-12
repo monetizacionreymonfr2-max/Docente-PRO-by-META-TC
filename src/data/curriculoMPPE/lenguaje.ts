@@ -1,6 +1,6 @@
 import { ContenidoItem, GradoPrimaria } from './types';
 
-// CURRÍCULO OFICIAL MPPE 2025-2026: PRÁCTICAS DEL LENGUAJE (Págs. 24-75)
+// CURRÍCULO OFICIAL MPPE 2026-2027: PRÁCTICAS DEL LENGUAJE (Págs. 24-75)
 // Componentes: Lectura, Escritura, Oralidad
 export const LENGUAJE_DATA: Record<GradoPrimaria, Record<string, ContenidoItem[]>> = {
   '1': {

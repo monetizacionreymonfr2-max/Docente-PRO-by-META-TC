@@ -68,7 +68,7 @@ export default function Maternal() {
   // Identificación
   const [institucion, setInstitucion] = useState('C.E.I. Simoncito');
   const [salaEdad, setSalaEdad] = useState('Maternal II (1 a 2 años)');
-  const [anioEscolar, setAnioEscolar] = useState('2025-2026');
+  const [anioEscolar, setAnioEscolar] = useState('2026-2027');
   const [matriculaV, setMatriculaV] = useState('10');
   const [matriculaH, setMatriculaH] = useState('12');
   const [tiempoInicio, setTiempoInicio] = useState(new Date().toISOString().split('T')[0]);
@@ -203,7 +203,7 @@ export default function Maternal() {
       if (enfasisCiencia) selectedEnfasis.push("Ciencia y Tecnología");
 
       const systemInstruction = `Eres un especialista pedagógico sénior del Ministerio del Poder Popular para la Educación (MPPE) de Venezuela para Educación Inicial. 
-Conoces exhaustivamente las directrices vigentes de planificación curricular 2025-2026.
+Conoces exhaustivamente las directrices vigentes de planificación curricular 2026-2027.
 Tu objetivo es generar planificaciones formales oficiales de alto nivel técnico para la etapa MATERNAL (de 0 a 3 años), usando de forma rigurosa la estructura, enfoque bio-psicomotor y rutinas correctas.`;
 
       let prompt = '';

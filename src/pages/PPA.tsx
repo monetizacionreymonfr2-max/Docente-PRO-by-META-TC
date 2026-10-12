@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, Link } from 'react-router-dom';
 import { SupabaseService } from '../lib/supabaseService';
 import { generateContentWithRetry } from '../lib/gemini';
 import { 
@@ -10,7 +10,7 @@ import {
 import Markdown from 'react-markdown';
 import LimitReachedModal from '../components/LimitReachedModal';
 import { 
-  CURRICULO_MPPE_2025_2026, 
+  CURRICULO_MPPE_2026_2027, 
   AREAS_CURRICULARES, 
   AreaCurricular, 
   GradoPrimaria,
@@ -20,7 +20,7 @@ import {
 interface PPAProject {
   id: string;
   gradoSeccion: string;
-  nivel: 'Primaria' | 'Maternal' | 'Preescolar' | 'Media';
+  nivel: 'Primaria' | 'Maternal' | 'Preescolar' | 'Media' | 'Especial';
   tema: string;
   duracion: string;
   diagnostico: string;
@@ -37,12 +37,12 @@ export default function PPA() {
   
   // Form State
   const [gradoSeccion, setGradoSeccion] = useState(() => localStorage.getItem('ppa_form_grado') || '');
-  const [nivel, setNivel] = useState<'Primaria' | 'Maternal' | 'Preescolar' | 'Media'>(() => (localStorage.getItem('ppa_form_nivel') as any) || 'Primaria');
+  const [nivel, setNivel] = useState<'Primaria' | 'Maternal' | 'Preescolar' | 'Media' | 'Especial'>(() => (localStorage.getItem('ppa_form_nivel') as any) || 'Primaria');
   const [tema, setTema] = useState(() => localStorage.getItem('ppa_form_tema') || '');
   const [duracion, setDuracion] = useState(() => localStorage.getItem('ppa_form_duracion') || '');
   const [diagnostico, setDiagnostico] = useState(() => localStorage.getItem('ppa_form_diagnostico') || '');
   
-  // MPPE 2025-2026 Specific State for Primaria
+  // MPPE 2026-2027 Specific State for Primaria
   const [gradoPrimaria, setGradoPrimaria] = useState<GradoPrimaria>(() => {
     const saved = localStorage.getItem('ppa_mppe_grado');
     return (saved as GradoPrimaria) || '1';
@@ -145,7 +145,7 @@ export default function PPA() {
     return () => clearInterval(interval);
   }, [teacherId]);
 
-  // Helpers for MPPE 2025-2026 selection
+  // Helpers for MPPE 2026-2027 selection
   const toggleArea = (area: AreaCurricular) => {
     setSelectedAreas(prev => {
       if (prev.includes(area)) {
@@ -168,7 +168,7 @@ export default function PPA() {
   };
 
   const selectAllInComponent = (area: AreaCurricular, componente: string, select: boolean) => {
-    const contenidos = CURRICULO_MPPE_2025_2026[area]?.grados[gradoPrimaria]?.[componente] || [];
+    const contenidos = CURRICULO_MPPE_2026_2027[area]?.grados[gradoPrimaria]?.[componente] || [];
     setSelectedAprendizajes(prev => {
       const next = { ...prev };
       contenidos.forEach(c => {
@@ -218,7 +218,7 @@ export default function PPA() {
     if (!remapTargetProject || !teacherId) return;
     setIsApplyingRemap(true);
     try {
-      const mppeSection = `\n\n---\n### ALINEACIÓN OFICIAL AL CURRÍCULO MPPE 2025-2026\n*Basado en los lineamientos del MPPE 2025-2026*\n\n` +
+      const mppeSection = `\n\n---\n### ALINEACIÓN OFICIAL AL CURRÍCULO MPPE 2026-2027\n*Basado en los lineamientos del MPPE 2026-2027*\n\n` +
         remapSuggestions.map(s => {
           return `**Área:** ${s.area}\n` +
             `* **Componente:** ${s.componente}\n` +
@@ -255,7 +255,7 @@ export default function PPA() {
       setEditedContent(updatedContent);
       setProjects(prev => prev.map(p => p.id === updatedProject.id ? updatedProject : p));
       setIsRemapModalOpen(false);
-      setSuccessNotice('¡Proyecto actualizado y alineado con éxito al currículo MPPE 2025-2026!');
+      setSuccessNotice('¡Proyecto actualizado y alineado con éxito al currículo MPPE 2026-2027!');
       setTimeout(() => setSuccessNotice(null), 5000);
     } catch (err: any) {
       console.error("Error applying MPPE remap:", err);
@@ -271,7 +271,7 @@ export default function PPA() {
     // Validation
     if (nivel === 'Primaria') {
       if (selectedCount === 0) {
-        setErrorMsg("Por favor selecciona al menos un Aprendizaje Esperado oficial del currículo MPPE 2025-2026.");
+        setErrorMsg("Por favor selecciona al menos un Aprendizaje Esperado oficial del currículo MPPE 2026-2027.");
         return;
       }
       if (!tema.trim() || !duracion.trim() || !diagnostico.trim() || !teacherId) {
@@ -303,15 +303,16 @@ export default function PPA() {
       if (nivel === 'Maternal') levelTitleStr = "MATERNAL";
       else if (nivel === 'Preescolar') levelTitleStr = "EDUCACIÓN INICIAL / PREESCOLAR";
       else if (nivel === 'Media') levelTitleStr = "EDUCACIÓN MEDIA";
+      else if (nivel === 'Especial') levelTitleStr = "EDUCACIÓN ESPECIAL / TALLER LABORAL";
 
-      const systemInstruction = `Eres un especialista senior en planificación educativa del MPPE (Venezuela), con profundo conocimiento del "Documento Educación Primaria 2025-2026" y del currículo oficial para el nivel de ${levelTitleStr}. 
+      const systemInstruction = `Eres un especialista senior en planificación educativa del MPPE (Venezuela), con profundo conocimiento del "Documento Educación Primaria 2026-2027" y del currículo oficial para el nivel de ${levelTitleStr}. 
 
-Tu misión es generar Proyectos Pedagógicos de Aula (PPA) bajo el NUEVO FORMATO OFICIAL VIGENTE 2025-2026.
+Tu misión es generar Proyectos Pedagógicos de Aula (PPA) bajo el NUEVO FORMATO OFICIAL VIGENTE 2026-2027.
 Debes seguir estrictamente estos lineamientos:
 
 1. ENCABEZADO Y VALIDEZ OFICIAL:
-   - Todo PPA de Primaria DEBE incluir de forma clara y destacada en el membrete: "Basado en los lineamientos del MPPE 2025-2026".
-   - Identificación completa (Código de plantel, Logo/Membrete oficial, Docente, Matrícula M/F/T, Año Escolar 2025-2026, Nivel: ${levelTitleStr}, Grado y Sección: ${actualGradoSeccion}).
+   - Todo PPA de Primaria DEBE incluir de forma clara y destacada en el membrete: "Basado en los lineamientos del MPPE 2026-2027".
+   - Identificación completa (Código de plantel, Logo/Membrete oficial, Docente, Matrícula M/F/T, Año Escolar 2026-2027, Nivel: ${levelTitleStr}, Grado y Sección: ${actualGradoSeccion}).
 
 2. ALINEACIÓN CURRICULAR ESTRICTA:
    - Por cada área de formación integrada, muestra de forma explícita: Área, Componente, Contenido Oficial y Aprendizajes Esperados Oficiales.
@@ -326,11 +327,11 @@ Debes seguir estrictamente estos lineamientos:
    - En el área de Identidad (o al trabajar valores comunitarios), contextualiza con la venezolanidad, tradiciones patrias, geografía nacional y el pensamiento de Simón Bolívar y grandes maestros venezolanos.`;
 
       if (nivel === 'Maternal') {
-        prompt = `Genera un PPA para el nivel MATERNAL bajo el nuevo formato MPPE 2025-2026.
+        prompt = `Genera un PPA para el nivel MATERNAL bajo el nuevo formato MPPE 2026-2027.
 DATOS: Tema: ${tema}, Sala/Edad: ${gradoSeccion}, Duración: ${duracion}, Diagnóstico: ${diagnostico}.
 
 ESTRUCTURA TÉCNICA:
-1. MEMBRETE: Incluir Año Escolar 2025-2026 y Matrícula proyectada.
+1. MEMBRETE: Incluir Año Escolar 2026-2027 y Matrícula proyectada.
 2. CONTEXTO: PEIC y Línea de Investigación pertinente.
 3. DIAGNÓSTICO Y PROPÓSITO: Basados en las necesidades de desarrollo infantil.
 4. TABLA DE CORRELACIÓN CURRICULAR:
@@ -342,11 +343,11 @@ ESTRUCTURA TÉCNICA:
 6. INTENCIONALIDADES (Aprender a Crear, Convivir, Valorar, Reflexionar).
 7. RECURSOS E INDICADORES DE EVALUACIÓN (Cualitativos).`;
       } else if (nivel === 'Preescolar') {
-        prompt = `Genera un PPA para el nivel PREESCOLAR/INICIAL bajo el nuevo formato MPPE 2025-2026.
+        prompt = `Genera un PPA para el nivel PREESCOLAR/INICIAL bajo el nuevo formato MPPE 2026-2027.
 DATOS: Tema: ${tema}, Sección: ${gradoSeccion}, Duración: ${duracion}, Diagnóstico: ${diagnostico}.
 
 ESTRUCTURA TÉCNICA OBLIGATORIA:
-1. MEMBRETE E IDENTIFICACIÓN: Año Escolar 2025-2026, Matrícula detallada.
+1. MEMBRETE E IDENTIFICACIÓN: Año Escolar 2026-2027, Matrícula detallada.
 2. PEIC Y LÍNEAS DE INVESTIGACIÓN (Selecciona de las oficiales del MPPE).
 3. DIAGNÓSTICO INTEGRAL Y PROPÓSITO GENERAL (en infinitivo).
 4. PLANIFICACIÓN INTEGRAL (TABLA):
@@ -361,7 +362,7 @@ ESTRUCTURA TÉCNICA OBLIGATORIA:
         // Collect selected curricular elements
         let curricularDetails = '';
         selectedAreas.forEach(area => {
-          const areaObj = CURRICULO_MPPE_2025_2026[area];
+          const areaObj = CURRICULO_MPPE_2026_2027[area];
           const componentes = areaObj?.grados[gradoPrimaria] || {};
           let areaText = `\n### ÁREA: ${area.toUpperCase()}\n`;
           let areaHasItems = false;
@@ -389,10 +390,10 @@ ESTRUCTURA TÉCNICA OBLIGATORIA:
           }
         });
 
-        prompt = `Genera un Proyecto Pedagógico de Aula (PPA) para EDUCACIÓN PRIMARIA (${gradoPrimaria}° Grado) estructurado bajo los lineamientos oficiales del MPPE "Documento Educación Primaria" 2025-2026.
+        prompt = `Genera un Proyecto Pedagógico de Aula (PPA) para EDUCACIÓN PRIMARIA (${gradoPrimaria}° Grado) estructurado bajo los lineamientos oficiales del MPPE "Documento Educación Primaria" 2026-2027.
 
 ENCABEZADO OBLIGATORIO:
-**Basado en los lineamientos del MPPE 2025-2026**
+**Basado en los lineamientos del MPPE 2026-2027**
 
 DATOS DEL PROYECTO:
 - Grado y Sección: ${actualGradoSeccion}
@@ -401,14 +402,14 @@ DATOS DEL PROYECTO:
 - Diagnóstico Integral: ${diagnostico}
 ${complementoDocente ? `- Aporte Complementario del Docente: ${complementoDocente}` : ''}
 
-ELEMENTOS CURRICULARES OFICIALES SELECCIONADOS (CURRÍCULO MPPE 2025-2026):
+ELEMENTOS CURRICULARES OFICIALES SELECCIONADOS (CURRÍCULO MPPE 2026-2027):
 ${curricularDetails}
 
 ESTRUCTURA DEL DOCUMENTO A GENERAR:
 1. **MEMBRETE OFICIAL Y IDENTIFICACIÓN COMPLETA**:
    - República Bolivariana de Venezuela, Ministerio del Poder Popular para la Educación.
-   - Año Escolar 2025-2026.
-   - Mención obligatoria: "Basado en los lineamientos del MPPE 2025-2026".
+   - Año Escolar 2026-2027.
+   - Mención obligatoria: "Basado en los lineamientos del MPPE 2026-2027".
    - Grado y Sección: ${actualGradoSeccion}.
 2. **PEIC Y LÍNEA DE INVESTIGACIÓN**:
    - Vinculación con el Proyecto Educativo Integral Comunitario.
@@ -424,12 +425,24 @@ ESTRUCTURA DEL DOCUMENTO A GENERAR:
    - Estrategias activas y recursos del entorno y la Colección Bicentenario.
 7. **EVALUACIÓN DE LOS APRENDIZAJES**:
    - Indicadores de logro, técnicas e instrumentos (escala de estimación / registro descriptivo) alineados con los aprendizajes esperados seleccionados.`;
+      } else if (nivel === 'Especial') {
+        prompt = `Genera un PROYECTO DE APRENDIZAJE CON ENFOQUE SOCIO PRODUCTIVO DE EDUCACIÓN ESPECIAL (MPPE 2026-2027).
+DATOS: Título: ${tema}, Especialidad/Taller o Aula: ${gradoSeccion}, Duración: ${duracion}, Diagnóstico/Caracterización: ${diagnostico}.
+
+ESTRUCTURA OFICIAL:
+1. MEMBRETE OFICIAL: República Bolivariana de Venezuela, MPPE, Centro de Desarrollo por la Calidad Educativa (CDCE), Taller de Educación Laboral (TEL) / IEE, Año Escolar 2026-2027.
+2. CARACTERIZACIÓN DIAGNÓSTICA (Estudiantes con Autismo / TEA, Síndrome de Down, Discapacidad Intelectual o Motora).
+3. ENFOQUE DUA (Diseño Universal de Aprendizaje) en sus 3 vertientes: Múltiples Formas de Representación, Acción y Expresión, e Implicación.
+4. AJUSTES RAZONABLES: Claves visuales, pictogramas, modelado paso a paso, dosificación de tiempos y accesibilidad.
+5. MATRIZ DE PLAN DE ÁREAS (Prácticas del Lenguaje, Matemática para la Vida, Ciencias Naturales, G.C.R.P., Orientación y Convivencia, Identidad, Educación Física).
+6. COMPONENTE SOCIOPRODUCTIVO: Plan de Inversión, Línea de Producción (Pasos 1 al 6) e Informe Financiero.
+7. PLANIFICACIÓN SEMANAL DUA: Lunes a Viernes con Conceptualización, Generalización y Sistematización.`;
       } else {
-        prompt = `Genera un PPA para EDUCACIÓN MEDIA siguiendo estrictamente la "GUÍA ORGANIZATIVA 2025-2026".
+        prompt = `Genera un PPA para EDUCACIÓN MEDIA siguiendo estrictamente la "GUÍA ORGANIZATIVA 2026-2027".
 DATOS: Año/Sección: ${gradoSeccion}, Tema: ${tema}, Duración: ${duracion}, Diagnóstico: ${diagnostico}.
 
 REQUISITOS DEL FORMATO OFICIAL:
-1. IDENTIFICACIÓN: Año Escolar 2025-2026, Matrícula proyectada.
+1. IDENTIFICACIÓN: Año Escolar 2026-2027, Matrícula proyectada.
 2. CONTEXTO: PEIC y Línea de Investigación. Diagnóstico Pedagógico y Propósito.
 3. TABLA DE CORRELACIÓN CURRICULAR: Áreas, Temas Indispensables, Tema Generador, Tejido Temático y Vértices (1 al 10).
 4. MOMENTOS DE CLASE: Exploración, Desarrollo y Reflexión.
@@ -610,12 +623,30 @@ REQUISITOS DEL FORMATO OFICIAL:
                     onChange={(e) => setNivel(e.target.value as any)}
                     className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors"
                   >
-                    <option value="Primaria">Educación Primaria (MPPE 2025-2026)</option>
+                    <option value="Primaria">Educación Primaria (MPPE 2026-2027)</option>
                     <option value="Maternal">Maternal (1-3 años)</option>
                     <option value="Preescolar">Preescolar / Inicial</option>
                     <option value="Media">Media (1er a 5to año)</option>
+                    <option value="Especial">Educación Especial / Taller Laboral (2026-2027)</option>
                   </select>
                 </div>
+
+                {nivel === 'Especial' && (
+                  <div className="col-span-full p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <GraduationCap className="text-emerald-500 w-5 h-5 shrink-0" />
+                      <p className="text-xs text-slate-700">
+                        ¿Buscas planificar con DUA, pictogramas, línea de producción e inversión de taller?
+                      </p>
+                    </div>
+                    <Link
+                      to="/especial"
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shrink-0 transition-all shadow-xs"
+                    >
+                      Ir al Módulo de Ed. Especial
+                    </Link>
+                  </div>
+                )}
 
                 {nivel === 'Primaria' ? (
                   <div className="grid grid-cols-2 gap-3">
@@ -657,7 +688,7 @@ REQUISITOS DEL FORMATO OFICIAL:
                 ) : (
                   <div>
                     <label htmlFor="gradoSeccion" className="block text-sm font-medium text-gray-700 mb-1">
-                      {nivel === 'Maternal' || nivel === 'Preescolar' ? 'Sala / Edad / Sección' : 'Año y Sección'}
+                      {nivel === 'Maternal' || nivel === 'Preescolar' ? 'Sala / Edad / Sección' : nivel === 'Especial' ? 'Taller / Especialidad o Aula' : 'Año y Sección'}
                     </label>
                     <input
                       type="text"
@@ -668,6 +699,8 @@ REQUISITOS DEL FORMATO OFICIAL:
                           ? 'Ej: Lactantes II' 
                           : nivel === 'Preescolar' 
                           ? 'Ej: 2do Grupo Sección A' 
+                          : nivel === 'Especial'
+                          ? 'Ej: Taller Panadería / Aula Integrada'
                           : 'Ej: 3er Año Sección B'
                       }
                       value={gradoSeccion}
@@ -678,7 +711,7 @@ REQUISITOS DEL FORMATO OFICIAL:
                 )}
               </div>
 
-              {/* MPPE 2025-2026: ÁREAS Y APRENDIZAJES SELECCIONABLES (SÓLO PRIMARIA) */}
+              {/* MPPE 2026-2027: ÁREAS Y APRENDIZAJES SELECCIONABLES (SÓLO PRIMARIA) */}
               {nivel === 'Primaria' && (
                 <div className="bg-slate-50 border border-blue-200 rounded-xl p-5 space-y-5">
                   <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-100 pb-3">
@@ -688,7 +721,7 @@ REQUISITOS DEL FORMATO OFICIAL:
                       </div>
                       <div>
                         <h3 className="font-bold text-gray-900 text-sm sm:text-base flex items-center gap-2">
-                          Currículo MPPE 2025-2026 ({gradoPrimaria}° Grado)
+                          Currículo MPPE 2026-2027 ({gradoPrimaria}° Grado)
                           <span className="text-[10px] bg-green-100 text-green-800 font-extrabold px-2 py-0.5 rounded-full border border-green-300 uppercase">Oficial</span>
                         </h3>
                         <p className="text-xs text-gray-500">Selecciona las áreas y los aprendizajes esperados oficiales.</p>
@@ -731,7 +764,7 @@ REQUISITOS DEL FORMATO OFICIAL:
                   {/* Componentes y Contenidos de las Áreas Seleccionadas */}
                   <div className="space-y-4">
                     {selectedAreas.map(area => {
-                      const areaData = CURRICULO_MPPE_2025_2026[area];
+                      const areaData = CURRICULO_MPPE_2026_2027[area];
                       const componentes = areaData?.grados[gradoPrimaria] || {};
                       const componenteKeys = Object.keys(componentes);
 
@@ -985,12 +1018,12 @@ REQUISITOS DEL FORMATO OFICIAL:
                         handleOpenRemapModal(project);
                       }}
                       className="text-[11px] text-blue-700 hover:text-blue-900 font-semibold flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md border border-blue-200 transition-colors"
-                      title="Actualizar y alinear con el currículo oficial MPPE 2025-2026"
+                      title="Actualizar y alinear con el currículo oficial MPPE 2026-2027"
                     >
                       <RefreshCw className="w-3 h-3 text-blue-600" />
-                      <span>Actualizar a MPPE 2025-2026</span>
+                      <span>Actualizar a MPPE 2026-2027</span>
                     </button>
-                    <span className="text-[10px] text-gray-400 font-medium">MPPE 2025-2026</span>
+                    <span className="text-[10px] text-gray-400 font-medium">MPPE 2026-2027</span>
                   </div>
                 </div>
               );
@@ -1019,10 +1052,10 @@ REQUISITOS DEL FORMATO OFICIAL:
                 <button 
                   onClick={(e) => { e.stopPropagation(); handleOpenRemapModal(selectedProject); }}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition-colors shadow-xs"
-                  title="Alinear y remapear a los contenidos oficiales del MPPE 2025-2026"
+                  title="Alinear y remapear a los contenidos oficiales del MPPE 2026-2027"
                 >
                   <RefreshCw className="w-4 h-4 text-indigo-600" />
-                  <span>Actualizar al currículo MPPE 2025-2026</span>
+                  <span>Actualizar al currículo MPPE 2026-2027</span>
                 </button>
               )}
               {!isGuest && !isEditing && (
@@ -1076,10 +1109,10 @@ REQUISITOS DEL FORMATO OFICIAL:
               </div>
             )}
 
-            {/* MPPE 2025-2026 Official Tag in Project */}
+            {/* MPPE 2026-2027 Official Tag in Project */}
             <div className="mb-4 inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 border border-blue-200 rounded-full text-xs font-bold text-blue-800">
               <ShieldCheck className="w-4 h-4 text-blue-600" />
-              <span>Basado en los lineamientos del MPPE 2025-2026</span>
+              <span>Basado en los lineamientos del MPPE 2026-2027</span>
             </div>
 
             {isEditing ? (
@@ -1126,7 +1159,7 @@ REQUISITOS DEL FORMATO OFICIAL:
               <div className="flex items-center gap-2.5">
                 <BookOpen className="w-6 h-6 text-blue-200" />
                 <div>
-                  <h3 className="font-bold text-lg">Actualizar al Currículo MPPE 2025-2026</h3>
+                  <h3 className="font-bold text-lg">Actualizar al Currículo MPPE 2026-2027</h3>
                   <p className="text-xs text-blue-100">Revisión y confirmación de alineación curricular</p>
                 </div>
               </div>
@@ -1142,7 +1175,7 @@ REQUISITOS DEL FORMATO OFICIAL:
               <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-lg p-3.5 text-xs flex items-start gap-2.5">
                 <Info className="w-4 h-4 text-amber-700 flex-shrink-0 mt-0.5" />
                 <div>
-                  <strong>Política de Resguardo de Datos:</strong> Tu proyecto original no será borrado ni sustituido sin confirmación. Se anexará una sección técnica oficial que vincula el PPA con los componentes, contenidos y aprendizajes esperados oficiales del MPPE 2025-2026.
+                  <strong>Política de Resguardo de Datos:</strong> Tu proyecto original no será borrado ni sustituido sin confirmación. Se anexará una sección técnica oficial que vincula el PPA con los componentes, contenidos y aprendizajes esperados oficiales del MPPE 2026-2027.
                 </div>
               </div>
 

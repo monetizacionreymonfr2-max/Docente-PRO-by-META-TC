@@ -1,6 +1,6 @@
 import { ContenidoItem, GradoPrimaria } from './types';
 
-// CURRÍCULO OFICIAL MPPE 2025-2026: CIENCIAS NATURALES (Págs. 100-113)
+// CURRÍCULO OFICIAL MPPE 2026-2027: CIENCIAS NATURALES (Págs. 100-113)
 export const CIENCIAS_NATURALES_DATA: Record<GradoPrimaria, Record<string, ContenidoItem[]>> = {
   '1': {
     'Salud Integral': [

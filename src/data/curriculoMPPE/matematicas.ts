@@ -1,6 +1,6 @@
 import { ContenidoItem, GradoPrimaria } from './types';
 
-// CURRÍCULO OFICIAL MPPE 2025-2026: MATEMÁTICAS (Págs. 87-93)
+// CURRÍCULO OFICIAL MPPE 2026-2027: MATEMÁTICAS (Págs. 87-93)
 // Componentes: Geometría, Magnitudes y Medidas, Números y Operaciones, Estadística y Probabilidad
 export const MATEMATICAS_DATA: Record<GradoPrimaria, Record<string, ContenidoItem[]>> = {
   '1': {

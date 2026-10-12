@@ -19,7 +19,7 @@ export interface SupabaseStudent {
   nombre: string;
   apellidos?: string;
   grado_seccion: string;
-  nivel: 'Primaria' | 'Maternal' | 'Preescolar' | 'Media';
+  nivel: 'Primaria' | 'Maternal' | 'Preescolar' | 'Media' | 'Especial';
   fecha_nacimiento: string;
   sexo: 'V' | 'H';
   docente_id: string;

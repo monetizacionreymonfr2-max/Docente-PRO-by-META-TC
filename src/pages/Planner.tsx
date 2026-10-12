@@ -9,7 +9,7 @@ import LimitReachedModal from '../components/LimitReachedModal';
 interface PPAProject {
   id: string;
   tema: string;
-  nivel?: 'Primaria' | 'Maternal' | 'Preescolar' | 'Media';
+  nivel?: 'Primaria' | 'Maternal' | 'Preescolar' | 'Media' | 'Especial' | string;
   contenido: string;
 }
 
@@ -148,10 +148,10 @@ export default function Planner() {
     setIsGenerating(true);
     try {
       let prompt = '';
-      const systemInstruction = "Eres un docente senior del MPPE (Venezuela). Tu objetivo es crear planes diarios de clase basados en la 'GUÍA ORGANIZATIVA 2025-2026'. Los planes deben ser prácticos y estar perfectamente alineados con el PPA base.";
+      const systemInstruction = "Eres un docente senior del MPPE (Venezuela). Tu objetivo es crear planes diarios de clase basados en la 'GUÍA ORGANIZATIVA 2026-2027'. Los planes deben ser prácticos y estar perfectamente alineados con el PPA base.";
       
       if (selectedPpa.nivel === 'Maternal') {
-        prompt = `Genera una planificación diaria para etapa MATERNAL (1-3 años) bajo el formato 2025-2026.
+        prompt = `Genera una planificación diaria para etapa MATERNAL (1-3 años) bajo el formato 2026-2027.
 DATOS: Fecha: ${fecha}, Actividad: ${temaDia}.
 PPA BASE: ${selectedPpa.contenido}
 
@@ -162,9 +162,20 @@ ESTRUCTURA REQUERIDA (MARKDOWN):
 4. MOMENTO DE REFLEXIÓN/CIERRE: Orden, limpieza y recuento de lo aprendido.
 5. RUTINAS INTEGRAL (Higiene y alimentación como actos pedagógicos).
 6. INTENCIONALIDADES (Aprender a Crear, Convivir, Valorar, Reflexionar).`;
+      } else if (selectedPpa.nivel === 'Especial' || (selectedPpa.nivel || '').toLowerCase().includes('especial')) {
+        prompt = `Genera un Plan de Clase Diario para EDUCACIÓN ESPECIAL / TALLER LABORAL siguiendo las directrices MPPE 2026-2027 con enfoque DUA y Ajustes Razonables.
+DATOS: Fecha: ${fecha}, Actividad del Día: ${temaDia}.
+PPA BASE: ${selectedPpa.contenido}
+
+ESTRUCTURA DUA:
+1. MOMENTO DE CONCEPTUALIZACIÓN (Inicio): Bienvenida, agenda visual con pictogramas, presentación con material concreto y modelado docente.
+2. MOMENTO DE GENERALIZACIÓN (Desarrollo): Trabajo activo en el taller, herramientas adaptadas, roles colaborativos y elaboración del producto.
+3. MOMENTO DE SISTEMATIZACIÓN (Cierre): Muestra del producto terminado, refuerzo positivo, orden y registro visual.
+4. AJUSTES RAZONABLES ESPECÍFICOS para autismo, discapacidad intelectual o motora.
+5. INTENCIONALIDADES Y RECURSOS DEL TALLER.`;
       } else {
         const nivelText = selectedPpa.nivel === 'Media' ? 'MEDIA' : 'PRIMARIA';
-        prompt = `Genera un Plan de Clase Diario para ${nivelText} siguiendo la "GUÍA ORGANIZATIVA 2025-2026".
+        prompt = `Genera un Plan de Clase Diario para ${nivelText} siguiendo la "GUÍA ORGANIZATIVA 2026-2027".
 DATOS: Fecha: ${fecha}, Tema del Día: ${temaDia}.
 PPA BASE: ${selectedPpa.contenido}
 
