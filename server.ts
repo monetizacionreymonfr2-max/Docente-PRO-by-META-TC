@@ -4,6 +4,12 @@ import path from "path";
 import { GoogleGenAI } from "@google/genai";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
+import {
+  FORMATO_ANALISIS_RESPONSE_SCHEMA,
+  FORMATO_ANALISIS_SYSTEM_INSTRUCTION,
+  FORMATO_GENERACION_RESPONSE_SCHEMA,
+  FORMATO_GENERACION_SYSTEM_INSTRUCTION
+} from "./src/lib/formatoPrompts";
 
 dotenv.config();
 
@@ -16,7 +22,9 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
+  // Permitir subida de documentos hasta 25MB (para PDFs e imágenes base64 de hasta 10MB)
+  app.use(express.json({ limit: "25mb" }));
+  app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
   // API Gemini generation route
   app.post("/api/generate", async (req, res) => {
@@ -41,6 +49,201 @@ async function startServer() {
     } catch (error: any) {
       console.error("Error generating content:", error);
       res.status(500).json({ error: error.message || "Error generating content" });
+    }
+  });
+
+  // --- ENDPOINTS DE MI FORMATO (ANALISIS Y GENERACION MULTIMODAL CON GEMINI 3.8 FLASH) ---
+
+  // 1. Analizar formato subido (PDF, Word, imagen)
+  app.post("/api/formatos/analizar", async (req, res) => {
+    try {
+      const { multimodal, wordContent, tipoDocumento, nombreArchivo } = req.body;
+
+      if (!process.env.GEMINI_API_KEY) {
+        return res.status(500).json({ error: "GEMINI_API_KEY no está configurada en el servidor." });
+      }
+
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+      let contentsPayload: any;
+
+      if (multimodal && multimodal.data) {
+        // Entrada multimodal nativa para PDF e imágenes
+        contentsPayload = {
+          parts: [
+            {
+              inlineData: {
+                mimeType: multimodal.mimeType || 'application/pdf',
+                data: multimodal.data,
+              },
+            },
+            {
+              text: `Analiza minuciosamente este archivo de formato escolar docente venezolano ("${nombreArchivo || 'formato'}").
+Tipo de documento seleccionado por el docente: ${tipoDocumento || 'PPA'}.
+Extrae la estructura exacta del documento:
+1. Membrete institucional, institución educativa, docente, grado, sección y año escolar.
+2. Títulos EXACTOS de cada sección o cuadro. NO los renombres, no los sintetices ni cambies ninguna palabra.
+3. Tipo de sección: campo, parrafo, tabla o lista.
+4. Si es tabla, los encabezados EXACTOS de cada una de sus columnas de izquierda a derecha.
+5. El estilo predominante (color de títulos o tablas, fuente, orientación).
+6. Un breve resumen pedagógico amable de lo que comprendiste para que el docente lo revise y confirme.`,
+            },
+          ],
+        };
+      } else if (wordContent) {
+        // Entrada estructurada a partir de Word .docx (texto + HTML)
+        contentsPayload = {
+          parts: [
+            {
+              text: `Analiza la siguiente estructura y texto extraídos de un documento Word (.docx) de un formato escolar venezolano:
+Tipo de documento: ${tipoDocumento || 'PPA'}.
+Nombre del archivo: ${nombreArchivo || 'formato.docx'}.
+
+--- TEXTO EXTRAÍDO ---
+${wordContent.texto || ''}
+
+--- ESTRUCTURA HTML DE TABLAS Y PÁRRAFOS ---
+${wordContent.html || ''}
+
+Extrae la estructura exacta en formato JSON respetando rigurosamente cada título de sección y las columnas de cada tabla.`,
+            },
+          ],
+        };
+      } else {
+        return res.status(400).json({ error: "No se proporcionaron datos de archivo para analizar." });
+      }
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: contentsPayload,
+        config: {
+          systemInstruction: FORMATO_ANALISIS_SYSTEM_INSTRUCTION,
+          responseMimeType: "application/json",
+          responseSchema: FORMATO_ANALISIS_RESPONSE_SCHEMA,
+        },
+      });
+
+      const responseText = response.text || '{}';
+      let estructuraParsed;
+      try {
+        estructuraParsed = JSON.parse(responseText.trim());
+      } catch (parseErr) {
+        console.error("Error parsing JSON from Gemini:", responseText);
+        return res.status(500).json({ error: "Respuesta de IA con formato JSON inválido." });
+      }
+
+      res.json({ success: true, estructura: estructuraParsed });
+    } catch (err: any) {
+      console.error("Error al analizar formato:", err);
+      const isOverloaded = err?.message?.includes('503') || err?.message?.includes('429');
+      res.status(isOverloaded ? 503 : 500).json({
+        error: isOverloaded
+          ? "Camila está ocupada, intenta en un minuto."
+          : (err.message || "Error al procesar el formato.")
+      });
+    }
+  });
+
+  // 2. Generar contenido pedagógico vaciado en el formato
+  app.post("/api/formatos/generar", async (req, res) => {
+    try {
+      const { formatoEstructura, datosDocente } = req.body;
+
+      if (!process.env.GEMINI_API_KEY) {
+        return res.status(500).json({ error: "GEMINI_API_KEY no está configurada en el servidor." });
+      }
+
+      if (!formatoEstructura || !datosDocente) {
+        return res.status(400).json({ error: "Faltan parámetros de formato o datos del docente." });
+      }
+
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+      const promptGeneracion = `Vacia la planificación escolar o PPA dentro del siguiente formato oficial de la escuela.
+
+INFORMACIÓN DEL DOCENTE Y AULA:
+- Institución: ${datosDocente.institucion || formatoEstructura.encabezado?.institucion || 'Institución Educativa'}
+- Docente: ${datosDocente.docente || 'Docente'}
+- Grado y Sección: ${datosDocente.gradoSeccion || '3er Grado A'}
+- Nivel Educativo: ${datosDocente.nivel || 'Primaria'}
+- Tema del Proyecto o Plan: ${datosDocente.tema || 'Aprendemos y Creamos Juntos'}
+- Duración: ${datosDocente.duracion || '4 semanas'}
+- Diagnóstico Pedagógico: ${datosDocente.diagnostico || 'Grupo participativo y motivado hacia el aprendizaje constructivo.'}
+${datosDocente.instruccionesExtra ? `- INSTRUCCIONES ESPECIALES DEL DOCENTE: ${datosDocente.instruccionesExtra}` : ''}
+
+ESTRUCTURA DEL FORMATO A RESPETAR (SECCIÓN POR SECCIÓN):
+${JSON.stringify(formatoEstructura.secciones, null, 2)}
+
+LINEAMIENTOS CURRICULARES:
+Aplica el currículo oficial MPPE 2026-2027 de Venezuela. Para cada sección del formato, genera contenido completo, pertinente y con vocabulario pedagógico profesional.
+Si una sección es de tipo 'tabla', genera un arreglo de filas donde cada fila tenga exactamente tantas celdas como columnas posee la tabla.
+Si el docente especificó instrucciones como "${datosDocente.instruccionesExtra || ''}", respétalas estrictamente en todo el contenido.`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: promptGeneracion,
+        config: {
+          systemInstruction: FORMATO_GENERACION_SYSTEM_INSTRUCTION,
+          responseMimeType: "application/json",
+          responseSchema: FORMATO_GENERACION_RESPONSE_SCHEMA,
+        },
+      });
+
+      const responseText = response.text || '{}';
+      let parsed;
+      try {
+        parsed = JSON.parse(responseText.trim());
+      } catch (parseErr) {
+        console.error("Error al parsear generación de formato:", responseText);
+        return res.status(500).json({ error: "La respuesta generada no tiene el formato JSON esperado." });
+      }
+
+      res.json({
+        success: true,
+        secciones: parsed.secciones || [],
+        observacionesPedagogicas: parsed.observacionesPedagogicas || '',
+      });
+    } catch (err: any) {
+      console.error("Error al generar contenido con formato:", err);
+      const isOverloaded = err?.message?.includes('503') || err?.message?.includes('429');
+      res.status(isOverloaded ? 503 : 500).json({
+        error: isOverloaded
+          ? "Camila está ocupada, intenta en un minuto."
+          : (err.message || "Error al generar contenido con el formato.")
+      });
+    }
+  });
+
+  // 3. Reintento de secciones específicas que hayan quedado vacías
+  app.post("/api/formatos/generar-seccion", async (req, res) => {
+    try {
+      const { seccionesFaltantes, datosDocente, formatoEstructura } = req.body;
+      if (!process.env.GEMINI_API_KEY) {
+        return res.status(500).json({ error: "GEMINI_API_KEY no está configurada." });
+      }
+
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+      const prompt = `Genera EXCLUSIVAMENTE el contenido para las siguientes secciones pedagógicas faltantes, alineado al currículo MPPE 2026-2027:
+Tema: ${datosDocente?.tema || 'Planificación'}
+Grado: ${datosDocente?.gradoSeccion || 'Primaria'}
+Secciones a generar:
+${JSON.stringify(seccionesFaltantes, null, 2)}`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.8-flash',
+        contents: prompt,
+        config: {
+          systemInstruction: FORMATO_GENERACION_SYSTEM_INSTRUCTION,
+          responseMimeType: "application/json",
+          responseSchema: FORMATO_GENERACION_RESPONSE_SCHEMA,
+        },
+      });
+
+      const parsed = JSON.parse(response.text?.trim() || '{}');
+      res.json({ success: true, secciones: parsed.secciones || [] });
+    } catch (err: any) {
+      console.error("Error al generar secciones faltantes:", err);
+      res.status(500).json({ error: "Error al reintentar secciones faltantes." });
     }
   });
 

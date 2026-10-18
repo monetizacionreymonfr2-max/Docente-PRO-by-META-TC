@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import Markdown from 'react-markdown';
 import LimitReachedModal from '../components/LimitReachedModal';
+import FormatoBadgeButton from '../components/formato/FormatoBadgeButton';
 import { 
   CURRICULO_MPPE_2026_2027, 
   AREAS_CURRICULARES, 
@@ -575,9 +576,12 @@ REQUISITOS DEL FORMATO OFICIAL:
 
   return (
     <div className="max-w-6xl mx-auto">
-      <div className="mb-8 no-print">
-        <h1 className="text-2xl font-bold text-white">Gestor de PPA con IA</h1>
-        <p className="text-slate-300 mt-1">Genera Proyectos Pedagógicos de Aula estructurados automáticamente.</p>
+      <div className="mb-8 no-print flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Gestor de PPA con IA</h1>
+          <p className="text-slate-300 mt-1">Genera Proyectos Pedagógicos de Aula estructurados automáticamente.</p>
+        </div>
+        <FormatoBadgeButton tipo="PPA" />
       </div>
 
       {/* Tabs */}

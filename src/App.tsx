@@ -15,6 +15,7 @@ import Maternal from './pages/Maternal';
 import EducacionEspecial from './pages/EducacionEspecial';
 import AdminPanel from './pages/AdminPanel';
 import Camila from './pages/Camila';
+import MiFormato from './pages/MiFormato';
 import ActivationModal from './components/ActivationModal';
 import ResetPasswordModal from './components/ResetPasswordModal';
 import { Loader2, UserX } from 'lucide-react';
@@ -296,6 +297,7 @@ export default function App() {
           <Route path="especial" element={<EducacionEspecial />} />
           <Route path="educacion-especial" element={<Navigate to="/especial" replace />} />
           <Route path="camila" element={<Camila />} />
+          <Route path="mi-formato" element={<MiFormato />} />
           {isAdmin && <Route path="admin" element={<AdminPanel />} />}
         </Route>
       </Routes>

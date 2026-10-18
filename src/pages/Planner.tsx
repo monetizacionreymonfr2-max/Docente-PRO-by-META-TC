@@ -5,6 +5,7 @@ import { generateContentWithRetry } from '../lib/gemini';
 import { BookOpen, Loader2, FileText, Copy, Printer, X, History, Calendar, Trash2, Edit3, Save, GraduationCap } from 'lucide-react';
 import Markdown from 'react-markdown';
 import LimitReachedModal from '../components/LimitReachedModal';
+import FormatoBadgeButton from '../components/formato/FormatoBadgeButton';
 
 interface PPAProject {
   id: string;
@@ -342,9 +343,12 @@ ESTRUCTURA OBLIGATORIA:
 
   return (
     <div className="max-w-6xl mx-auto">
-      <div className="mb-8 no-print">
-        <h1 className="text-2xl font-bold text-white">Planificador Diario</h1>
-        <p className="text-slate-300 mt-1">Genera clases diarias estructuradas basadas en tus Proyectos Pedagógicos.</p>
+      <div className="mb-8 no-print flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Planificador Diario</h1>
+          <p className="text-slate-300 mt-1">Genera clases diarias estructuradas basadas en tus Proyectos Pedagógicos.</p>
+        </div>
+        <FormatoBadgeButton tipo="planificacion_diaria" />
       </div>
 
       {/* Tabs */}

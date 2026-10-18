@@ -20,8 +20,10 @@ import {
   Sparkles,
   MessageCircle,
   TrendingUp,
-  Clock
+  Clock,
+  FileUp
 } from 'lucide-react';
+import { FEATURE_FLAGS } from '../../config/features';
 
 interface LayoutProps {
   isAdmin?: boolean;
@@ -81,6 +83,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
     { path: '/planner', icon: <CalendarDays size={20} />, label: 'Planificador Diario' },
     { path: '/reports', icon: <FileText size={20} />, label: 'Generador de Boletines' },
     { path: '/camila', icon: <Sparkles size={20} className="text-amber-400" />, label: 'IA Camila' },
+    ...(FEATURE_FLAGS.MI_FORMATO_ENABLED ? [{ path: '/mi-formato', icon: <FileUp size={20} className="text-cyan-400" />, label: 'Mi Formato' }] : []),
   ];
 
   if (isAdmin) {

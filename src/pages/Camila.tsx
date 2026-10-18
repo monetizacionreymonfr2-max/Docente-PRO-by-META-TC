@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, Link } from 'react-router-dom';
 import { GoogleGenAI, Type } from '@google/genai';
 import { generateContentWithRetry } from '../lib/gemini';
 import { SupabaseService } from '../lib/supabaseService';
-import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio, X, Sparkles, MessageCircle } from 'lucide-react';
+import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio, X, Sparkles, MessageCircle, FileUp } from 'lucide-react';
 import Markdown from 'react-markdown';
 
 // 1. Buscamos la variable en el formato de Vite (Vercel)
@@ -1019,16 +1019,23 @@ Directrices:
             <>
               {!isLiveMode ? (
                 <>
-                  {/* Modo Voz / Hablar con Camila Toggle */}
-                  <div className="flex justify-center transition-opacity mb-2">
+                  {/* Modo Voz / Hablar con Camila & Mi Formato Shortcuts */}
+                  <div className="flex flex-wrap items-center justify-center gap-2 transition-opacity mb-2">
                     <button
                       type="button"
                       onClick={startLiveAPI}
-                      className="flex items-center gap-2 px-6 py-2.5 rounded-full font-black shadow-lg transform active:scale-95 bg-white/5 text-futuristic-accent hover:bg-futuristic-purple/20 border border-futuristic-accent/30 tracking-widest text-[10px] uppercase"
+                      className="flex items-center gap-2 px-5 py-2 rounded-full font-black shadow-lg transform active:scale-95 bg-white/5 text-futuristic-accent hover:bg-futuristic-purple/20 border border-futuristic-accent/30 tracking-widest text-[10px] uppercase"
                     >
-                      <Radio className="w-4 h-4 mr-1 animate-pulse" />
+                      <Radio className="w-3.5 h-3.5 mr-1 animate-pulse" />
                       HABLAR CON CAMILA
                     </button>
+                    <Link
+                      to="/mi-formato"
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-full font-black shadow-lg transform active:scale-95 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 border border-cyan-400/30 tracking-widest text-[10px] uppercase"
+                    >
+                      <FileUp size={13} className="text-cyan-400" />
+                      MI FORMATO
+                    </Link>
                   </div>
 
                   <form onSubmit={handleFormSubmit} className="flex gap-2 relative items-end sm:items-center">
