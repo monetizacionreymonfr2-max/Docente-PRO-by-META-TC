@@ -5,6 +5,7 @@ import { generateContentWithRetry } from '../lib/gemini';
 import { SupabaseService } from '../lib/supabaseService';
 import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio, X, Sparkles, MessageCircle, FileUp } from 'lucide-react';
 import Markdown from 'react-markdown';
+import { puedeVerMiFormato } from '../config/features';
 
 // 1. Buscamos la variable en el formato de Vite (Vercel)
 // 2. Si no está, buscamos en el formato de Node (AI Studio)
@@ -25,7 +26,7 @@ interface Message {
   text: string;
 }
 
-export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat' }: { teacherId: string, isEmbedded?: boolean, onClose?: () => void, mode?: 'chat' | 'sales' }) {
+export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat', isAdmin }: { teacherId: string, isEmbedded?: boolean, onClose?: () => void, mode?: 'chat' | 'sales', isAdmin?: boolean }) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -1029,13 +1030,15 @@ Directrices:
                       <Radio className="w-3.5 h-3.5 mr-1 animate-pulse" />
                       HABLAR CON CAMILA
                     </button>
-                    <Link
-                      to="/mi-formato"
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-full font-black shadow-lg transform active:scale-95 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 border border-cyan-400/30 tracking-widest text-[10px] uppercase"
-                    >
-                      <FileUp size={13} className="text-cyan-400" />
-                      MI FORMATO
-                    </Link>
+                    {puedeVerMiFormato(isAdmin) && (
+                      <Link
+                        to="/mi-formato"
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-full font-black shadow-lg transform active:scale-95 bg-cyan-500/10 text-cyan-300 hover:bg-cyan-500/20 border border-cyan-400/30 tracking-widest text-[10px] uppercase"
+                      >
+                        <FileUp size={13} className="text-cyan-400" />
+                        MI FORMATO
+                      </Link>
+                    )}
                   </div>
 
                   <form onSubmit={handleFormSubmit} className="flex gap-2 relative items-end sm:items-center">
@@ -1113,7 +1116,7 @@ Directrices:
 }
 
 export default function Camila() {
-  const context = useOutletContext<{ teacherId?: string, isGuest?: boolean }>() || {};
+  const context = useOutletContext<{ teacherId?: string, isGuest?: boolean, isAdmin?: boolean }>() || {};
 
   const handleShare = () => {
     const text = "¡Hola! Estoy usando Docenty Pro By Reymon Castillo, una plataforma increíble para docentes con IA. ¡Te la recomiendo! Visítala en: https://docente-pro-by-meta-tc.vercel.app/";
@@ -1122,7 +1125,7 @@ export default function Camila() {
 
   return (
     <div className="space-y-8 pb-16">
-      <CamilaInner teacherId={context?.teacherId || 'invitado'} isEmbedded={false} />
+      <CamilaInner teacherId={context?.teacherId || 'invitado'} isEmbedded={false} isAdmin={context?.isAdmin} />
       
       <div className="flex justify-center">
         <button

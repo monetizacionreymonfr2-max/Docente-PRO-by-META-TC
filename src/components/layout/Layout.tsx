@@ -23,7 +23,7 @@ import {
   Clock,
   FileUp
 } from 'lucide-react';
-import { FEATURE_FLAGS } from '../../config/features';
+import { FEATURE_FLAGS, puedeVerMiFormato } from '../../config/features';
 
 interface LayoutProps {
   isAdmin?: boolean;
@@ -83,7 +83,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
     { path: '/planner', icon: <CalendarDays size={20} />, label: 'Planificador Diario' },
     { path: '/reports', icon: <FileText size={20} />, label: 'Generador de Boletines' },
     { path: '/camila', icon: <Sparkles size={20} className="text-amber-400" />, label: 'IA Camila' },
-    ...(FEATURE_FLAGS.MI_FORMATO_ENABLED ? [{ path: '/mi-formato', icon: <FileUp size={20} className="text-cyan-400" />, label: 'Mi Formato' }] : []),
+    ...(puedeVerMiFormato(isAdmin) ? [{ path: '/mi-formato', icon: <FileUp size={20} className="text-cyan-400" />, label: 'Mi Formato' }] : []),
   ];
 
   if (isAdmin) {
@@ -269,7 +269,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
       <main className="flex-1 overflow-y-auto bg-transparent pt-16 md:pt-0">
         <AccessProtection accessLevel={accessLevel} codeId={codeId}>
           <div className="p-4 md:p-8 max-w-7xl mx-auto">
-            <Outlet context={{ isGuest, generationsCount, teacherId }} />
+            <Outlet context={{ isGuest, generationsCount, teacherId, isAdmin }} />
           </div>
         </AccessProtection>
       </main>
@@ -286,7 +286,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
 
           {isCamilaWidgetOpen && (
             <div className="fixed bottom-24 right-4 sm:right-6 w-[calc(100vw-2rem)] sm:w-[450px] h-[600px] max-h-[80vh] rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 overflow-hidden neon-border flex flex-col animate-in fade-in slide-in-from-bottom-5">
-              <CamilaInner teacherId={teacherId} isEmbedded={true} onClose={() => setIsCamilaWidgetOpen(false)} />
+              <CamilaInner teacherId={teacherId} isEmbedded={true} onClose={() => setIsCamilaWidgetOpen(false)} isAdmin={isAdmin} />
             </div>
           )}
         </div>

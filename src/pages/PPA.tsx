@@ -10,6 +10,7 @@ import {
 import Markdown from 'react-markdown';
 import LimitReachedModal from '../components/LimitReachedModal';
 import FormatoBadgeButton from '../components/formato/FormatoBadgeButton';
+import { puedeVerMiFormato } from '../config/features';
 import { 
   CURRICULO_MPPE_2026_2027, 
   AREAS_CURRICULARES, 
@@ -30,7 +31,7 @@ interface PPAProject {
 }
 
 export default function PPA() {
-  const { isGuest = false, generationsCount = 0, teacherId = '' } = useOutletContext<{ isGuest?: boolean, generationsCount?: number, teacherId?: string }>() || {};
+  const { isGuest = false, generationsCount = 0, teacherId = '', isAdmin = false } = useOutletContext<{ isGuest?: boolean, generationsCount?: number, teacherId?: string, isAdmin?: boolean }>() || {};
   const [activeTab, setActiveTab] = useState<'generate' | 'history'>(() => {
     return (localStorage.getItem('ppa_active_tab') as 'generate' | 'history') || 'generate';
   });
@@ -581,7 +582,7 @@ REQUISITOS DEL FORMATO OFICIAL:
           <h1 className="text-2xl font-bold text-white">Gestor de PPA con IA</h1>
           <p className="text-slate-300 mt-1">Genera Proyectos Pedagógicos de Aula estructurados automáticamente.</p>
         </div>
-        <FormatoBadgeButton tipo="PPA" />
+        {puedeVerMiFormato(isAdmin) && <FormatoBadgeButton tipo="PPA" isAdmin={isAdmin} />}
       </div>
 
       {/* Tabs */}

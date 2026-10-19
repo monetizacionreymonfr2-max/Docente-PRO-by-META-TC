@@ -1,20 +1,21 @@
 import { useNavigate } from 'react-router-dom';
 import { FileUp, Sparkles } from 'lucide-react';
-import { FEATURE_FLAGS } from '../../config/features';
+import { puedeVerMiFormato } from '../../config/features';
 
 interface FormatoBadgeButtonProps {
   tipo?: 'PPA' | 'planificacion_diaria' | 'planificacion_semanal' | 'planificacion_mensual';
   className?: string;
+  isAdmin?: boolean;
 }
 
 /**
  * Botón aditivo no intrusivo para acceder a "Mi Formato" desde cualquier pantalla de Docenty PRO.
  */
-export default function FormatoBadgeButton({ tipo = 'PPA', className = '' }: FormatoBadgeButtonProps) {
+export default function FormatoBadgeButton({ tipo = 'PPA', className = '', isAdmin }: FormatoBadgeButtonProps) {
   const navigate = useNavigate();
 
-  // Si la feature flag está desactivada, no se renderiza nada
-  if (!FEATURE_FLAGS.MI_FORMATO_ENABLED) return null;
+  // Si el usuario no tiene permisos para ver Mi Formato, no se renderiza nada
+  if (!puedeVerMiFormato(isAdmin)) return null;
 
   return (
     <button

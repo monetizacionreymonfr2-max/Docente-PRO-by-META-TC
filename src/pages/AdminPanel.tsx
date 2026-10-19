@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { SupabaseService } from '../lib/supabaseService';
 import TimeAdjustmentModal, { TargetSubscription } from '../components/TimeAdjustmentModal';
@@ -27,7 +28,8 @@ import {
   UserX,
   Sparkles,
   Check,
-  KeyRound
+  KeyRound,
+  FileUp
 } from 'lucide-react';
 
 interface Code {
@@ -607,17 +609,27 @@ export default function AdminPanel() {
           <p className="text-slate-300 mt-1 font-medium italic">Consola de control global de Supabase para licencias y cuentas de usuario.</p>
         </div>
         
-        <button
-          onClick={() => {
-            if (activeTab === 'licencias') fetchCodes();
-            else if (activeTab === 'usuarios') fetchUsersProfile();
-            else if (activeTab === 'blacklist') fetchBlacklist();
-          }}
-          className="bg-white/10 hover:bg-white/15 text-white border border-white/10 font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 transition-all text-xs uppercase tracking-wider active:scale-95 shrink-0"
-        >
-          <RefreshCw size={14} className={(activeTab === 'licencias' ? isLoading : activeTab === 'usuarios' ? usersLoading : blacklistLoading) ? "animate-spin" : ""} />
-          Sincronizar
-        </button>
+        <div className="flex items-center gap-3">
+          <Link
+            to="/mi-formato"
+            className="bg-gradient-to-r from-cyan-500/20 to-blue-600/20 hover:from-cyan-500/30 hover:to-blue-600/30 text-cyan-300 border border-cyan-400/30 font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 transition-all text-xs uppercase tracking-wider active:scale-95 shrink-0 shadow-lg shadow-cyan-950/40"
+          >
+            <FileUp size={14} className="text-cyan-400" />
+            Mi Formato (beta, solo admin)
+          </Link>
+
+          <button
+            onClick={() => {
+              if (activeTab === 'licencias') fetchCodes();
+              else if (activeTab === 'usuarios') fetchUsersProfile();
+              else if (activeTab === 'blacklist') fetchBlacklist();
+            }}
+            className="bg-white/10 hover:bg-white/15 text-white border border-white/10 font-bold py-2.5 px-4 rounded-xl flex items-center gap-2 transition-all text-xs uppercase tracking-wider active:scale-95 shrink-0"
+          >
+            <RefreshCw size={14} className={(activeTab === 'licencias' ? isLoading : activeTab === 'usuarios' ? usersLoading : blacklistLoading) ? "animate-spin" : ""} />
+            Sincronizar
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}

@@ -6,6 +6,7 @@ import { BookOpen, Loader2, FileText, Copy, Printer, X, History, Calendar, Trash
 import Markdown from 'react-markdown';
 import LimitReachedModal from '../components/LimitReachedModal';
 import FormatoBadgeButton from '../components/formato/FormatoBadgeButton';
+import { puedeVerMiFormato } from '../config/features';
 
 interface PPAProject {
   id: string;
@@ -24,7 +25,7 @@ interface DailyPlan {
 }
 
 export default function Planner() {
-  const { isGuest = false, generationsCount = 0, teacherId = '' } = useOutletContext<{ isGuest?: boolean, generationsCount?: number, teacherId?: string }>() || {};
+  const { isGuest = false, generationsCount = 0, teacherId = '', isAdmin = false } = useOutletContext<{ isGuest?: boolean, generationsCount?: number, teacherId?: string, isAdmin?: boolean }>() || {};
   const [activeTab, setActiveTab] = useState<'generate' | 'history'>(() => {
     return (localStorage.getItem('planner_active_tab') as 'generate' | 'history') || 'generate';
   });
@@ -348,7 +349,7 @@ ESTRUCTURA OBLIGATORIA:
           <h1 className="text-2xl font-bold text-white">Planificador Diario</h1>
           <p className="text-slate-300 mt-1">Genera clases diarias estructuradas basadas en tus Proyectos Pedagógicos.</p>
         </div>
-        <FormatoBadgeButton tipo="planificacion_diaria" />
+        {puedeVerMiFormato(isAdmin) && <FormatoBadgeButton tipo="planificacion_diaria" isAdmin={isAdmin} />}
       </div>
 
       {/* Tabs */}
