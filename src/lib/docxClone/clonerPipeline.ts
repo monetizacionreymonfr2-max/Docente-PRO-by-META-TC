@@ -4,11 +4,16 @@ import {
   setTextoParrafo,
   setTextoCelda,
   setValorSegmento,
+  setTextoParrafosMultiples,
   clonarFila,
   insertarFilaDespues,
   eliminarFila,
   validarDocxClonado,
   getTextoCompleto,
+  buscarParrafoPorId,
+  buscarTablaPorId,
+  buscarFilaPorId,
+  buscarCeldaPorId,
 } from './docxEditor';
 import { PlantillaDocx } from './types';
 import {
@@ -30,7 +35,14 @@ export interface ClonacionResultado {
 
 /**
  * Pipeline principal de clonación de Word:
- * Edita una COPIA exacta del archivo original byte a byte y sustituye exclusivamente los textos pedagógicos
+ * Edita una COPIA exacta del archivo original byte a byte y sustituye exclusivamente los textos pedagógicos.
+ * Cumple estrictamente con:
+ * 1. Eliminación total de filas de ejemplo antes de clonar en Cronograma y Evaluación.
+ * 2. Vaciado y reintento de celdas de contenido en tablas de áreas y ajuste de filas en estrategias/diaria.
+ * 3. Búsqueda de párrafos por ID exclusivamente entre hijos directos de w:body (buscarParrafoPorId).
+ * 4. Modificación de encabezados preservando etiquetas y cambiando solo el valor en su run correspondiente.
+ * 5. Redacción multi-párrafo para Diagnóstico y Finalidad con eliminación de viejos sobrantes.
+ * 6. Validación exhaustiva de conteo de filas, texto residual y ausencia de etiquetas duplicadas.
  */
 export async function ejecutarClonacionDocx(
   fileData: File | Blob | ArrayBuffer,
@@ -50,12 +62,7 @@ export async function ejecutarClonacionDocx(
       const mapaEncabezados = datos.encabezadosPersonalizados || {};
 
       plantilla.encabezados.forEach((enc) => {
-        const pElem = doc.getElementById ? doc.getElementById(enc.parrafoId) : null;
-        // Buscar por id generado o recorrer párrafos
-        const pAll = doc.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'p');
-        const pList = pAll.length > 0 ? Array.from(pAll) : Array.from(doc.querySelectorAll('p'));
-        const pIndex = parseInt(enc.parrafoId.replace('p', ''), 10);
-        const targetP = pList[pIndex];
+        const targetP = buscarParrafoPorId(doc, enc.parrafoId);
 
         if (targetP) {
           const valNuevo =
@@ -70,12 +77,7 @@ export async function ejecutarClonacionDocx(
             enc.valorOriginal;
 
           if (valNuevo) {
-            if (enc.segmentoIndice !== undefined) {
-              setValorSegmento(targetP, enc.segmentoIndice, valNuevo);
-            } else {
-              // Si todo el párrafo era el valor
-              setTextoParrafo(targetP, `${enc.etiqueta}: ${valNuevo}`);
-            }
+            setValorSegmento(targetP, enc.etiqueta || enc.segmentoIndice || 0, valNuevo);
           }
         }
       });
@@ -85,7 +87,6 @@ export async function ejecutarClonacionDocx(
       const textosLibres = await generarTextosLibres(plantilla, datos);
 
       Object.entries(textosLibres).forEach(([nodoId, lineas]) => {
-        // Puede ser celda (tX.rY.cZ) o párrafo (pX)
         if (nodoId.includes('.c')) {
           // Celda
           const tcTarget = buscarCeldaPorId(doc, nodoId);
@@ -93,11 +94,16 @@ export async function ejecutarClonacionDocx(
             setTextoCelda(tcTarget, lineas);
           }
         } else if (nodoId.startsWith('p')) {
-          // Párrafo
-          const pIndex = parseInt(nodoId.replace('p', ''), 10);
-          const pList = Array.from(doc.querySelectorAll('p'));
-          if (pList[pIndex]) {
-            setTextoParrafo(pList[pIndex], lineas.join('\n'));
+          // Párrafo directo del cuerpo
+          const targetP = buscarParrafoPorId(doc, nodoId);
+          if (targetP) {
+            const infoTextoLibre = plantilla.celdasTextoLibre.find((tl) => tl.id === nodoId);
+            const otrosViejos = plantilla.celdasTextoLibre
+              .filter((tl) => tl.id !== nodoId && tl.tipo === infoTextoLibre?.tipo && tl.id.startsWith('p'))
+              .map((tl) => buscarParrafoPorId(doc, tl.id))
+              .filter(Boolean) as Element[];
+
+            setTextoParrafosMultiples(doc, targetP, lineas, otrosViejos);
           }
         }
       });
@@ -109,25 +115,108 @@ export async function ejecutarClonacionDocx(
 
       for (let i = 0; i < tablasAreas.length; i++) {
         const tblInfo = tablasAreas[i];
-        onProgress?.(`Generando contenido curricular para tabla ${tblInfo.titulo || i + 1}...`);
+        onProgress?.(`Generando contenido curricular para ${tblInfo.titulo || `tabla ${i + 1}`}...`);
 
         const tblElem = buscarTablaPorId(doc, tblInfo.id);
         const ejemploTexto = tblElem ? getTextoCompleto(tblElem) : '';
-
         const areaName = tblInfo.titulo || `Área Curricular ${i + 1}`;
-        const areaRes = await generarTablaArea(tblInfo, areaName, datos, ejemploTexto);
 
-        // Llenar celdas identificadas
+        let areaRes = await generarTablaArea(tblInfo, areaName, datos, ejemploTexto);
+
+        // Si es Planificación Diaria o Construcción de Estrategias con prototipo de fila, ajustar filas
+        if (
+          (tblInfo.tipo === 'planificacion_diaria' || tblInfo.tipo === 'construccion_estrategias') &&
+          tblElem &&
+          tblInfo.filaPrototipoId
+        ) {
+          const protoTr = buscarFilaPorId(doc, tblInfo.filaPrototipoId);
+          if (protoTr) {
+            const protoClean = clonarFila(protoTr);
+            const allTr = Array.from(tblElem.children).filter(
+              (c) => (c.localName || c.nodeName.replace(/^.*:/, '')) === 'tr'
+            );
+            const headerRows = allTr.filter((tr, rIdx) => {
+              const rId = `${tblInfo.id}.r${rIdx}`;
+              return (
+                tblInfo.filasEncabezadoIds.includes(rId) ||
+                tr.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'tblHeader').length > 0 ||
+                tr.querySelector('tblHeader') !== null
+              );
+            });
+
+            const anchorRow = headerRows.length > 0 ? headerRows[headerRows.length - 1] : allTr[0];
+
+            if (areaRes.filasNuevas && areaRes.filasNuevas.length > 0) {
+              const dataRows = allTr.filter((tr) => !headerRows.includes(tr));
+              dataRows.forEach((r) => eliminarFila(r));
+
+              let lastInserted = anchorRow;
+              areaRes.filasNuevas.forEach((filaGen) => {
+                const nuevaTr = clonarFila(protoClean);
+                const celdasNuevas = Array.from(nuevaTr.children).filter(
+                  (c) => (c.localName || c.nodeName.replace(/^.*:/, '')) === 'tc'
+                );
+                filaGen.celdas.forEach((txt, cIdx) => {
+                  if (celdasNuevas[cIdx]) setTextoCelda(celdasNuevas[cIdx], [txt]);
+                });
+                insertarFilaDespues(lastInserted, nuevaTr);
+                lastInserted = nuevaTr;
+              });
+            }
+          }
+        }
+
+        // Aplicar textos devueltos a celdas identificadas
         Object.entries(areaRes.celdasActualizadas).forEach(([cId, lineas]) => {
           const tc = buscarCeldaPorId(doc, cId);
           if (tc) {
             setTextoCelda(tc, lineas);
           }
         });
+
+        // Toda celda de plantilla.celdasContenidoIds debe recibir texto nuevo
+        const celdasFaltantes = tblInfo.celdasContenidoIds.filter((cId) => {
+          const res = areaRes.celdasActualizadas[cId];
+          return !res || res.length === 0 || !res.some((t) => t.trim().length > 0);
+        });
+
+        if (celdasFaltantes.length > 0) {
+          try {
+            const reintento = await generarTablaArea(
+              { ...tblInfo, celdasContenidoIds: celdasFaltantes },
+              areaName,
+              datos,
+              ejemploTexto
+            );
+            Object.entries(reintento.celdasActualizadas).forEach(([cId, lineas]) => {
+              if (lineas && lineas.some((t) => t.trim().length > 0)) {
+                areaRes.celdasActualizadas[cId] = lineas;
+                const tc = buscarCeldaPorId(doc, cId);
+                if (tc) setTextoCelda(tc, lineas);
+              }
+            });
+          } catch (retryErr) {
+            console.warn('[DocxClone] Falló reintento de celdas faltantes en tabla:', retryErr);
+          }
+
+          // Si aún siguen vacías, dejarlas vacías con setTextoCelda(tc, ['']) para no dejar texto residual
+          tblInfo.celdasContenidoIds.forEach((cId) => {
+            const res = areaRes.celdasActualizadas[cId];
+            if (!res || res.length === 0 || !res.some((t) => t.trim().length > 0)) {
+              const tc = buscarCeldaPorId(doc, cId);
+              if (tc) {
+                setTextoCelda(tc, ['']);
+              }
+            }
+          });
+        }
       }
 
       // 4. BLOQUE CRONOGRAMA SEMANAL
+      // Regla: antes de clonar, elimina con eliminarFila TODAS las filas de datos de la tabla (conserva las de encabezado)
+      // y clona el prototipo N veces. Nunca dejes filas de ejemplo.
       const tablaCronograma = plantilla.tablas.find((t) => t.tipo === 'cronograma');
+      let conteoCronoEsperado = 0;
       if (tablaCronograma) {
         onProgress?.('Elaborando cronograma semanal secuencial...');
         const tblElem = buscarTablaPorId(doc, tablaCronograma.id);
@@ -135,24 +224,40 @@ export async function ejecutarClonacionDocx(
 
         const cronoRes = await generarCronograma(tablaCronograma, datos, ejemploTexto);
 
-        if (cronoRes.filas.length > 0 && tablaCronograma.filaPrototipoId) {
+        if (tblElem && tablaCronograma.filaPrototipoId && cronoRes.filas.length > 0) {
           const protoTr = buscarFilaPorId(doc, tablaCronograma.filaPrototipoId);
           if (protoTr) {
-            let lastInserted = protoTr;
-            // La primera fila generada usa el prototipo
-            const primeraFila = cronoRes.filas[0];
-            const celdasProto = Array.from(protoTr.querySelectorAll('tc'));
-            primeraFila.celdas.forEach((texto, cIdx) => {
-              if (celdasProto[cIdx]) {
-                setTextoCelda(celdasProto[cIdx], [texto]);
-              }
+            const protoClean = clonarFila(protoTr);
+
+            // Obtener todas las filas de la tabla
+            const allTr = Array.from(tblElem.children).filter(
+              (c) => (c.localName || c.nodeName.replace(/^.*:/, '')) === 'tr'
+            );
+
+            // Identificar filas de encabezado fijas
+            const headerRows = allTr.filter((tr, idx) => {
+              const rId = `${tablaCronograma.id}.r${idx}`;
+              return (
+                tablaCronograma.filasEncabezadoIds.includes(rId) ||
+                tr.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'tblHeader').length > 0 ||
+                tr.querySelector('tblHeader') !== null
+              );
             });
 
-            // Para las siguientes semanas, clonar e insertar
-            for (let f = 1; f < cronoRes.filas.length; f++) {
+            const anchorRow = headerRows.length > 0 ? headerRows[headerRows.length - 1] : allTr[0];
+
+            // Eliminar con eliminarFila TODAS las filas de datos
+            const dataRows = allTr.filter((tr) => !headerRows.includes(tr));
+            dataRows.forEach((tr) => eliminarFila(tr));
+
+            // Clonar el prototipo N veces con el contenido nuevo
+            let lastInserted = anchorRow;
+            for (let f = 0; f < cronoRes.filas.length; f++) {
               const filaGen = cronoRes.filas[f];
-              const nuevaFila = clonarFila(protoTr);
-              const celdasNuevas = Array.from(nuevaFila.querySelectorAll('tc'));
+              const nuevaFila = clonarFila(protoClean);
+              const celdasNuevas = Array.from(nuevaFila.children).filter(
+                (c) => (c.localName || c.nodeName.replace(/^.*:/, '')) === 'tc'
+              );
               filaGen.celdas.forEach((texto, cIdx) => {
                 if (celdasNuevas[cIdx]) {
                   setTextoCelda(celdasNuevas[cIdx], [texto]);
@@ -161,12 +266,17 @@ export async function ejecutarClonacionDocx(
               insertarFilaDespues(lastInserted, nuevaFila);
               lastInserted = nuevaFila;
             }
+
+            conteoCronoEsperado = headerRows.length + cronoRes.filas.length;
           }
         }
       }
 
       // 5. BLOQUE PLAN DE EVALUACIÓN
+      // Regla: antes de clonar, elimina con eliminarFila TODAS las filas de datos de la tabla (conserva las de encabezado)
+      // y clona el prototipo N veces. Nunca dejes filas de ejemplo.
       const tablaEvaluacion = plantilla.tablas.find((t) => t.tipo === 'plan_evaluacion');
+      let conteoEvalEsperado = 0;
       if (tablaEvaluacion) {
         onProgress?.('Generando indicadores e instrumentos de evaluación...');
         const tblElem = buscarTablaPorId(doc, tablaEvaluacion.id);
@@ -174,22 +284,38 @@ export async function ejecutarClonacionDocx(
 
         const evalRes = await generarPlanEvaluacion(tablaEvaluacion, datos, ejemploTexto);
 
-        if (evalRes.filas.length > 0 && tablaEvaluacion.filaPrototipoId) {
+        if (tblElem && tablaEvaluacion.filaPrototipoId && evalRes.filas.length > 0) {
           const protoTr = buscarFilaPorId(doc, tablaEvaluacion.filaPrototipoId);
           if (protoTr) {
-            let lastInserted = protoTr;
-            const primeraFila = evalRes.filas[0];
-            const celdasProto = Array.from(protoTr.querySelectorAll('tc'));
-            primeraFila.celdas.forEach((texto, cIdx) => {
-              if (celdasProto[cIdx]) {
-                setTextoCelda(celdasProto[cIdx], [texto]);
-              }
+            const protoClean = clonarFila(protoTr);
+
+            const allTr = Array.from(tblElem.children).filter(
+              (c) => (c.localName || c.nodeName.replace(/^.*:/, '')) === 'tr'
+            );
+
+            const headerRows = allTr.filter((tr, idx) => {
+              const rId = `${tablaEvaluacion.id}.r${idx}`;
+              return (
+                tablaEvaluacion.filasEncabezadoIds.includes(rId) ||
+                tr.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'tblHeader').length > 0 ||
+                tr.querySelector('tblHeader') !== null
+              );
             });
 
-            for (let f = 1; f < evalRes.filas.length; f++) {
+            const anchorRow = headerRows.length > 0 ? headerRows[headerRows.length - 1] : allTr[0];
+
+            // Eliminar con eliminarFila TODAS las filas de datos
+            const dataRows = allTr.filter((tr) => !headerRows.includes(tr));
+            dataRows.forEach((tr) => eliminarFila(tr));
+
+            // Clonar el prototipo N veces
+            let lastInserted = anchorRow;
+            for (let f = 0; f < evalRes.filas.length; f++) {
               const filaGen = evalRes.filas[f];
-              const nuevaFila = clonarFila(protoTr);
-              const celdasNuevas = Array.from(nuevaFila.querySelectorAll('tc'));
+              const nuevaFila = clonarFila(protoClean);
+              const celdasNuevas = Array.from(nuevaFila.children).filter(
+                (c) => (c.localName || c.nodeName.replace(/^.*:/, '')) === 'tc'
+              );
               filaGen.celdas.forEach((texto, cIdx) => {
                 if (celdasNuevas[cIdx]) {
                   setTextoCelda(celdasNuevas[cIdx], [texto]);
@@ -198,6 +324,8 @@ export async function ejecutarClonacionDocx(
               insertarFilaDespues(lastInserted, nuevaFila);
               lastInserted = nuevaFila;
             }
+
+            conteoEvalEsperado = headerRows.length + evalRes.filas.length;
           }
         }
       }
@@ -206,10 +334,46 @@ export async function ejecutarClonacionDocx(
       onProgress?.('Empaquetando archivo Word final y validando integridad...');
       const finalBlob = await guardarDocx(zip, doc);
 
-      const validacion = await validarDocxClonado(zip, finalBlob);
+      // Conteos de filas esperadas
+      const conteoEsperadoFilas: Record<string, number> = {};
+      if (tablaCronograma && conteoCronoEsperado > 0) {
+        conteoEsperadoFilas[tablaCronograma.id] = conteoCronoEsperado;
+      }
+      if (tablaEvaluacion && conteoEvalEsperado > 0) {
+        conteoEsperadoFilas[tablaEvaluacion.id] = conteoEvalEsperado;
+      }
+
+      // Textos originales para verificación de texto residual
+      const textosOriginalesContenido: string[] = [];
+      plantilla.celdasTextoLibre.forEach((tl) => {
+        if (tl.textoOriginal && tl.textoOriginal.length > 15) {
+          textosOriginalesContenido.push(tl.textoOriginal);
+        }
+      });
+
+      const membreteYEtiquetas: string[] = [
+        datos.institucion || '',
+        datos.docente || '',
+        datos.gradoSeccion || '',
+        datos.tema || '',
+        datos.peic || '',
+        ...plantilla.encabezados.map((e) => e.etiqueta),
+        ...plantilla.tablas.flatMap((t) => t.columnas),
+      ];
+
+      const validacion = await validarDocxClonado(zip, finalBlob, {
+        plantilla,
+        conteoEsperadoFilas,
+        textosOriginalesContenido,
+        membreteYEtiquetas,
+      });
+
       if (!validacion.valido) {
         console.warn(`[DocxClone] Intento ${intento} falló validación:`, validacion.errores);
-        if (intento === 1) continue; // Reintentar una vez
+        if (intento === 1) {
+          onProgress?.('Ajustando formato y reintentando...');
+          continue; // Reintentar una vez
+        }
         return {
           exito: false,
           fallbackRequerido: true,
@@ -244,38 +408,4 @@ export async function ejecutarClonacionDocx(
     fallbackRequerido: true,
     mensaje: 'No pude copiar tu Word exacto, aquí está en el formato estándar.',
   };
-}
-
-/**
- * Helpers para ubicar nodos en el DOM por ID
- */
-function buscarTablaPorId(doc: Document, tId: string): Element | null {
-  const tIndex = parseInt(tId.replace('t', ''), 10);
-  const tablas = Array.from(doc.getElementsByTagNameNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main', 'tbl'));
-  const fallback = tablas.length > 0 ? tablas : Array.from(doc.querySelectorAll('tbl'));
-  return fallback[tIndex] || null;
-}
-
-function buscarFilaPorId(doc: Document, rId: string): Element | null {
-  // rId tiene formato "tX.rY"
-  const parts = rId.split('.');
-  if (parts.length < 2) return null;
-  const tbl = buscarTablaPorId(doc, parts[0]);
-  if (!tbl) return null;
-
-  const rIndex = parseInt(parts[1].replace('r', ''), 10);
-  const rows = Array.from(tbl.children).filter((c) => (c.localName || c.nodeName.replace(/^.*:/, '')) === 'tr');
-  return rows[rIndex] || null;
-}
-
-function buscarCeldaPorId(doc: Document, cId: string): Element | null {
-  // cId tiene formato "tX.rY.cZ"
-  const parts = cId.split('.');
-  if (parts.length < 3) return null;
-  const tr = buscarFilaPorId(doc, `${parts[0]}.${parts[1]}`);
-  if (!tr) return null;
-
-  const cIndex = parseInt(parts[2].replace('c', ''), 10);
-  const celdas = Array.from(tr.children).filter((c) => (c.localName || c.nodeName.replace(/^.*:/, '')) === 'tc');
-  return celdas[cIndex] || null;
 }

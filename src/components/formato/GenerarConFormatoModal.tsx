@@ -483,15 +483,15 @@ export default function GenerarConFormatoModal({
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                    <span>¡Documento vaciado con éxito!</span>
-                    {clonedBlob && (
+                    <span>{fallbackNotice ? 'Documento generado en formato estándar' : '¡Documento vaciado con éxito!'}</span>
+                    {clonedBlob && !fallbackNotice && (
                       <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                         Copia Exacta Word
                       </span>
                     )}
                   </h4>
                   <p className="text-xs text-slate-300">
-                    {clonedBlob
+                    {clonedBlob && !fallbackNotice
                       ? 'Tu archivo Word original fue editado byte a byte conservando membrete y estilo'
                       : 'Puedes editar cualquier texto o celda antes de descargar'}
                   </p>
