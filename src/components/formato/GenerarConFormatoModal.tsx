@@ -13,11 +13,17 @@ import {
   Building,
   GraduationCap,
   Calendar,
+  Eye,
+  Layers,
+  ShieldCheck,
 } from 'lucide-react';
 import { FormatoDocente, SeccionGenerada } from '../../types/formato';
 import { FormatoService } from '../../lib/formatoService';
 import { exportarFormatoDocx } from '../../lib/formatoDocxExporter';
 import { exportarFormatoPdf } from '../../lib/formatoPdfExporter';
+import { FEATURE_FLAGS } from '../../config/features';
+import { ejecutarClonacionDocx, ClonacionResultado } from '../../lib/docxClone/clonerPipeline';
+import DocxPreviewViewer from './DocxPreviewViewer';
 
 interface GenerarConFormatoModalProps {
   isOpen: boolean;
@@ -47,10 +53,16 @@ export default function GenerarConFormatoModal({
 
   // Generation state
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [progressMessage, setProgressMessage] = useState<string>('');
   const [seccionesGeneradas, setSeccionesGeneradas] = useState<SeccionGenerada[]>([]);
   const [observaciones, setObservaciones] = useState<string>('');
   const [isDownloading, setIsDownloading] = useState(false);
-  const [fallbackTriggered, setFallbackTriggered] = useState(false);
+  const [fallbackNotice, setFallbackNotice] = useState<string | null>(null);
+
+  // DOCX Clone states
+  const [clonedBlob, setClonedBlob] = useState<Blob | null>(null);
+  const [clonedResult, setClonedResult] = useState<ClonacionResultado | null>(null);
+  const [activeTabPreview, setActiveTabPreview] = useState<'visual' | 'editor'>('visual');
 
   // Edit mode in preview
   const [editingSecIndex, setEditingSecIndex] = useState<number | null>(null);
@@ -77,9 +89,79 @@ export default function GenerarConFormatoModal({
 
     setStep('generating');
     setErrorMsg(null);
-    setFallbackTriggered(false);
+    setFallbackNotice(null);
+    setClonedBlob(null);
+    setClonedResult(null);
+    setProgressMessage('Iniciando vaciado curricular...');
 
+    const isDocxClone =
+      FEATURE_FLAGS.MI_FORMATO_CLONAR_ENABLED &&
+      formato.modo === 'clonar_docx' &&
+      formato.plantilla;
+
+    if (isDocxClone) {
+      try {
+        setProgressMessage('Recuperando archivo original de plantilla Word...');
+        const originalPath = formato.archivoPath || `${teacherId}/${formato.id}.docx`;
+        const fileBuffer = await FormatoService.downloadArchivoOriginal(originalPath);
+
+        if (fileBuffer) {
+          setProgressMessage('Ejecutando copia exacta byte a byte y sustituyendo contenido...');
+          const cloneRes = await ejecutarClonacionDocx(
+            fileBuffer,
+            formato.plantilla!,
+            {
+              institucion,
+              docente,
+              gradoSeccion,
+              nivel,
+              tema,
+              duracion,
+              diagnostico,
+              instruccionesExtra,
+            },
+            (msg) => setProgressMessage(msg)
+          );
+
+          if (cloneRes.exito && cloneRes.blobDocx) {
+            setClonedBlob(cloneRes.blobDocx);
+            setClonedResult(cloneRes);
+            setActiveTabPreview('visual');
+
+            // Generar también secciones estándar en segundo plano para editor o PDF si el docente las requiere
+            FormatoService.generarContenidoConFormato(formato, {
+              institucion,
+              docente,
+              gradoSeccion,
+              nivel,
+              tema,
+              duracion,
+              diagnostico,
+              instruccionesExtra,
+            })
+              .then((res) => {
+                setSeccionesGeneradas(res.secciones);
+                setObservaciones(res.observacionesPedagogicas || '');
+              })
+              .catch(() => {});
+
+            setStep('preview');
+            return;
+          } else if (cloneRes.fallbackRequerido) {
+            setFallbackNotice(cloneRes.mensaje || 'No pude copiar tu Word exacto, aquí está en el formato estándar.');
+          }
+        } else {
+          setFallbackNotice('Plantilla original no encontrada en caché. Se generará en el formato estándar.');
+        }
+      } catch (cloneErr: any) {
+        console.warn('Fallo en clonación directa, usando fallback estándar:', cloneErr);
+        setFallbackNotice('No pude copiar tu Word exacto, aquí está en el formato estándar.');
+      }
+    }
+
+    // Modo estándar de reconstrucción o fallback
     try {
+      setProgressMessage('Camila está redactando y vaciando tu contenido según el currículo MPPE 2026-2027...');
       const result = await FormatoService.generarContenidoConFormato(formato, {
         institucion,
         docente,
@@ -93,6 +175,7 @@ export default function GenerarConFormatoModal({
 
       setSeccionesGeneradas(result.secciones);
       setObservaciones(result.observacionesPedagogicas || '');
+      setActiveTabPreview('editor');
       setStep('preview');
     } catch (err: any) {
       console.error('Error al generar con formato:', err);
@@ -104,6 +187,19 @@ export default function GenerarConFormatoModal({
   const handleDownloadDocx = async () => {
     try {
       setIsDownloading(true);
+      if (clonedBlob) {
+        // Descarga directa del blob clonado byte a byte
+        const url = URL.createObjectURL(clonedBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = generarNombreCorto('docx');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        return;
+      }
+
       const datosGenerales: Record<string, string> = {
         Institución: institucion || formato.estructura.encabezado?.institucion || 'Institución Educativa',
         Docente: docente || 'Docente Responsable',
@@ -357,42 +453,75 @@ export default function GenerarConFormatoModal({
             <div>
               <h3 className="text-lg font-bold text-white">Camila está redactando y vaciando tu contenido</h3>
               <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                Llenando títulos exactos, ajustando tablas con altura automática y aplicando el currículo oficial MPPE 2026-2027...
+                {progressMessage || 'Llenando títulos exactos, ajustando tablas con altura automática y aplicando el currículo oficial MPPE 2026-2027...'}
               </p>
             </div>
             <div className="px-4 py-2 rounded-xl bg-cyan-500/10 border border-cyan-400/20 text-cyan-300 text-xs font-mono">
-              Generando sección por sección sin tocar el diseño original
+              {formato.modo === 'clonar_docx'
+                ? 'Modo Copia Exacta Word: Mismos logos, orientación y fuentes'
+                : 'Generando sección por sección en el formato escolar'}
             </div>
           </div>
         )}
 
         {/* STEP 3: PREVIEW & EDIT & DOWNLOAD */}
         {step === 'preview' && (
-          <div className="mt-5 space-y-5 flex-1 flex flex-col overflow-hidden">
-            {/* Action Bar for Downloads */}
+          <div className="mt-5 space-y-4 flex-1 flex flex-col overflow-hidden">
+            {/* Aviso de Fallback si aplica */}
+            {fallbackNotice && (
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2.5">
+                <AlertCircle size={16} className="shrink-0" />
+                <span>{fallbackNotice}</span>
+              </div>
+            )}
+
+            {/* Action Bar for Downloads & Mode Toggle */}
             <div className="p-4 rounded-2xl bg-cyan-500/10 border border-cyan-400/30 flex flex-wrap items-center justify-between gap-3 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-xl bg-cyan-500/20 text-cyan-300">
                   <Check size={18} />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold text-white">¡Documento vaciado con éxito!</h4>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>¡Documento vaciado con éxito!</span>
+                    {clonedBlob && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                        Copia Exacta Word
+                      </span>
+                    )}
+                  </h4>
                   <p className="text-xs text-slate-300">
-                    Puedes editar cualquier texto o celda antes de descargar
+                    {clonedBlob
+                      ? 'Tu archivo Word original fue editado byte a byte conservando membrete y estilo'
+                      : 'Puedes editar cualquier texto o celda antes de descargar'}
                   </p>
                 </div>
               </div>
 
+              {/* Download Buttons */}
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleDownloadDocx}
-                  disabled={isDownloading}
-                  className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-blue-600/30"
-                >
-                  <FileDown size={14} />
-                  Descargar Word (.docx)
-                </button>
+                {clonedBlob ? (
+                  <button
+                    type="button"
+                    onClick={handleDownloadDocx}
+                    disabled={isDownloading}
+                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-emerald-600/30"
+                  >
+                    <ShieldCheck size={14} />
+                    Descargar Copia Exacta Word (.docx)
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleDownloadDocx}
+                    disabled={isDownloading}
+                    className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-blue-600/30"
+                  >
+                    <FileDown size={14} />
+                    Descargar Word (.docx)
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={handleDownloadPdf}
@@ -405,8 +534,47 @@ export default function GenerarConFormatoModal({
               </div>
             </div>
 
-            {/* Editable Preview Sections Container */}
-            <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+            {/* View Mode Switcher if Cloned DOCX is Available */}
+            {clonedBlob && (
+              <div className="flex items-center justify-between border-b border-white/10 pb-2 shrink-0">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTabPreview('visual')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      activeTabPreview === 'visual'
+                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30'
+                        : 'bg-white/5 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Eye size={14} /> Vista Previa Word Exacta
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTabPreview('editor')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                      activeTabPreview === 'editor'
+                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/30'
+                        : 'bg-white/5 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Layers size={14} /> Ver Cuadros Curriculares
+                  </button>
+                </div>
+                <span className="text-[11px] text-slate-400">
+                  {clonedResult?.tiempoSegundos ? `Generado en ${clonedResult.tiempoSegundos}s` : 'Word listo para imprimir'}
+                </span>
+              </div>
+            )}
+
+            {/* Visual Preview Mode */}
+            {clonedBlob && activeTabPreview === 'visual' && (
+              <DocxPreviewViewer blob={clonedBlob} className="flex-1" />
+            )}
+
+            {/* Editable Preview Sections Container (Active if not visual tab, or if standard mode) */}
+            {(!clonedBlob || activeTabPreview === 'editor') && (
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1">
               {seccionesGeneradas.map((sec, secIdx) => {
                 const formatoSecOrig = formato.estructura.secciones.find((s) => s.id === sec.seccionId);
                 const columnas = formatoSecOrig?.columnas || [];
@@ -482,6 +650,7 @@ export default function GenerarConFormatoModal({
                 );
               })}
             </div>
+            )}
 
             {/* Footer with Back / Reset */}
             <div className="pt-4 border-t border-white/10 flex items-center justify-between shrink-0">

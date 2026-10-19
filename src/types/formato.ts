@@ -49,6 +49,9 @@ export interface FormatoDocente {
   archivoMimeType: string;
   tamanoBytes: number;
   estructura: FormatoEstructura;
+  archivoPath?: string; // Ruta en bucket Supabase 'formatos-originales/{teacherId}/{formatoId}.docx'
+  plantilla?: any; // PlantillaDocx clasificada por Gemini
+  modo?: 'reconstruir' | 'clonar_docx'; // Modo clonación exacta de Word o reconstrucción
   createdAt: string;
   updatedAt: string;
 }

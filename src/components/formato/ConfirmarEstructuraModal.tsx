@@ -24,6 +24,8 @@ interface ConfirmarEstructuraModalProps {
     tipo: TipoDocumentoFormato;
     file: File;
     estructura: FormatoEstructura;
+    plantilla?: any;
+    modo?: 'reconstruir' | 'clonar_docx';
   };
   teacherId: string;
 }
@@ -47,8 +49,21 @@ export default function ConfirmarEstructuraModal({
     setIsSaving(true);
     setSaveError(null);
 
+    let archivoPath: string | undefined = undefined;
+    const tempId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'formato_' + Date.now();
+
+    // Si es modo clonar Word, guardar el archivo binario original en storage/cache
+    if (initialData.modo === 'clonar_docx' && initialData.file) {
+      try {
+        const { FormatoService } = await import('../../lib/formatoService');
+        archivoPath = await FormatoService.uploadArchivoOriginal(teacherId, tempId, initialData.file);
+      } catch (err) {
+        console.warn('Aviso al guardar archivo original:', err);
+      }
+    }
+
     const nuevoFormato: FormatoDocente = {
-      id: '', // Supabase generará el UUID o se asignará en el servicio
+      id: tempId,
       teacherId,
       nombre: nombre.trim() || 'Mi Formato Escolar',
       tipoDocumento: initialData.tipo,
@@ -56,6 +71,9 @@ export default function ConfirmarEstructuraModal({
       archivoMimeType: initialData.file.type,
       tamanoBytes: initialData.file.size,
       estructura,
+      archivoPath,
+      plantilla: initialData.plantilla,
+      modo: initialData.modo || 'reconstruir',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

@@ -22,6 +22,8 @@ interface SubirFormatoModalProps {
     tipo: TipoDocumentoFormato;
     file: File;
     estructura: FormatoEstructura;
+    plantilla?: any;
+    modo?: 'reconstruir' | 'clonar_docx';
   }) => void;
   defaultTipo?: TipoDocumentoFormato;
 }
@@ -94,13 +96,15 @@ export default function SubirFormatoModal({
         setAnalysisProgress('Camila está analizando membrete, títulos y columnas con IA multimodal...');
       }, 1500);
 
-      const estructura = await FormatoService.analizarFormato(file, nombre, tipo);
+      const resultado = await FormatoService.analizarFormato(file, nombre, tipo);
 
       onFormatParsed({
         nombre: nombre.trim(),
         tipo,
         file,
-        estructura,
+        estructura: resultado.estructura,
+        plantilla: resultado.plantilla,
+        modo: resultado.modo,
       });
     } catch (err: any) {
       console.error('Error al analizar formato:', err);

@@ -142,3 +142,24 @@ CREATE POLICY "formatos_docente_delete_policy" ON formatos_docente
     FOR DELETE
     TO authenticated
     USING (auth.uid() = teacher_id);
+
+-- Columnas adicionales para Copia Exacta de Word (.docx)
+ALTER TABLE formatos_docente ADD COLUMN IF NOT EXISTS archivo_path TEXT;
+ALTER TABLE formatos_docente ADD COLUMN IF NOT EXISTS plantilla JSONB;
+ALTER TABLE formatos_docente ADD COLUMN IF NOT EXISTS modo TEXT DEFAULT 'reconstruir';
+
+-- ==============================================================================
+-- BUCKET DE SUPABASE STORAGE (Para archivos .docx originales)
+-- ==============================================================================
+-- Puedes crear el bucket privado 'formatos-originales' desde el panel de Supabase Storage:
+-- INSERT INTO storage.buckets (id, name, public) VALUES ('formatos-originales', 'formatos-originales', false) ON CONFLICT DO NOTHING;
+--
+-- Políticas de seguridad para el Storage de formatos originales:
+-- CREATE POLICY "Docentes pueden subir sus formatos originales"
+-- ON storage.objects FOR INSERT TO authenticated
+-- WITH CHECK (bucket_id = 'formatos-originales' AND (storage.foldername(name))[1] = auth.uid()::text);
+--
+-- CREATE POLICY "Docentes pueden ver sus formatos originales"
+-- ON storage.objects FOR SELECT TO authenticated
+-- USING (bucket_id = 'formatos-originales' AND (storage.foldername(name))[1] = auth.uid()::text);
+

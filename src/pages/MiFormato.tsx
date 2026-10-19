@@ -13,6 +13,7 @@ import {
   Table as TableIcon,
   Loader2,
   RefreshCw,
+  FlaskConical,
 } from 'lucide-react';
 import { FormatoDocente, TipoDocumentoFormato, FormatoEstructura } from '../types/formato';
 import { FormatoService } from '../lib/formatoService';
@@ -20,6 +21,7 @@ import { FEATURE_FLAGS } from '../config/features';
 import SubirFormatoModal from '../components/formato/SubirFormatoModal';
 import ConfirmarEstructuraModal from '../components/formato/ConfirmarEstructuraModal';
 import GenerarConFormatoModal from '../components/formato/GenerarConFormatoModal';
+import DocxDiagnosticoModal from '../components/formato/DocxDiagnosticoModal';
 
 export default function MiFormato() {
   const { isGuest = false, teacherId = '' } =
@@ -43,6 +45,7 @@ export default function MiFormato() {
   } | null>(null);
 
   const [activeFormatoForGeneration, setActiveFormatoForGeneration] = useState<FormatoDocente | null>(null);
+  const [isDiagnosticoOpen, setIsDiagnosticoOpen] = useState(false);
 
   // Rename state
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -199,6 +202,18 @@ export default function MiFormato() {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {FEATURE_FLAGS.MI_FORMATO_CLONAR_ENABLED && (
+              <button
+                type="button"
+                onClick={() => setIsDiagnosticoOpen(true)}
+                className="px-3.5 py-3 rounded-2xl bg-white/5 hover:bg-white/10 text-cyan-300 hover:text-white border border-cyan-400/20 transition-all flex items-center gap-1.5 text-xs font-semibold"
+                title="Diagnóstico de integridad DOCX (Prueba de ida y vuelta)"
+              >
+                <FlaskConical size={16} />
+                <span className="hidden sm:inline">Diagnóstico DOCX</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={loadFormatos}
@@ -451,6 +466,12 @@ export default function MiFormato() {
           teacherId={teacherId}
         />
       )}
+
+      {/* Diagnóstico DOCX Modal */}
+      <DocxDiagnosticoModal
+        isOpen={isDiagnosticoOpen}
+        onClose={() => setIsDiagnosticoOpen(false)}
+      />
     </div>
   );
 }

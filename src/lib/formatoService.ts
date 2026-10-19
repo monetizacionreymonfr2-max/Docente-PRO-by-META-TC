@@ -14,6 +14,11 @@ import {
   FORMATO_GENERACION_SYSTEM_INSTRUCTION,
   FORMATO_GENERACION_RESPONSE_SCHEMA,
 } from './formatoPrompts';
+import { FEATURE_FLAGS } from '../config/features';
+import { cargarDocx, construirMapa } from './docxClone/docxEditor';
+import { analizarPlantillaDocx } from './docxClone/plantillaAnalyzer';
+import { PlantillaDocx } from './docxClone/types';
+import { guardarArchivoEnCache, obtenerArchivoDeCache } from './docxClone/storageCache';
 
 const STORAGE_PREFIX = 'docenty_formatos_';
 const MEMORY_BACKUP_PREFIX = 'docenty_formatos_backup_';
@@ -47,9 +52,6 @@ export async function fileToBase64(file: File): Promise<string> {
   });
 }
 
-/**
- * Validador de formato UUID v4
- */
 function isValidUUID(str: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
 }
@@ -57,12 +59,11 @@ function isValidUUID(str: string): boolean {
 export const FormatoService = {
   /**
    * Obtiene todos los formatos guardados del docente desde Supabase.
-   * Realiza migración suave y única desde localStorage si existían formatos previos.
    */
   async getFormatosByTeacher(teacherId: string): Promise<FormatoDocente[]> {
     if (!teacherId) return [];
 
-    // 1. Migración suave desde localStorage a Supabase
+    // Migración suave desde localStorage
     try {
       const localKey = `${STORAGE_PREFIX}${teacherId}`;
       const savedLocal = localStorage.getItem(localKey);
@@ -81,7 +82,6 @@ export const FormatoService = {
       console.warn('Error durante la verificación de migración de localStorage:', migErr);
     }
 
-    // 2. Consulta a Supabase
     try {
       const { data, error } = await supabase
         .from('formatos_docente')
@@ -91,7 +91,6 @@ export const FormatoService = {
 
       if (error) {
         console.warn('Aviso de Supabase al consultar formatos_docente:', error.message);
-        // Fallback a respaldo en memoria/local temporal si la tabla aún no se ha creado en Supabase
         const backup = localStorage.getItem(`${MEMORY_BACKUP_PREFIX}${teacherId}`);
         return backup ? JSON.parse(backup) : [];
       }
@@ -105,11 +104,13 @@ export const FormatoService = {
         archivoMimeType: row.archivo_mime_type || '',
         tamanoBytes: Number(row.tamano_bytes) || 0,
         estructura: row.estructura,
+        archivoPath: row.archivo_path,
+        plantilla: row.plantilla,
+        modo: row.modo || 'reconstruir',
         createdAt: row.created_at,
         updatedAt: row.updated_at,
       }));
 
-      // Guardar respaldo temporal
       try {
         localStorage.setItem(`${MEMORY_BACKUP_PREFIX}${teacherId}`, JSON.stringify(mappedFormatos));
       } catch {}
@@ -123,8 +124,7 @@ export const FormatoService = {
   },
 
   /**
-   * Guarda o actualiza un formato en Supabase.
-   * Si Supabase falla, conserva el formato en respaldo local para no perder el análisis.
+   * Guarda o actualiza un formato en Supabase, incluyendo plantilla y modo de clonación
    */
   async saveFormato(teacherId: string, formato: FormatoDocente): Promise<FormatoDocente> {
     if (!teacherId) throw new Error('ID de docente no válido.');
@@ -138,8 +138,12 @@ export const FormatoService = {
       archivo_mime_type: formato.archivoMimeType || '',
       tamano_bytes: formato.tamanoBytes || 0,
       estructura: formato.estructura,
+      modo: formato.modo || 'reconstruir',
       updated_at: now,
     };
+
+    if (formato.archivoPath) payload.archivo_path = formato.archivoPath;
+    if (formato.plantilla) payload.plantilla = formato.plantilla;
 
     if (formato.id && isValidUUID(formato.id)) {
       payload.id = formato.id;
@@ -152,9 +156,7 @@ export const FormatoService = {
         .select()
         .single();
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       return {
         id: data.id,
@@ -165,12 +167,14 @@ export const FormatoService = {
         archivoMimeType: data.archivo_mime_type,
         tamanoBytes: Number(data.tamano_bytes) || 0,
         estructura: data.estructura,
+        archivoPath: data.archivo_path,
+        plantilla: data.plantilla,
+        modo: data.modo || 'reconstruir',
         createdAt: data.created_at,
         updatedAt: data.updated_at,
       };
     } catch (dbErr: any) {
       console.error('Error al guardar formato en Supabase:', dbErr);
-      // Respaldo de seguridad en caso de fallo de red o tabla no creada aún
       const backupKey = `${MEMORY_BACKUP_PREFIX}${teacherId}`;
       const currentBackup: FormatoDocente[] = JSON.parse(localStorage.getItem(backupKey) || '[]');
       const savedFormat: FormatoDocente = {
@@ -190,8 +194,58 @@ export const FormatoService = {
   },
 
   /**
-   * Renombra un formato en Supabase
+   * Sube el archivo .docx original al bucket privado de Supabase Storage
+   * y guarda copia en cache local IndexedDB para acceso inmediato
    */
+  async uploadArchivoOriginal(teacherId: string, formatoId: string, file: File | Blob): Promise<string> {
+    const cleanId = formatoId || 'temp_' + Date.now();
+    const path = `${teacherId}/${cleanId}.docx`;
+
+    // 1. Guardar en cache local inmediato
+    try {
+      await guardarArchivoEnCache(path, file);
+    } catch {}
+
+    // 2. Intentar subir al bucket de Supabase Storage
+    try {
+      const { error } = await supabase.storage
+        .from('formatos-originales')
+        .upload(path, file, { upsert: true });
+
+      if (error) {
+        console.warn('Aviso de Supabase Storage al subir original (se usará cache local):', error.message);
+      }
+    } catch (err) {
+      console.warn('Excepción de Supabase Storage:', err);
+    }
+
+    return path;
+  },
+
+  /**
+   * Descarga o recupera el archivo .docx original desde cache local o Supabase Storage
+   */
+  async downloadArchivoOriginal(path: string): Promise<ArrayBuffer | null> {
+    // 1. Intentar desde cache local (instantáneo)
+    const local = await obtenerArchivoDeCache(path);
+    if (local) return local;
+
+    // 2. Intentar descargar de Supabase Storage
+    try {
+      const { data, error } = await supabase.storage
+        .from('formatos-originales')
+        .download(path);
+
+      if (error || !data) throw error;
+      const buf = await data.arrayBuffer();
+      await guardarArchivoEnCache(path, buf);
+      return buf;
+    } catch (e) {
+      console.warn('No se pudo descargar de Supabase Storage:', e);
+      return null;
+    }
+  },
+
   async renombrarFormato(teacherId: string, formatoId: string, nuevoNombre: string): Promise<void> {
     if (!teacherId || !formatoId || !nuevoNombre.trim()) return;
 
@@ -212,7 +266,6 @@ export const FormatoService = {
       console.warn('Error al renombrar formato en Supabase:', err);
     }
 
-    // Actualizar también en respaldo local
     try {
       const backupKey = `${MEMORY_BACKUP_PREFIX}${teacherId}`;
       const currentBackup: FormatoDocente[] = JSON.parse(localStorage.getItem(backupKey) || '[]');
@@ -225,9 +278,6 @@ export const FormatoService = {
     } catch {}
   },
 
-  /**
-   * Elimina un formato del docente en Supabase
-   */
   async eliminarFormato(teacherId: string, formatoId: string): Promise<void> {
     if (!teacherId || !formatoId) return;
 
@@ -245,7 +295,6 @@ export const FormatoService = {
       console.warn('Error al eliminar formato en Supabase:', err);
     }
 
-    // Limpiar de respaldo local
     try {
       const backupKey = `${MEMORY_BACKUP_PREFIX}${teacherId}`;
       const currentBackup: FormatoDocente[] = JSON.parse(localStorage.getItem(backupKey) || '[]');
@@ -255,22 +304,32 @@ export const FormatoService = {
   },
 
   /**
-   * Analiza un archivo de formato subido (PDF, Word o imagen) usando el cliente Gemini de la app
-   * Funciona 100% en Vercel y localmente sin depender de endpoints de backend.
+   * Analiza un archivo de formato. Para Word (.docx), si el clonado está activo,
+   * extrae también la plantilla estructural precisa para edición byte a byte.
    */
   async analizarFormato(
     file: File,
     nombrePersonalizado?: string,
     tipoSeleccionado: TipoDocumentoFormato = 'PPA'
-  ): Promise<FormatoEstructura> {
+  ): Promise<{ estructura: FormatoEstructura; plantilla?: PlantillaDocx; modo?: 'reconstruir' | 'clonar_docx' }> {
     const isDocx = file.name.endsWith('.docx') || file.type.includes('wordprocessingml');
     const isPdf = file.type === 'application/pdf' || file.name.endsWith('.pdf');
     const isImage = file.type.startsWith('image/');
 
     let contentsPayload: any;
+    let plantillaExtraida: PlantillaDocx | undefined = undefined;
+
+    if (isDocx && FEATURE_FLAGS.MI_FORMATO_CLONAR_ENABLED) {
+      try {
+        const { doc } = await cargarDocx(file);
+        const mapa = construirMapa(doc);
+        plantillaExtraida = await analizarPlantillaDocx(mapa);
+      } catch (cloneErr) {
+        console.warn('[DocxClone] Análisis de plantilla precisa advierte fallo, manteniendo modo reconstrucción:', cloneErr);
+      }
+    }
 
     if (isPdf || isImage) {
-      // PDF o foto: entrada multimodal directa (inlineData en base64)
       const base64Data = await fileToBase64(file);
       contentsPayload = [
         {
@@ -294,7 +353,6 @@ Extrae la estructura exacta del documento:
         },
       ];
     } else if (isDocx) {
-      // Word (.docx): extracción de texto y tablas con mammoth
       const { texto, html } = await extraerEstructuraWord(file);
       contentsPayload = [
         {
@@ -332,7 +390,11 @@ Extrae la estructura exacta en formato JSON respetando rigurosamente cada títul
         throw new Error('No se detectaron secciones válidas en el formato.');
       }
 
-      return parsed as FormatoEstructura;
+      return {
+        estructura: parsed as FormatoEstructura,
+        plantilla: plantillaExtraida,
+        modo: isDocx && plantillaExtraida ? 'clonar_docx' : 'reconstruir',
+      };
     } catch (err: any) {
       console.error('Error al analizar formato con Gemini:', err);
       const msg = err?.message || String(err);
@@ -351,7 +413,7 @@ Extrae la estructura exacta en formato JSON respetando rigurosamente cada títul
 
   /**
    * Genera el contenido pedagógico completo vaciado sección por sección en el formato
-   * Utiliza Gemini desde el cliente, respetando el currículo MPPE 2026-2027.
+   * (Modo estándar de reconstrucción)
    */
   async generarContenidoConFormato(
     formato: FormatoDocente,
@@ -363,7 +425,7 @@ Extrae la estructura exacta en formato JSON respetando rigurosamente cada títul
       tema: string;
       duracion: string;
       diagnostico?: string;
-      instruccionesExtra?: string; // ej: "sin inglés ni educación física"
+      instruccionesExtra?: string;
     }
   ): Promise<{ secciones: SeccionGenerada[]; observacionesPedagogicas?: string }> {
     const promptGeneracion = `Vacia la planificación escolar o PPA dentro del siguiente formato oficial de la escuela.
@@ -401,12 +463,10 @@ Si el docente especificó instrucciones como "${datosDocente.instruccionesExtra 
       const parsed = JSON.parse(responseText.trim());
       let seccionesGeneradas: SeccionGenerada[] = parsed.secciones || [];
 
-      // Comprobar si faltó alguna sección del formato original
       const seccionesFaltantes = formato.estructura.secciones.filter(
         (secOrig) => !seccionesGeneradas.some((s) => s.seccionId === secOrig.id)
       );
 
-      // Reintento enfocado exclusivamente en las secciones faltantes
       if (seccionesFaltantes.length > 0) {
         console.warn(`[Docenty Formato] Faltan ${seccionesFaltantes.length} secciones. Reintentando solo esas...`);
         try {
