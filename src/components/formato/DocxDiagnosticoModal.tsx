@@ -25,6 +25,7 @@ export default function DocxDiagnosticoModal({ isOpen, onClose }: DocxDiagnostic
     exito: boolean;
     detalles: string;
     stats: any;
+    coberturaTablas?: any[];
   } | null>(null);
 
   if (!isOpen) return null;
@@ -156,6 +157,39 @@ export default function DocxDiagnosticoModal({ isOpen, onClose }: DocxDiagnostic
                   <div className="p-2 rounded bg-black/30">
                     <span className="text-slate-400 block">Tamaño Bytes:</span>
                     <span>{resultado.stats.tamanoOriginalBytes} → {resultado.stats.tamanoGeneradoBytes}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* INFORME DE COBERTURA POR TABLA */}
+              {resultado.coberturaTablas && resultado.coberturaTablas.length > 0 && (
+                <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
+                  <h4 className="text-xs font-bold text-cyan-300 uppercase tracking-wider">
+                    Informe de Cobertura por Tabla
+                  </h4>
+                  <div className="overflow-x-auto rounded-xl border border-white/10 bg-black/40">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="bg-white/5 text-slate-300 border-b border-white/10 font-mono">
+                        <tr>
+                          <th className="p-2">Tabla</th>
+                          <th className="p-2">Tipo Detectado</th>
+                          <th className="p-2 text-center">Celdas Contenido</th>
+                          <th className="p-2 text-center">Reemplazadas</th>
+                          <th className="p-2 text-center">Sin Cambio</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5 font-mono">
+                        {resultado.coberturaTablas.map((c: any) => (
+                          <tr key={c.id} className="hover:bg-white/5">
+                            <td className="p-2 font-bold text-white">{c.id}</td>
+                            <td className="p-2 text-cyan-300 capitalize">{c.tipoDetectado.replace('_', ' ')}</td>
+                            <td className="p-2 text-center text-slate-200">{c.celdasContenido}</td>
+                            <td className="p-2 text-center text-emerald-400 font-bold">{c.celdasReemplazadas}</td>
+                            <td className="p-2 text-center text-amber-300">{c.celdasSinCambio}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 </div>
               )}

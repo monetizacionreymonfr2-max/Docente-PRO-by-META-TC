@@ -21,7 +21,8 @@ import {
   MessageCircle,
   TrendingUp,
   Clock,
-  FileUp
+  FileUp,
+  Bot
 } from 'lucide-react';
 import { FEATURE_FLAGS, puedeVerMiFormato } from '../../config/features';
 
@@ -84,6 +85,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
     { path: '/reports', icon: <FileText size={20} />, label: 'Generador de Boletines' },
     { path: '/camila', icon: <Sparkles size={20} className="text-amber-400" />, label: 'IA Camila' },
     ...(puedeVerMiFormato(isAdmin) ? [{ path: '/mi-formato', icon: <FileUp size={20} className="text-cyan-400" />, label: 'Mi Formato' }] : []),
+    ...(puedeVerMiFormato(isAdmin) ? [{ path: '/camila-formato', icon: <Bot size={20} className="text-teal-400" />, label: 'Camila Formato' }] : []),
   ];
 
   if (isAdmin) {

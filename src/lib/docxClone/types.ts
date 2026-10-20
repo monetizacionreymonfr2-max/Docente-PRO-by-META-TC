@@ -91,3 +91,13 @@ export interface PlantillaDocx {
   areasDetectadas?: string[];
   lapsoSemanasEstimadas?: number;
 }
+
+export interface CoberturaTabla {
+  id: string;
+  titulo?: string;
+  tipoDetectado: string;
+  totalCeldas: number;
+  celdasContenido: number;
+  celdasReemplazadas: number;
+  celdasSinCambio: number;
+}

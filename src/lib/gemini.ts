@@ -13,17 +13,23 @@ const getApiKey = () => {
     if (key && key.trim() !== '') return key;
   } catch (e) {}
 
-  return 'AIzaSyBR2k22CAT-1q0ywdyZlgHj1jphap0-XHM';
+  return '';
 };
+
+export const getGeminiApiKey = getApiKey;
 
 const apiKey = getApiKey();
 
-export const ai = new GoogleGenAI({ apiKey });
+export const ai = new GoogleGenAI({ apiKey: apiKey || 'dummy-key-for-init' });
 
 export async function generateContentWithRetry(
   params: GenerateContentParameters,
   maxRetries = 3
 ) {
+  const currentKey = getApiKey();
+  if (!currentKey || currentKey.trim() === '') {
+    throw new Error('Falta configurar la clave de Gemini');
+  }
   let lastError;
   for (let i = 0; i < maxRetries; i++) {
     try {

@@ -7,9 +7,40 @@ import {
   DocxCeldaNode,
   DocxSegmento,
   PlantillaDocx,
+  CoberturaTabla,
 } from './types';
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+
+/**
+ * Obtiene los elementos hijos de un nodo de forma compatible con DOM de navegador y xmldom
+ */
+export function getElementChildren(elem: Element | Node | null | undefined): Element[] {
+  if (!elem) return [];
+  if ((elem as any).children && (elem as any).children.length !== undefined) {
+    return Array.from((elem as any).children);
+  }
+  return Array.from(elem.childNodes || []).filter((n: any) => n.nodeType === 1) as Element[];
+}
+
+/**
+ * Busca el primer descendiente que coincida con localName de forma compatible con cualquier DOM
+ */
+export function findFirstDescendant(elem: Element | Document | null | undefined, localName: string): Element | null {
+  if (!elem) return null;
+  const nsMatch = elem.getElementsByTagNameNS ? elem.getElementsByTagNameNS(W_NS, localName)[0] : null;
+  if (nsMatch) return nsMatch;
+  const tagPrefixed = elem.getElementsByTagName ? elem.getElementsByTagName(`w:${localName}`)[0] : null;
+  if (tagPrefixed) return tagPrefixed;
+  const tagDirect = elem.getElementsByTagName ? elem.getElementsByTagName(localName)[0] : null;
+  if (tagDirect) return tagDirect;
+  if ((elem as any).querySelector) {
+    try {
+      return (elem as any).querySelector(localName);
+    } catch {}
+  }
+  return null;
+}
 
 /**
  * Carga un archivo Word (.docx) y parsea word/document.xml
@@ -120,7 +151,7 @@ export function construirMapa(doc: Document): DocxMapa {
   let pCount = 0;
   let tCount = 0;
 
-  const children = Array.from(body.children);
+  const children = getElementChildren(body);
 
   for (const child of children) {
     const localName = child.localName || child.nodeName.replace(/^.*:/, '');
@@ -144,7 +175,7 @@ export function construirMapa(doc: Document): DocxMapa {
       const tId = `t${tCount++}`;
       const filas: DocxFilaNode[] = [];
 
-      const trNodes = Array.from(child.children).filter((c) => {
+      const trNodes = getElementChildren(child).filter((c) => {
         const name = c.localName || c.nodeName.replace(/^.*:/, '');
         return name === 'tr';
       });
@@ -153,11 +184,11 @@ export function construirMapa(doc: Document): DocxMapa {
         const rId = `${tId}.r${rIdx}`;
         const celdas: DocxCeldaNode[] = [];
 
-        // tblHeader
-        const tblHeader = tr.getElementsByTagNameNS(W_NS, 'tblHeader')[0] || tr.querySelector('tblHeader');
-        const cantSplit = tr.getElementsByTagNameNS(W_NS, 'cantSplit')[0] || tr.querySelector('cantSplit');
+        // tblHeader & cantSplit
+        const tblHeader = findFirstDescendant(tr, 'tblHeader');
+        const cantSplit = findFirstDescendant(tr, 'cantSplit');
 
-        const tcNodes = Array.from(tr.children).filter((c) => {
+        const tcNodes = getElementChildren(tr).filter((c) => {
           const name = c.localName || c.nodeName.replace(/^.*:/, '');
           return name === 'tc';
         });
@@ -167,13 +198,13 @@ export function construirMapa(doc: Document): DocxMapa {
           const rawText = getTextoCompleto(tc).trim();
 
           // lineas de la celda
-          const pInTc = Array.from(tc.children).filter(
+          const pInTc = getElementChildren(tc).filter(
             (c) => (c.localName || c.nodeName.replace(/^.*:/, '')) === 'p'
           );
           const lineas = pInTc.map((p) => getTextoCompleto(p).trim()).filter(Boolean);
 
           // gridSpan
-          const gridSpanNode = tc.getElementsByTagNameNS(W_NS, 'gridSpan')[0] || tc.querySelector('gridSpan');
+          const gridSpanNode = findFirstDescendant(tc, 'gridSpan');
           let gridSpan = 1;
           if (gridSpanNode) {
             const val = gridSpanNode.getAttributeNS(W_NS, 'val') || gridSpanNode.getAttribute('w:val') || gridSpanNode.getAttribute('val');
@@ -181,7 +212,7 @@ export function construirMapa(doc: Document): DocxMapa {
           }
 
           // vMerge
-          const vMergeNode = tc.getElementsByTagNameNS(W_NS, 'vMerge')[0] || tc.querySelector('vMerge');
+          const vMergeNode = findFirstDescendant(tc, 'vMerge');
           let vMerge: string | undefined = undefined;
           if (vMergeNode) {
             const val = vMergeNode.getAttributeNS(W_NS, 'val') || vMergeNode.getAttribute('w:val') || vMergeNode.getAttribute('val');
@@ -317,7 +348,7 @@ export function buscarParrafoPorId(doc: Document, pId: string): Element | null {
   if (isNaN(targetIndex)) return null;
 
   let pCount = 0;
-  for (const child of Array.from(body.children)) {
+  for (const child of getElementChildren(body)) {
     const localName = child.localName || child.nodeName.replace(/^.*:/, '');
     if (localName === 'p') {
       if (pCount === targetIndex) {
@@ -335,14 +366,14 @@ export function buscarParrafoPorId(doc: Document, pId: string): Element | null {
  * Garantiza coincidencia 1:1 con construirMapa.
  */
 export function buscarTablaPorId(doc: Document, tId: string): Element | null {
-  const body = doc.getElementsByTagNameNS(W_NS, 'body')[0] || doc.querySelector('body');
+  const body = doc.getElementsByTagNameNS(W_NS, 'body')[0] || (doc.querySelector ? doc.querySelector('body') : null);
   if (!body) return null;
 
   const targetIndex = parseInt(tId.replace(/^t/, ''), 10);
   if (isNaN(targetIndex)) return null;
 
   let tCount = 0;
-  for (const child of Array.from(body.children)) {
+  for (const child of getElementChildren(body)) {
     const localName = child.localName || child.nodeName.replace(/^.*:/, '');
     if (localName === 'tbl') {
       if (tCount === targetIndex) {
@@ -367,7 +398,7 @@ export function buscarFilaPorId(doc: Document, rId: string): Element | null {
   if (!tbl) return null;
 
   const rIndex = parseInt(parts[1].replace(/^r/, ''), 10);
-  const rows = Array.from(tbl.children).filter(
+  const rows = getElementChildren(tbl).filter(
     (c) => (c.localName || c.nodeName.replace(/^.*:/, '')) === 'tr'
   );
   return rows[rIndex] || null;
@@ -383,157 +414,186 @@ export function buscarCeldaPorId(doc: Document, cId: string): Element | null {
   if (!tr) return null;
 
   const cIndex = parseInt(parts[2].replace(/^c/, ''), 10);
-  const celdas = Array.from(tr.children).filter(
+  const celdas = getElementChildren(tr).filter(
     (c) => (c.localName || c.nodeName.replace(/^.*:/, '')) === 'tc'
   );
   return celdas[cIndex] || null;
 }
 
+export interface CampoEncabezadoParrafo {
+  etiqueta: string;
+  valor: string;
+}
+
 /**
- * Modifica el valor asociado a una etiqueta en párrafos compuestos (ej: "Docente: Juan Perez   Grado: 3ero")
- * Regla: Localiza la etiqueta por su texto dentro del texto concatenado de los runs,
- * deja intactos los runs de la etiqueta, coloca el valor nuevo en el primer run del valor,
- * y vacía los demás runs de ese valor hasta la siguiente etiqueta.
- * Nunca reescribe el párrafo completo cuando contiene varios campos.
+ * Reescribe uno o varios campos de encabezado en un párrafo w:p trabajando con rangos de caracteres
+ * sobre el texto concatenado del párrafo.
+ * Regla: Ubica la posición de CADA etiqueta del párrafo por su texto.
+ * El valor de una etiqueta va desde el final de esa etiqueta hasta el inicio de la siguiente etiqueta (o el fin del párrafo).
+ * Reemplaza ese rango: pone el texto nuevo en el primer run que toque el rango (conservando su formato)
+ * y recorta o vacía los demás runs en ese rango.
+ * No usa negrita ni tamaño para decidir dónde termina el valor.
+ * Etiquetas intactas, valor sin duplicados ni restos.
  */
-export function setValorSegmento(
+export function setValorSegmentoMultiples(
   p: Element,
-  etiquetaOIndice: string | number,
-  valor: string
+  campos: CampoEncabezadoParrafo[]
 ): void {
   const runs = Array.from(p.getElementsByTagNameNS(W_NS, 'r'));
   const fallbackRuns = runs.length > 0 ? runs : Array.from(p.querySelectorAll('r'));
-  if (fallbackRuns.length === 0) return;
+  if (fallbackRuns.length === 0 || campos.length === 0) return;
 
   const runTexts = fallbackRuns.map((r) => getTextoCompleto(r));
   const fullText = runTexts.join('');
+  if (!fullText) return;
 
-  const targetEtiqueta = typeof etiquetaOIndice === 'string' ? etiquetaOIndice.trim() : '';
-
-  let matchStart = -1;
-  let matchLen = 0;
-
-  if (targetEtiqueta) {
-    matchStart = fullText.toLowerCase().indexOf(targetEtiqueta.toLowerCase());
-    if (matchStart !== -1) {
-      matchLen = targetEtiqueta.length;
-    } else {
-      // Intentar sin dos puntos al final si los tenía
-      const sinDosPuntos = targetEtiqueta.replace(/:\s*$/, '').trim();
-      matchStart = fullText.toLowerCase().indexOf(sinDosPuntos.toLowerCase());
-      if (matchStart !== -1) {
-        matchLen = sinDosPuntos.length;
-      }
-    }
-  }
-
-  // Mapear intervalos de cada run
+  // 1. Mapear intervalos [start, end) de cada run
   let curPos = 0;
   const runIntervals = fallbackRuns.map((r, i) => {
     const text = runTexts[i];
     const start = curPos;
     const end = curPos + text.length;
     curPos = end;
-    const bNode = r.getElementsByTagNameNS(W_NS, 'b')[0] || r.querySelector('b');
-    let esNegrita = false;
-    if (bNode) {
-      const val = bNode.getAttributeNS(W_NS, 'val') || bNode.getAttribute('w:val') || bNode.getAttribute('val');
-      esNegrita = val !== '0' && val !== 'false';
-    }
-    return { run: r, text, start, end, esNegrita };
+    return { run: r, text, start, end };
   });
 
-  if (matchStart !== -1) {
-    const labelEndPos = matchStart + matchLen;
+  // 2. Ubicar la posición de cada etiqueta en fullText
+  interface TagMatch {
+    etiqueta: string;
+    valor: string;
+    startPos: number;
+    labelEndPos: number;
+  }
 
-    // Encontrar el primer run que contiene o inicia el valor después de la etiqueta
-    let firstValueRunIdx = -1;
-    for (let i = 0; i < runIntervals.length; i++) {
-      if (runIntervals[i].end > labelEndPos) {
-        firstValueRunIdx = i;
-        break;
+  const matches: TagMatch[] = [];
+
+  for (const campo of campos) {
+    const labelRaw = (campo.etiqueta || '').trim();
+    if (!labelRaw) continue;
+
+    let idx = fullText.toLowerCase().indexOf(labelRaw.toLowerCase());
+    let matchLen = labelRaw.length;
+
+    if (idx === -1) {
+      // Probar quitando dos puntos al final o espacios
+      const sinDosPuntos = labelRaw.replace(/:\s*$/, '').trim();
+      if (sinDosPuntos.length >= 2) {
+        idx = fullText.toLowerCase().indexOf(sinDosPuntos.toLowerCase());
+        if (idx !== -1) {
+          matchLen = sinDosPuntos.length;
+          if (fullText[idx + matchLen] === ':') {
+            matchLen++;
+          }
+        }
       }
     }
 
-    if (firstValueRunIdx !== -1) {
-      // Determinar hasta dónde llega el valor (hasta siguiente run en negrita con texto significativo o fin)
-      let nextLabelRunIdx = runIntervals.length;
-      for (let i = firstValueRunIdx + 1; i < runIntervals.length; i++) {
-        if (runIntervals[i].esNegrita && runIntervals[i].text.trim().length > 1) {
-          nextLabelRunIdx = i;
-          break;
-        }
+    if (idx !== -1) {
+      matches.push({
+        etiqueta: labelRaw,
+        valor: campo.valor,
+        startPos: idx,
+        labelEndPos: idx + matchLen,
+      });
+    }
+  }
+
+  if (matches.length === 0) {
+    // Si no se encontró ninguna etiqueta por texto pero se pasó al menos un valor,
+    // colocamos el valor en el último run preservando prefijo
+    const primerCampo = campos[0];
+    if (primerCampo && primerCampo.valor) {
+      const lastRun = fallbackRuns[fallbackRuns.length - 1];
+      const tNode = lastRun.getElementsByTagNameNS(W_NS, 't')[0] || lastRun.querySelector('t');
+      if (tNode) {
+        tNode.textContent = ` ${primerCampo.valor.trim()} `;
+        tNode.setAttribute('xml:space', 'preserve');
       }
+    }
+    return;
+  }
 
-      const firstInterval = runIntervals[firstValueRunIdx];
-      const offsetInRun = labelEndPos - firstInterval.start;
+  // Ordenar por startPos
+  matches.sort((a, b) => a.startPos - b.startPos);
 
-      if (offsetInRun > 0 && offsetInRun < firstInterval.text.length) {
-        // El run contiene el final de la etiqueta y parte del valor
-        const labelPart = firstInterval.text.slice(0, offsetInRun);
-        const tNode = firstInterval.run.getElementsByTagNameNS(W_NS, 't')[0] || firstInterval.run.querySelector('t');
+  // 3. Procesar cada etiqueta y su rango de valor
+  for (let k = 0; k < matches.length; k++) {
+    const currentMatch = matches[k];
+    const valRangeStart = currentMatch.labelEndPos;
+    const valRangeEnd = k + 1 < matches.length ? matches[k + 1].startPos : fullText.length;
+
+    const textoNuevo = ` ${currentMatch.valor.trim()} `;
+
+    // Identificar runs que tocan este rango [valRangeStart, valRangeEnd)
+    const runsIntersectados = runIntervals.filter(
+      (ri) => ri.end > valRangeStart && ri.start < valRangeEnd
+    );
+
+    if (runsIntersectados.length === 0) {
+      // Si el valor cayó justo al final de un run
+      const prevRun = runIntervals.find((ri) => ri.end === valRangeStart);
+      if (prevRun) {
+        const tNode = prevRun.run.getElementsByTagNameNS(W_NS, 't')[0] || prevRun.run.querySelector('t');
         if (tNode) {
-          tNode.textContent = `${labelPart} ${valor.trim()} `;
+          tNode.textContent = (tNode.textContent || '') + textoNuevo;
           tNode.setAttribute('xml:space', 'preserve');
         }
+      }
+      continue;
+    }
+
+    const primerRunInfo = runsIntersectados[0];
+    const primerRunElem = primerRunInfo.run;
+    const tNodePrimero = primerRunElem.getElementsByTagNameNS(W_NS, 't')[0] || primerRunElem.querySelector('t');
+
+    // El primer run conserva su prefijo (la etiqueta o parte previa al rango)
+    const prefijo =
+      primerRunInfo.start < valRangeStart
+        ? primerRunInfo.text.slice(0, valRangeStart - primerRunInfo.start)
+        : '';
+
+    // Si el primer run también llega más allá de valRangeEnd
+    const sufijo =
+      primerRunInfo.end > valRangeEnd
+        ? primerRunInfo.text.slice(valRangeEnd - primerRunInfo.start)
+        : '';
+
+    if (tNodePrimero) {
+      tNodePrimero.textContent = `${prefijo}${textoNuevo}${sufijo}`;
+      tNodePrimero.setAttribute('xml:space', 'preserve');
+    }
+
+    // Vaciar o recortar los demás runs en este rango
+    for (let rIdx = 1; rIdx < runsIntersectados.length; rIdx++) {
+      const runInfo = runsIntersectados[rIdx];
+      const rElem = runInfo.run;
+      const tNode = rElem.getElementsByTagNameNS(W_NS, 't')[0] || rElem.querySelector('t');
+      if (!tNode) continue;
+
+      if (runInfo.end > valRangeEnd) {
+        // Run cruza el final del rango hacia la siguiente etiqueta: conservar solo el sufijo desde valRangeEnd
+        const offsetEnRun = Math.max(0, valRangeEnd - runInfo.start);
+        tNode.textContent = runInfo.text.slice(offsetEnRun);
+        tNode.setAttribute('xml:space', 'preserve');
       } else {
-        // El run es completamente del valor
-        const tNode = firstInterval.run.getElementsByTagNameNS(W_NS, 't')[0] || firstInterval.run.querySelector('t');
-        if (tNode) {
-          tNode.textContent = ` ${valor.trim()} `;
-          tNode.setAttribute('xml:space', 'preserve');
-        } else {
-          const doc = p.ownerDocument;
-          const newT = doc.createElementNS(W_NS, 'w:t');
-          newT.setAttribute('xml:space', 'preserve');
-          newT.textContent = ` ${valor.trim()} `;
-          firstInterval.run.appendChild(newT);
-        }
+        // Totalmente dentro del rango del valor anterior: vaciar
+        tNode.textContent = '';
       }
-
-      // Vaciar los demás runs que pertenecían al valor anterior hasta la siguiente etiqueta
-      for (let i = firstValueRunIdx + 1; i < nextLabelRunIdx; i++) {
-        const otherRun = runIntervals[i].run;
-        const otherTNodes = Array.from(otherRun.getElementsByTagNameNS(W_NS, 't'));
-        const fallbackOtherT = otherTNodes.length > 0 ? otherTNodes : Array.from(otherRun.querySelectorAll('t'));
-        for (const t of fallbackOtherT) {
-          t.textContent = '';
-        }
-      }
-
-      return;
     }
   }
+}
 
-  // Fallback si no hubo coincidencia por texto (o si fue pasado por índice numérico):
-  let nonBoldCount = 0;
-  for (const r of fallbackRuns) {
-    const bNode = r.getElementsByTagNameNS(W_NS, 'b')[0] || r.querySelector('b');
-    let esNegrita = false;
-    if (bNode) {
-      const val = bNode.getAttributeNS(W_NS, 'val') || bNode.getAttribute('w:val') || bNode.getAttribute('val');
-      esNegrita = val !== '0' && val !== 'false';
-    }
-    if (!esNegrita) {
-      if (typeof etiquetaOIndice === 'number' && nonBoldCount === etiquetaOIndice) {
-        const tNode = r.getElementsByTagNameNS(W_NS, 't')[0] || r.querySelector('t');
-        if (tNode) {
-          tNode.textContent = ` ${valor.trim()} `;
-          tNode.setAttribute('xml:space', 'preserve');
-        }
-        return;
-      }
-      nonBoldCount++;
-    }
-  }
-
-  // Fallback final a último run
-  const lastRun = fallbackRuns[fallbackRuns.length - 1];
-  const tNode = lastRun.getElementsByTagNameNS(W_NS, 't')[0] || lastRun.querySelector('t');
-  if (tNode) {
-    tNode.textContent = ` ${valor.trim()} `;
-    tNode.setAttribute('xml:space', 'preserve');
-  }
+/**
+ * Modifica el valor asociado a una etiqueta en párrafos compuestos (ej: "Docente: Juan Perez   Grado: 3ero")
+ * Localiza la etiqueta por su texto dentro del texto concatenado de los runs sin tocarla y actualiza el valor.
+ */
+export function setValorSegmento(
+  p: Element,
+  etiquetaOIndice: string | number,
+  valor: string
+): void {
+  const etiqueta = typeof etiquetaOIndice === 'string' ? etiquetaOIndice : '';
+  setValorSegmentoMultiples(p, [{ etiqueta, valor }]);
 }
 
 /**
@@ -656,6 +716,9 @@ export interface OpcionesValidacionDocx {
   conteoEsperadoFilas?: Record<string, number>; // idTabla -> número de filas esperadas
   textosOriginalesContenido?: string[]; // Textos que estaban en celdas de contenido o textos libres del Word original
   membreteYEtiquetas?: string[]; // Etiquetas o nombres fijos a excluir del chequeo residual
+  celdasContenidoOriginales?: Record<string, string>; // cId -> textoOriginal
+  constantesPermitidas?: Set<string>; // Textos constantes como Ejes Integradores que pueden quedarse
+  terminosProhibidos?: string[]; // Términos derivados dinámicamente del documento original
 }
 
 /**
@@ -663,8 +726,9 @@ export interface OpcionesValidacionDocx {
  * - Integridad XML y Zip
  * - Identidad de archivos de medios (logos)
  * - (a) Conteo esperado de filas por tabla
- * - (b) Ausencia de texto residual del contenido original (frases de 4 o más palabras)
- * - (c) Encabezados sin etiquetas ni valores duplicados
+ * - (b) Texto residual: ninguna celda de contenido queda idéntica al original (salvo constantes)
+ * - (c) Encabezado sin etiquetas ni valores duplicados y sin letras sueltas rotas
+ * - (d) Ausencia de términos prohibidos del documento original
  */
 export async function validarDocxClonado(
   originalZip: JSZip,
@@ -707,7 +771,7 @@ export async function validarDocxClonado(
         for (const [tId, esperado] of Object.entries(opciones.conteoEsperadoFilas)) {
           const tElem = buscarTablaPorId(docGenerado, tId);
           if (tElem) {
-            const rows = Array.from(tElem.children).filter(
+            const rows = getElementChildren(tElem).filter(
               (c) => (c.localName || c.nodeName.replace(/^.*:/, '')) === 'tr'
             );
             if (rows.length !== esperado) {
@@ -717,12 +781,34 @@ export async function validarDocxClonado(
         }
       }
 
-      // (b) TEXTO RESIDUAL: ninguna frase de 4 o más palabras del contenido original (salvo etiquetas y membrete)
-      if (opciones?.textosOriginalesContenido && opciones.textosOriginalesContenido.length > 0) {
-        const bodyElem = docGenerado.getElementsByTagNameNS(W_NS, 'body')[0] || docGenerado.querySelector('body');
-        const docTextoGenerado = bodyElem ? getTextoCompleto(bodyElem).toLowerCase() : '';
+      // (b) CELDAS DE CONTENIDO: NINGUNA debe quedar idéntica al texto original (salvo constantes)
+      if (opciones?.celdasContenidoOriginales) {
+        const celdasSinCambiar: string[] = [];
+        for (const [cId, origText] of Object.entries(opciones.celdasContenidoOriginales)) {
+          if (!origText || origText.trim().length < 8) continue;
+          if (opciones.constantesPermitidas?.has(origText.trim())) continue;
 
-        // Palabras de etiquetas/membrete permitidas
+          const tcTarget = buscarCeldaPorId(docGenerado, cId);
+          if (tcTarget) {
+            const genText = getTextoCompleto(tcTarget).trim();
+            if (genText === origText.trim()) {
+              celdasSinCambiar.push(cId);
+              if (celdasSinCambiar.length <= 3) {
+                errores.push(`Celda [${cId}] no fue actualizada (conserva texto del original: "${origText.slice(0, 30)}...").`);
+              }
+            }
+          }
+        }
+        if (celdasSinCambiar.length > 3) {
+          errores.push(`Total de ${celdasSinCambiar.length} celdas de contenido quedaron sin cambiar.`);
+        }
+      }
+
+      // (c) TEXTO RESIDUAL: frases de 4 o más palabras del contenido original
+      const bodyElem = docGenerado.getElementsByTagNameNS(W_NS, 'body')[0] || docGenerado.querySelector('body');
+      const docTextoGenerado = bodyElem ? getTextoCompleto(bodyElem).toLowerCase() : '';
+
+      if (opciones?.textosOriginalesContenido && opciones.textosOriginalesContenido.length > 0) {
         const permitidas = new Set<string>();
         (opciones.membreteYEtiquetas || []).forEach((et) => {
           et.toLowerCase()
@@ -736,6 +822,8 @@ export async function validarDocxClonado(
         const frasesResiduales = new Set<string>();
         for (const origText of opciones.textosOriginalesContenido) {
           if (!origText || origText.trim().length < 15) continue;
+          if (opciones.constantesPermitidas?.has(origText.trim())) continue;
+
           const palabras = origText
             .toLowerCase()
             .replace(/[^\p{L}\p{N}\s]/gu, ' ')
@@ -744,7 +832,6 @@ export async function validarDocxClonado(
 
           for (let i = 0; i <= palabras.length - 4; i++) {
             const cuatroPalabras = palabras.slice(i, i + 4);
-            // Si al menos 2 palabras no son del membrete ni etiqueta fija
             const noPermitidas = cuatroPalabras.filter((p) => !permitidas.has(p));
             if (noPermitidas.length >= 2) {
               const frase = cuatroPalabras.join(' ');
@@ -759,12 +846,24 @@ export async function validarDocxClonado(
 
         if (frasesResiduales.size > 0) {
           errores.push(
-            `Texto residual de ejemplo detectado en el documento: "${Array.from(frasesResiduales).join('", "')}".`
+            `Texto residual detectado en el documento: "${Array.from(frasesResiduales).join('", "')}".`
           );
         }
       }
 
-      // (c) ENCABEZADO SIN ETIQUETAS NI VALORES DUPLICADOS
+      // (d) TÉRMINOS PROHIBIDOS DEL ORIGINAL
+      if (opciones?.terminosProhibidos && opciones.terminosProhibidos.length > 0) {
+        for (const term of opciones.terminosProhibidos) {
+          if (term && term.trim().length > 2) {
+            const regex = new RegExp(`\\b${term.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+            if (regex.test(docTextoGenerado)) {
+              errores.push(`Término prohibido del proyecto original detectado: "${term}".`);
+            }
+          }
+        }
+      }
+
+      // (e) ENCABEZADO SIN ETIQUETAS NI VALORES DUPLICADOS Y SIN LETRAS SUELTAS
       if (opciones?.plantilla?.encabezados) {
         for (const enc of opciones.plantilla.encabezados) {
           const pElem = buscarParrafoPorId(docGenerado, enc.parrafoId);
@@ -772,12 +871,16 @@ export async function validarDocxClonado(
             const pTexto = getTextoCompleto(pElem);
             const etiquetaLimpia = enc.etiqueta.trim();
             if (etiquetaLimpia.length > 2) {
-              // Contar repeticiones literales de la etiqueta en el párrafo
               const regex = new RegExp(etiquetaLimpia.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
               const matches = pTexto.match(regex);
               if (matches && matches.length > 1) {
                 errores.push(`Etiqueta duplicada en encabezado [${enc.parrafoId}]: "${etiquetaLimpia}" aparece ${matches.length} veces.`);
               }
+            }
+
+            // Chequeo de letras sueltas rotas (ej: "D o c e n t e" o "G r a d o")
+            if (/\b([a-zA-ZáéíóúÁÉÍÓÚ]\s+){4,}[a-zA-ZáéíóúÁÉÍÓÚ]\b/.test(pTexto)) {
+              errores.push(`Letras sueltas de etiqueta rota detectadas en el encabezado [${enc.parrafoId}].`);
             }
           }
         }
@@ -795,12 +898,154 @@ export async function validarDocxClonado(
 }
 
 /**
+ * Calcula el informe de cobertura por tabla:
+ * tipo detectado, celdas de contenido, celdas reemplazadas y celdas sin cambio.
+ */
+export function calcularCoberturaTablas(
+  docOriginal: Document,
+  docGenerado: Document,
+  plantilla?: PlantillaDocx
+): CoberturaTabla[] {
+  const mapaOrig = construirMapa(docOriginal);
+  const cobertura: CoberturaTabla[] = [];
+
+  // Mapear constantes que se repiten en 3 o más tablas
+  const textosCeldas = new Map<string, number>();
+  mapaOrig.tablas.forEach((t) => {
+    t.filas.forEach((f) => {
+      f.celdas.forEach((c) => {
+        const txt = c.rawText.trim();
+        if (txt.length > 15) {
+          textosCeldas.set(txt, (textosCeldas.get(txt) || 0) + 1);
+        }
+      });
+    });
+  });
+
+  const esConstante = (txt: string) => {
+    const t = txt.trim().toLowerCase();
+    if (
+      t.includes('ejes integradores') ||
+      t.includes('intencionalidades curriculares') ||
+      t.includes('pilares de la educaci') ||
+      t.includes('perfil del egresado')
+    ) {
+      return true;
+    }
+    return (textosCeldas.get(txt.trim()) || 0) >= 3;
+  };
+
+  const esEtiqueta = (txt: string) => {
+    const t = txt.trim().toUpperCase();
+    if (t.endsWith(':') && t.length < 35) return true;
+    const conocidas = [
+      'ÁREA DE FORMACIÓN',
+      'AREA DE FORMACION',
+      'COMPONENTE',
+      'APRENDIZAJE A SER ALCANZADO',
+      'CONTENIDOS',
+      'REFERENTES TEÓRICOS',
+      'ACTIVIDADES',
+      'ESTRATEGIAS',
+      'INDICADORES',
+      'TÉCNICA',
+      'INSTRUMENTO',
+      'FECHA',
+      'RECURSOS',
+      'SEMANA',
+      'DÍA',
+      'MOMENTO',
+      'PROPÓSITO',
+    ];
+    return conocidas.some((c) => t === c || t.startsWith(c + ':'));
+  };
+
+  mapaOrig.tablas.forEach((tOrig) => {
+    const tId = tOrig.id;
+    const tblInfo = plantilla?.tablas.find((t) => t.id === tId);
+    let tipoDetectado = tblInfo?.tipo || 'general';
+
+    if (tipoDetectado === 'general') {
+      const fullTxt = tOrig.filas
+        .map((f) => f.celdas.map((c) => c.rawText).join(' '))
+        .join(' ')
+        .toLowerCase();
+      if (fullTxt.includes('cronograma') || fullTxt.includes('semana 1') || fullTxt.includes('semanas')) {
+        tipoDetectado = 'cronograma';
+      } else if (fullTxt.includes('evaluación') || fullTxt.includes('indicador') || fullTxt.includes('instrumento')) {
+        tipoDetectado = 'plan_evaluacion';
+      } else if (fullTxt.includes('estrategias') || fullTxt.includes('construcción')) {
+        tipoDetectado = 'construccion_estrategias';
+      } else if (fullTxt.includes('ficha') || fullTxt.includes('componente') || fullTxt.includes('aprendizaje a ser')) {
+        tipoDetectado = 'ficha_area';
+      }
+    }
+
+    let totalCeldas = 0;
+    let celdasContenido = 0;
+    let celdasReemplazadas = 0;
+    let celdasSinCambio = 0;
+
+    const tblGen = buscarTablaPorId(docGenerado, tId);
+
+    tOrig.filas.forEach((fOrig, rIdx) => {
+      if (fOrig.isHeader || (rIdx === 0 && tipoDetectado !== 'general')) return;
+
+      fOrig.celdas.forEach((cOrig, cIdx) => {
+        totalCeldas++;
+        const txtOrig = cOrig.rawText.trim();
+        if (txtOrig.length === 0) return;
+
+        if (esConstante(txtOrig) || esEtiqueta(txtOrig)) {
+          return;
+        }
+
+        celdasContenido++;
+
+        let txtGen = '';
+        if (tblGen) {
+          const genTrs = getElementChildren(tblGen).filter(
+            (c) => (c.localName || c.nodeName.replace(/^.*:/, '')) === 'tr'
+          );
+          if (genTrs[rIdx]) {
+            const genTcs = getElementChildren(genTrs[rIdx]).filter(
+              (c) => (c.localName || c.nodeName.replace(/^.*:/, '')) === 'tc'
+            );
+            if (genTcs[cIdx]) {
+              txtGen = getTextoCompleto(genTcs[cIdx]).trim();
+            }
+          }
+        }
+
+        if (txtGen !== txtOrig) {
+          celdasReemplazadas++;
+        } else {
+          celdasSinCambio++;
+        }
+      });
+    });
+
+    cobertura.push({
+      id: tId,
+      titulo: tblInfo?.titulo || `Tabla ${tId}`,
+      tipoDetectado,
+      totalCeldas,
+      celdasContenido,
+      celdasReemplazadas,
+      celdasSinCambio,
+    });
+  });
+
+  return cobertura;
+}
+
+/**
  * Prueba de ida y vuelta obligatoria (Roundtrip test)
  * Carga un DOCX, extrae el mapa, guarda sin alteraciones y verifica paridad exacta
  */
 export async function ejecutarPruebaIdaYVuelta(
   file: File | Blob | ArrayBuffer
-): Promise<{ exito: boolean; detalles: string; stats: any }> {
+): Promise<{ exito: boolean; detalles: string; stats: any; coberturaTablas?: CoberturaTabla[] }> {
   try {
     const { zip: origZip, doc, xmlString: origXml } = await cargarDocx(file);
     const mapa = construirMapa(doc);
@@ -835,12 +1080,16 @@ export async function ejecutarPruebaIdaYVuelta(
       ? `Prueba de Ida y Vuelta EXITOSA: ${stats.tablasOriginales} tablas, ${stats.parrafosOriginales} párrafos y ${stats.archivosMediaOriginales} imágenes conservadas sin corrupción.`
       : `Discrepancia detectada en la prueba: Párrafos (${stats.parrafosOriginales} vs ${stats.parrafosGenerados}), Tablas (${stats.tablasOriginales} vs ${stats.tablasGeneradas}).`;
 
-    return { exito, detalles, stats };
+    const coberturaTablas = calcularCoberturaTablas(doc, newDoc);
+
+    return { exito, detalles, stats, coberturaTablas };
   } catch (err: any) {
     return {
       exito: false,
       detalles: 'Fallo catastrófico en la prueba de ida y vuelta: ' + (err?.message || String(err)),
       stats: null,
+      coberturaTablas: [],
     };
   }
 }
+

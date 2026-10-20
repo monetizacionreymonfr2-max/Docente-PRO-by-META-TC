@@ -16,6 +16,8 @@ import {
   Eye,
   Layers,
   ShieldCheck,
+  Cpu,
+  ChevronDown,
 } from 'lucide-react';
 import { FormatoDocente, SeccionGenerada } from '../../types/formato';
 import { FormatoService } from '../../lib/formatoService';
@@ -533,6 +535,68 @@ export default function GenerarConFormatoModal({
                 </button>
               </div>
             </div>
+
+            {/* Panel Plegable: Detalles Técnicos */}
+            {clonedResult && (
+              <details className="group rounded-2xl border border-white/10 bg-white/5 p-3 text-xs text-slate-300 transition-all shrink-0">
+                <summary className="flex cursor-pointer items-center justify-between font-bold text-slate-200 hover:text-white select-none">
+                  <span className="flex items-center gap-2">
+                    <Cpu size={15} className="text-cyan-400" />
+                    <span>Detalles técnicos y cobertura de tablas</span>
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                      clonedResult.exito && !fallbackNotice
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
+                        : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
+                    }`}>
+                      {clonedResult.exito && !fallbackNotice ? 'Validación 100% Exitosa' : 'Modo Estándar'}
+                    </span>
+                  </span>
+                  <ChevronDown size={14} className="text-slate-400 group-open:rotate-180 transition-transform" />
+                </summary>
+
+                <div className="mt-3 pt-3 border-t border-white/10 space-y-3">
+                  {clonedResult.coberturaTablas && clonedResult.coberturaTablas.length > 0 ? (
+                    <div className="overflow-x-auto rounded-xl border border-white/10 bg-black/40">
+                      <table className="w-full text-left text-[11px]">
+                        <thead className="bg-white/5 text-slate-300 border-b border-white/10 font-mono">
+                          <tr>
+                            <th className="p-2">Tabla</th>
+                            <th className="p-2">Tipo Detectado</th>
+                            <th className="p-2 text-center">Celdas Contenido</th>
+                            <th className="p-2 text-center">Reemplazadas</th>
+                            <th className="p-2 text-center">Sin Cambio</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-white/5 font-mono">
+                          {clonedResult.coberturaTablas.map((c) => (
+                            <tr key={c.id} className="hover:bg-white/5">
+                              <td className="p-2 font-bold text-white">{c.id} ({c.titulo || 'Tabla'})</td>
+                              <td className="p-2 text-cyan-300 capitalize">{c.tipoDetectado.replace('_', ' ')}</td>
+                              <td className="p-2 text-center text-slate-200">{c.celdasContenido}</td>
+                              <td className="p-2 text-center text-emerald-400 font-bold">{c.celdasReemplazadas}</td>
+                              <td className="p-2 text-center text-amber-300">{c.celdasSinCambio}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400">Sin desglose tabular disponible.</p>
+                  )}
+
+                  {clonedResult.detallesValidacion && clonedResult.detallesValidacion.length > 0 && (
+                    <div className="p-2.5 rounded-xl bg-black/30 border border-white/10 space-y-1 text-[11px]">
+                      <span className="font-bold text-slate-300 block">Registro de validación:</span>
+                      <ul className="list-disc pl-4 space-y-0.5 text-slate-400">
+                        {clonedResult.detallesValidacion.map((d, dIdx) => (
+                          <li key={dIdx}>{d}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </details>
+            )}
 
             {/* View Mode Switcher if Cloned DOCX is Available */}
             {clonedBlob && (

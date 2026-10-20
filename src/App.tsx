@@ -16,6 +16,7 @@ import EducacionEspecial from './pages/EducacionEspecial';
 import AdminPanel from './pages/AdminPanel';
 import Camila from './pages/Camila';
 import MiFormato from './pages/MiFormato';
+import CamilaFormato from './pages/CamilaFormato';
 import { puedeVerMiFormato } from './config/features';
 import ActivationModal from './components/ActivationModal';
 import ResetPasswordModal from './components/ResetPasswordModal';
@@ -299,6 +300,7 @@ export default function App() {
           <Route path="educacion-especial" element={<Navigate to="/especial" replace />} />
           <Route path="camila" element={<Camila />} />
           <Route path="mi-formato" element={puedeVerMiFormato(isAdmin) ? <MiFormato /> : <Navigate to="/home" replace />} />
+          <Route path="camila-formato" element={puedeVerMiFormato(isAdmin) ? <CamilaFormato /> : <Navigate to="/home" replace />} />
           {isAdmin && <Route path="admin" element={<AdminPanel />} />}
         </Route>
       </Routes>

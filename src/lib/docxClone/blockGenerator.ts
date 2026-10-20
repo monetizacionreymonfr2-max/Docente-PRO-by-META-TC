@@ -65,30 +65,56 @@ function obtenerCurriculoOficial(gradoStr: string, areaName: string): string {
   return resumen;
 }
 
+export interface ContextoProyectoBloque {
+  tema: string;
+  gradoSeccion: string;
+  docente?: string;
+  institucion?: string;
+  duracion?: string;
+  diagnosticoGenerado?: string;
+  finalidadGenerada?: string;
+  instruccionesExtra?: string;
+  areasActivas: string[];
+  areasExcluidas: string[];
+}
+
+/**
+ * Prompt base de coherencia temática obligatoria para TODOS los bloques
+ */
+function construirEncabezadoCoherencia(ctx: ContextoProyectoBloque): string {
+  return `--- CONTEXTO PEDAGÓGICO INTEGRAL DEL PROYECTO ---
+• TÍTULO DEL PROYECTO: "${ctx.tema}"
+• GRADO Y SECCIÓN: "${ctx.gradoSeccion}" (Docente: ${ctx.docente || 'Docente'} | Escuela: ${ctx.institucion || 'Institución'} | MPPE 2026-2027)
+${ctx.diagnosticoGenerado ? `• DIAGNÓSTICO PEDAGÓGICO DE BASE:\n${ctx.diagnosticoGenerado}\n` : ''}
+${ctx.finalidadGenerada ? `• FINALIDAD INSTITUCIONAL DEL PROYECTO:\n${ctx.finalidadGenerada}\n` : ''}
+• ÁREAS DE FORMACIÓN ACTIVAS: ${ctx.areasActivas.join(', ')}
+${ctx.areasExcluidas.length > 0 ? `• ÁREAS EXCLUIDAS (PROHIBIDO TOTALMENTE GENERAR CONTENIDO PARA ESTAS ÁREAS): ${ctx.areasExcluidas.join(', ')}` : ''}
+${ctx.instruccionesExtra ? `• INSTRUCCIONES ESPECIALES DEL DOCENTE: "${ctx.instruccionesExtra}"` : ''}
+
+REGLA DE COHERENCIA OBLIGATORIA:
+El nombre del proyecto es simbólico; no lo interpretes literalmente (por ejemplo 'Gotitas de Amor' no trata del agua). Basa todo en el diagnóstico y la finalidad indicados arriba. NO inventes contenidos de ciencias naturales o agua a menos que el diagnóstico explícitamente lo pida.`;
+}
+
 /**
  * Bloque 1: Generación de textos libres (Diagnóstico pedagógico, Finalidad del PA, Justificación)
  */
 export async function generarTextosLibres(
   plantilla: PlantillaDocx,
-  datos: DatosDocenteProyecto
+  datos: DatosDocenteProyecto,
+  ctx: ContextoProyectoBloque
 ): Promise<Record<string, string[]>> {
-  if (plantilla.celdasTextoLibre.length === 0) return {};
-
   const targets = plantilla.celdasTextoLibre.map((tl) => ({
     id: tl.id,
     tipo: tl.tipo,
     ejemploReferencia: tl.textoOriginal.slice(0, 300),
   }));
 
-  const prompt = `Redacta el contenido pedagógico formal para las siguientes secciones de texto libre del Proyecto de Aprendizaje (PA) de Venezuela MPPE 2026-2027:
-- TÍTULO DEL PA: ${datos.nombrePa || datos.tema}
-- GRADO Y SECCIÓN: ${datos.gradoSeccion} (${datos.nivel})
-- DIAGNÓSTICO DOCENTE PROVISTO: ${datos.diagnostico || 'Grupo dinámico con motivación constructiva hacia el aprendizaje.'}
-- PROYECTO PEIC INSTITUCIONAL: ${datos.peic || 'Educación integral y soberanía productiva'}
-${datos.instruccionesExtra ? `- INSTRUCCIONES EXTRA: ${datos.instruccionesExtra}` : ''}
+  const prompt = `${construirEncabezadoCoherencia(ctx)}
 
 SECCIONES A REDACTAR (Usa el ejemplo como referencia de estilo, extensión y formalidad; iguálalo o supéralo):
-${JSON.stringify(targets, null, 2)}`;
+${JSON.stringify(targets, null, 2)}
+
+Redacta párrafos formales, detallados y completos (mínimo 2-3 párrafos sustanciales para Diagnóstico y 2 párrafos para Finalidad) adaptados a ${ctx.gradoSeccion}.`;
 
   const schema = {
     type: Type.OBJECT,
@@ -112,7 +138,7 @@ ${JSON.stringify(targets, null, 2)}`;
     model: GEMINI_FORMATO_MODEL,
     contents: prompt,
     config: {
-      systemInstruction: 'Eres Camila, redactora curricular experta del MPPE 2026-2027. Redacta párrafos pedagógicos formales y completos sin resumir.',
+      systemInstruction: 'Eres Camila, redactora curricular experta del MPPE 2026-2027. Redacta diagnósticos pedagógicos y finalidades institucionales formales, completas y extensas sin resumir.',
       responseMimeType: 'application/json',
       responseSchema: schema,
     },
@@ -136,18 +162,16 @@ export async function generarTablaArea(
   tabla: PlantillaTablaInfo,
   areaName: string,
   datos: DatosDocenteProyecto,
-  ejemploFilas: string
+  ejemploFilas: string,
+  ctx: ContextoProyectoBloque
 ): Promise<{ celdasActualizadas: Record<string, string[]>; filasNuevas?: Array<{ celdas: string[] }> }> {
   const curricularInfo = obtenerCurriculoOficial(datos.gradoSeccion, areaName);
 
-  const prompt = `Genera el contenido pedagógico para la tabla de planificación del ÁREA: ${areaName}.
-LINEAMIENTOS MPPE 2026-2027 (Obligatorio extraer componentes, temas y aprendizajes de aquí):
-${curricularInfo}
+  const prompt = `${construirEncabezadoCoherencia(ctx)}
 
-DATOS DEL PROYECTO:
-- PA: ${datos.nombrePa || datos.tema}
-- Grado y Sección: ${datosDocenteInfo(datos)}
-${datos.instruccionesExtra ? `- INSTRUCCIONES ESPECIALES: ${datos.instruccionesExtra}` : ''}
+ÁREA A PLANIFICAR: ${areaName}
+CURRÍCULO OFICIAL MPPE (${ctx.gradoSeccion}):
+${curricularInfo}
 
 COLUMNAS DE LA TABLA:
 ${JSON.stringify(tabla.columnas)}
@@ -155,8 +179,10 @@ ${JSON.stringify(tabla.columnas)}
 CELDAS A LLENAR (IDs exactos):
 ${JSON.stringify(tabla.celdasContenidoIds)}
 
-EJEMPLO QUE TRAÍA EL WORD ORIGINAL (Guía de longitud y profundidad pedagógica, igualar o superar):
-${ejemploFilas.slice(0, 800)}`;
+EJEMPLO QUE TRAÍA EL WORD ORIGINAL (Guía de longitud y profundidad pedagógica):
+${ejemploFilas.slice(0, 700)}
+
+Genera contenido pedagógico concreto para CADA celda requerida, completamente articulado con el diagnóstico y la finalidad.`;
 
   const schema = {
     type: Type.OBJECT,
@@ -172,6 +198,16 @@ ${ejemploFilas.slice(0, 800)}`;
           required: ['id', 'lineas'],
         },
       },
+      filasNuevas: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            celdas: { type: Type.ARRAY, items: { type: Type.STRING } },
+          },
+          required: ['celdas'],
+        },
+      },
     },
     required: ['celdas'],
   };
@@ -180,7 +216,7 @@ ${ejemploFilas.slice(0, 800)}`;
     model: GEMINI_FORMATO_MODEL,
     contents: prompt,
     config: {
-      systemInstruction: 'Eres Camila de Docenty PRO. Genera contenido para cada celda de la tabla de área respetando el currículo MPPE.',
+      systemInstruction: 'Eres Camila de Docenty PRO. Genera contenido curricular para cada celda de la tabla de área respetando el currículo MPPE y la coherencia del proyecto.',
       responseMimeType: 'application/json',
       responseSchema: schema,
     },
@@ -194,7 +230,14 @@ ${ejemploFilas.slice(0, 800)}`;
     });
   }
 
-  return { celdasActualizadas };
+  const filasNuevas: Array<{ celdas: string[] }> = [];
+  if (Array.isArray(parsed.filasNuevas)) {
+    parsed.filasNuevas.forEach((f: any) => {
+      if (Array.isArray(f.celdas)) filasNuevas.push({ celdas: f.celdas });
+    });
+  }
+
+  return { celdasActualizadas, filasNuevas: filasNuevas.length > 0 ? filasNuevas : undefined };
 }
 
 /**
@@ -203,18 +246,22 @@ ${ejemploFilas.slice(0, 800)}`;
 export async function generarCronograma(
   tabla: PlantillaTablaInfo,
   datos: DatosDocenteProyecto,
-  ejemploFilas: string
+  ejemploFilas: string,
+  ctx: ContextoProyectoBloque
 ): Promise<{ filas: Array<{ celdas: string[] }> }> {
   const numSemanas = datos.duracion.includes('6') ? 6 : datos.duracion.includes('8') ? 8 : 4;
 
-  const prompt = `Genera un CRONOGRAMA SEMANAL pedagógico de ${numSemanas} semanas para el Proyecto de Aprendizaje: "${datos.nombrePa || datos.tema}".
+  const prompt = `${construirEncabezadoCoherencia(ctx)}
+
+Genera un CRONOGRAMA SEMANAL pedagógico de exactamente ${numSemanas} semanas para el Proyecto: "${ctx.tema}".
 COLUMNAS DE LA TABLA DE CRONOGRAMA:
 ${JSON.stringify(tabla.columnas)}
 
 EJEMPLO QUE TRAÍA EL WORD ORIGINAL:
 ${ejemploFilas.slice(0, 500)}
 
-Genera exactamente ${numSemanas} filas (una por cada semana: Semana 1, Semana 2, etc.) con actividades y propósitos secuenciales.`;
+Genera exactamente ${numSemanas} filas secuenciales (Semana 1, Semana 2, Semana 3, Semana 4...).
+Las actividades deben desarrollar la lectura, escritura y convivencia del diagnóstico, NUNCA temas ajenos como el agua.`;
 
   const schema = {
     type: Type.OBJECT,
@@ -237,7 +284,7 @@ Genera exactamente ${numSemanas} filas (una por cada semana: Semana 1, Semana 2,
     model: GEMINI_FORMATO_MODEL,
     contents: prompt,
     config: {
-      systemInstruction: 'Eres Camila. Genera las filas del cronograma semanal escolar con actividades detalladas.',
+      systemInstruction: 'Eres Camila. Genera las filas del cronograma semanal escolar respetando la coherencia pedagógica con el diagnóstico.',
       responseMimeType: 'application/json',
       responseSchema: schema,
     },
@@ -262,17 +309,26 @@ Genera exactamente ${numSemanas} filas (una por cada semana: Semana 1, Semana 2,
 export async function generarPlanEvaluacion(
   tabla: PlantillaTablaInfo,
   datos: DatosDocenteProyecto,
-  ejemploFilas: string
+  ejemploFilas: string,
+  ctx: ContextoProyectoBloque
 ): Promise<{ filas: Array<{ celdas: string[] }> }> {
-  const prompt = `Genera las filas del PLAN DE EVALUACIÓN del Proyecto de Aprendizaje: "${datos.nombrePa || datos.tema}".
+  // Solo incluir las áreas que estén activas (excluir matemáticas si el usuario pidió sin matemáticas)
+  const areasParaEvaluacion = ctx.areasActivas;
+
+  const prompt = `${construirEncabezadoCoherencia(ctx)}
+
+Genera las filas del PLAN DE EVALUACIÓN del Proyecto de Aprendizaje: "${ctx.tema}".
 COLUMNAS DEL PLAN DE EVALUACIÓN:
 ${JSON.stringify(tabla.columnas)}
 
 EJEMPLO ORIGINAL:
 ${ejemploFilas.slice(0, 500)}
 
-Genera una fila por cada una de las 4 áreas académicas oficiales del MPPE (Lenguaje, Matemáticas, Ciencias Naturales e Identidad/Ciencias Sociales) más una fila final transversal socio-productiva.
-Incluye: Indicadores de logro precisos, Técnicas (observación, análisis de producción) e Instrumentos (escala de estimación, registro descriptivo).`;
+Genera exactamente UNA fila por cada una de las siguientes áreas activas:
+${areasParaEvaluacion.map((a, i) => `${i + 1}. ${a}`).join('\n')}
+${ctx.areasExcluidas.length > 0 ? `RECUERDA: NO incluyas ninguna fila para las áreas excluidas: ${ctx.areasExcluidas.join(', ')}.` : ''}
+
+Cada fila debe contener: Área, Indicadores de logro precisos de ${ctx.gradoSeccion}, Técnicas e Instrumentos de evaluación formativa acordes a la finalidad del proyecto.`;
 
   const schema = {
     type: Type.OBJECT,
@@ -295,7 +351,7 @@ Incluye: Indicadores de logro precisos, Técnicas (observación, análisis de pr
     model: GEMINI_FORMATO_MODEL,
     contents: prompt,
     config: {
-      systemInstruction: 'Eres Camila. Genera las filas de evaluación formativa del MPPE.',
+      systemInstruction: 'Eres Camila. Genera las filas de evaluación formativa del MPPE articuladas con el diagnóstico.',
       responseMimeType: 'application/json',
       responseSchema: schema,
     },
@@ -312,8 +368,4 @@ Incluye: Indicadores de logro precisos, Técnicas (observación, análisis de pr
   }
 
   return { filas };
-}
-
-function datosDocenteInfo(datos: DatosDocenteProyecto): string {
-  return `${datos.gradoSeccion} | Docente: ${datos.docente || 'Docente'} | Escuela: ${datos.institucion || 'Institución'} | Año: 2026-2027`;
 }
