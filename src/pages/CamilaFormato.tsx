@@ -446,7 +446,7 @@ export default function CamilaFormato() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] max-w-7xl mx-auto p-2 sm:p-4 gap-3">
+    <div className="flex flex-col h-[calc(100dvh-5.2rem)] md:h-[calc(100vh-2rem)] max-w-7xl mx-auto p-1 sm:p-3 gap-2 sm:gap-3">
       {/* HEADER BAR */}
       <header className="flex flex-wrap items-center justify-between gap-2.5 p-3 sm:p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md shrink-0">
         <div className="flex items-center gap-3">
@@ -734,13 +734,13 @@ export default function CamilaFormato() {
           )}
 
           {/* INPUT BAR */}
-          <div className="p-2 sm:p-3 bg-slate-900 border-t border-white/10 flex items-end gap-2 shrink-0">
+          <div className="p-2 sm:p-3 bg-slate-900 border-t border-white/10 flex items-end gap-2 shrink-0 z-20">
             {/* Botón Adjuntar Archivo */}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isProcessing}
-              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all shrink-0 disabled:opacity-50"
+              className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all shrink-0 disabled:opacity-50 flex items-center justify-center cursor-pointer active:scale-95"
               title="Adjuntar Word, PDF o imagen"
             >
               <Paperclip size={18} />
@@ -762,7 +762,7 @@ export default function CamilaFormato() {
               type="button"
               onClick={() => cameraInputRef.current?.click()}
               disabled={isProcessing}
-              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all shrink-0 disabled:opacity-50 sm:hidden"
+              className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all shrink-0 disabled:opacity-50 sm:hidden flex items-center justify-center cursor-pointer active:scale-95"
               title="Tomar foto con cámara"
             >
               <Camera size={18} />
@@ -796,7 +796,7 @@ export default function CamilaFormato() {
                   : 'Primero selecciona un formato con "Mis Formatos" o adjunta tu Word...'
               }
               rows={1}
-              className="flex-1 bg-white/5 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400/50 resize-none max-h-24"
+              className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400/50 resize-none max-h-24"
             />
 
             {/* Botón Enviar */}
@@ -804,7 +804,7 @@ export default function CamilaFormato() {
               type="button"
               onClick={() => handleEnviarMensaje()}
               disabled={isProcessing || (!inputTexto.trim() && adjuntos.length === 0)}
-              className="p-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white shadow-md shadow-cyan-500/20 disabled:opacity-40 transition-all shrink-0"
+              className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white shadow-lg shadow-cyan-500/30 disabled:opacity-40 transition-all shrink-0 flex items-center justify-center cursor-pointer active:scale-95 z-30"
               title="Enviar mensaje"
             >
               {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}

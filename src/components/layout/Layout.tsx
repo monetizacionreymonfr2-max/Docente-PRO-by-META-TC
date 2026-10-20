@@ -270,14 +270,14 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
       {/* Main Content */}
       <main className="flex-1 overflow-y-auto bg-transparent pt-16 md:pt-0">
         <AccessProtection accessLevel={accessLevel} codeId={codeId}>
-          <div className="p-4 md:p-8 max-w-7xl mx-auto">
+          <div className={location.pathname === '/camila-formato' ? "p-1 sm:p-4 max-w-7xl mx-auto" : "p-4 md:p-8 max-w-7xl mx-auto"}>
             <Outlet context={{ isGuest, generationsCount, teacherId, isAdmin }} />
           </div>
         </AccessProtection>
       </main>
 
       {/* Floating Camila Widget */}
-      {location.pathname !== '/camila' && (
+      {!location.pathname.startsWith('/camila') && (
         <div className="no-print">
           <button
             onClick={() => setIsCamilaWidgetOpen(!isCamilaWidgetOpen)}
