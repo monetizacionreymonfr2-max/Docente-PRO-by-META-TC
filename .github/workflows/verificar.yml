@@ -1,0 +1,32 @@
+name: Verificar DOCENTY PRO
+
+on:
+  push:
+    branches:
+      - seguridad-gemini-20261025
+  workflow_dispatch:
+
+jobs:
+  verificar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Descargar codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci --no-audit --no-fund
+
+      - name: Verificar TypeScript
+        run: npm run lint
+
+      - name: Compilar proyecto
+        run: npm run build
