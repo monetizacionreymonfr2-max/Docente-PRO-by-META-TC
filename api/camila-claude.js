@@ -8,9 +8,9 @@ export default async function handler(req, res) {
   const anon=process.env.SUPABASE_ANON_KEY;
   if (!key || !url || !anon) return res.status(503).json({error:'Servicio no configurado'});
   const bearer=req.headers.authorization || '';
-  if (!/^Bearer [^ ]+$/.test(bearer)) return res.status(401).json({error:'Autenticación requerida'});
+    if (!bearer.startsWith('Bearer ') || bearer.slice(7).trim().length === 0) return res.status(401).json({error:'Autenticación requerida'});
   try {
-    const auth=await fetch(`${url.replace(/\\/$/,'')}/auth/v1/user`,{headers:{apikey:anon,Authorization:bearer},signal:AbortSignal.timeout(8000)});
+    const auth=await fetch(`${url.endsWith('/') ? url.slice(0,-1) : url}/auth/v1/user`,{headers:{apikey:anon,Authorization:bearer},signal:AbortSignal.timeout(8000)});
     if (!auth.ok) return res.status(401).json({error:'Sesión inválida'});
     const user=await auth.json();
     if (!user.id) return res.status(401).json({error:'Sesión inválida'});
