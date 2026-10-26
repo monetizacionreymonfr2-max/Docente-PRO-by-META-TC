@@ -11,7 +11,10 @@ export default async function handler(req, res) {
     if (!bearer.startsWith('Bearer ') || bearer.slice(7).trim().length === 0) return res.status(401).json({error:'Autenticación requerida'});
   try {
     const auth=await fetch(`${url.endsWith('/') ? url.slice(0,-1) : url}/auth/v1/user`,{headers:{apikey:anon,Authorization:bearer},signal:AbortSignal.timeout(8000)});
-    if (!auth.ok) return res.status(401).json({error:'Sesión inválida'});
+    if (!auth.ok) {
+  console.error('[Camila Claude] Supabase auth HTTP:', auth.status);
+  return res.status(401).json({error:'Sesión inválida'});
+}
     const user=await auth.json();
     if (!user.id) return res.status(401).json({error:'Sesión inválida'});
     const messages=req.body?.messages;
