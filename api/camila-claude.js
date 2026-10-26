@@ -13,6 +13,9 @@ export default async function handler(req, res) {
     const auth=await fetch(`${url.endsWith('/') ? url.slice(0,-1) : url}/auth/v1/user`,{headers:{apikey:anon,Authorization:bearer},signal:AbortSignal.timeout(8000)});
     if (!auth.ok) {
   console.error('[Camila Claude] Supabase auth HTTP:', auth.status);
+      const detalle = await auth.json().catch(() => ({}));
+      console.error('[Camila Claude] Supabase error code:',
+        typeof detalle.code === 'string' ? detalle.code : 'sin_codigo');
   return res.status(401).json({error:'Sesión inválida'});
 }
     const user=await auth.json();
