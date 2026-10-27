@@ -14,6 +14,23 @@ export default async function handler(req, res) {
     if (!auth.ok) {
   console.error('[Camila Claude] Supabase auth HTTP:', auth.status);
       const detalle = await auth.json().catch(() => ({}));
+
+      const mensaje = [
+        detalle.message, detalle.msg,
+        detalle.error, detalle.error_description
+      ].filter(x => typeof x === 'string')
+       .join(' ').toLowerCase();
+
+      const categoria =
+        mensaje.includes('invalid api key') ? 'CLAVE_API_INVALIDA' :
+        mensaje.includes('expired') ? 'TOKEN_EXPIRADO' :
+        mensaje.includes('invalid jwt') ? 'JWT_INVALIDO' :
+        mensaje.includes('invalid token') ? 'TOKEN_INVALIDO' :
+        mensaje.includes('missing sub') ? 'JWT_SIN_USUARIO' :
+        'NO_IDENTIFICADO';
+
+      console.error('[Camila Claude] Categoria auth:', categoria);
+
       console.error('[Camila Claude] Supabase error code:',
         typeof detalle.code === 'string' ? detalle.code : 'sin_codigo');
   return res.status(401).json({error:'Sesión inválida'});
