@@ -128,6 +128,16 @@ test('Camila Formato usa Claude con salida JSON estructurada sin ejecutar operac
   assert.equal(requestBody.model, 'claude-sonnet-5-5');
   assert.equal(requestBody.output_config.format.type, 'json_schema');
   assert.equal(requestBody.output_config.format.schema.additionalProperties, false);
+  const variants = requestBody.output_config.format.schema.properties.operaciones.items.anyOf;
+  const operation = (type) => variants.find((variant) => variant.properties.tipo.const === type);
+  assert.equal(variants.length, 10);
+  assert.deepEqual(operation('set_celda').required, ['tipo', 'id', 'lineas']);
+  assert.equal(operation('set_celda').properties.lineas.minItems, 1);
+  assert.deepEqual(operation('set_parrafo').required, ['tipo', 'id', 'texto']);
+  assert.deepEqual(operation('set_encabezado').required, ['tipo', 'etiqueta', 'valor']);
+  assert.deepEqual(operation('reemplazar_filas').required, ['tipo', 'tablaId', 'filas']);
+  assert.deepEqual(operation('eliminar_filas').required, ['tipo', 'ids']);
+  assert.equal(variants.every((variant) => variant.additionalProperties === false), true);
   assert.equal(requestBody.max_tokens, 8192);
   assert.match(requestBody.system, /No asegure que el documento quedó completo/);
 });
