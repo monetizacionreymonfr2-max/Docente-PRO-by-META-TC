@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useOutletContext, useLocation, Link } from 'react-router-dom';
+import ReactMarkdown from 'react-markdown';
 import {
   Send,
   Loader2,
@@ -587,7 +588,7 @@ export default function CamilaFormato() {
       setTabActiva('chat');
       setMensajes((prev) => [...prev, {
         id: `msg-${Date.now()}`, emisor: 'camila',
-        texto: `Cambios aplicados con su autorización.\n\n${resultado.respuestaCamila}`,
+        texto: `Cambios aplicados con su autorización: ${resultado.operacionesEjecutadas.length} modificación(es) en el documento Word. Puede revisar el resultado, utilizar Deshacer durante esta sesión o descargar la nueva versión cuando esté conforme.`,
         operacionesEjecutadas: resultado.operacionesEjecutadas,
         operacionesOmitidas: resultado.operacionesOmitidas,
         fecha: new Date(), revision: resultado.revision,
@@ -803,7 +804,9 @@ export default function CamilaFormato() {
                   }`}
                 >
                   {/* Texto principal */}
-                  <div className="whitespace-pre-wrap">{m.texto}</div>
+                  <div className="break-words [&_p]:mb-2 [&_p:last-child]:mb-0 [&_strong]:font-bold [&_strong]:text-white [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2 [&_li]:my-1 [&_a]:text-cyan-200 [&_a]:underline">
+                    <ReactMarkdown>{m.texto}</ReactMarkdown>
+                  </div>
 
                   {m.emisor === 'camila' && (
                     <button
