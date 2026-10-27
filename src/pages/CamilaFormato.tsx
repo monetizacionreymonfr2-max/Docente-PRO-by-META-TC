@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useOutletContext, Link } from 'react-router-dom';
+import { useOutletContext, useLocation, Link } from 'react-router-dom';
 import {
   Send,
   Loader2,
@@ -26,7 +26,6 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import CamilaClaudeChat from "../components/camila/CamilaClaudeChat";
 import DocxPreviewViewer from '../components/formato/DocxPreviewViewer';
 import { FormatoService, fileToBase64 } from '../lib/formatoService';
 import { SupabaseService } from '../lib/supabaseService';
@@ -52,9 +51,11 @@ import {
 
 export default function CamilaFormato() {
   const { teacherId, isAdmin } = useOutletContext<{ teacherId: string; isAdmin?: boolean }>();
+  const location = useLocation();
+  const formatoPendienteId = (location.state as { formatoId?: string } | null)?.formatoId;
+  const formatoAbiertoAutomaticamente = useRef<string | null>(null);
 
   // Navegación de pestañas en móvil / tablet
-  const [claudeVisible, setClaudeVisible] = useState(false);
   const [tabActiva, setTabActiva] = useState<'chat' | 'documento'>('chat');
 
   // Estado del documento vivo
@@ -207,6 +208,15 @@ export default function CamilaFormato() {
       setProgresoDetalle(null);
     }
   };
+
+  // Acceso directo desde la tarjeta de Word en Mi Formato.
+  useEffect(() => {
+    if (!formatoPendienteId || formatoAbiertoAutomaticamente.current === formatoPendienteId) return;
+    const seleccionado = formatosGuardados.find((f) => f.id === formatoPendienteId);
+    if (!seleccionado) return;
+    formatoAbiertoAutomaticamente.current = formatoPendienteId;
+    void cargarFormatoEnSesion(seleccionado);
+  }, [formatoPendienteId, formatosGuardados]);
 
   // Manejador de subida de archivo desde el input
   const handleFileUpload = async (file: File) => {
@@ -448,19 +458,6 @@ export default function CamilaFormato() {
   };
 
   return (
-    <div className="flex flex-col h-full min-h-0">
-      <div className="flex justify-end p-2">
-        <button
-          type="button"
-          onClick={() => setClaudeVisible(v => !v)}
-          className="rounded-xl bg-cyan-700 px-4 py-2 text-xs font-semibold text-white"
-        >
-          {claudeVisible ? 'Volver a Camila Formato' : 'Probar conversación con Claude'}
-        </button>
-      </div>
-      {claudeVisible ? (
-        <CamilaClaudeChat />
-      ) : (
     <div className="flex flex-col h-[calc(100dvh-5.2rem)] md:h-[calc(100vh-2rem)] max-w-7xl mx-auto p-1 sm:p-3 gap-2 sm:gap-3">
       {/* HEADER BAR */}
       <header className="flex flex-wrap items-center justify-between gap-2.5 p-3 sm:p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md shrink-0">
@@ -470,7 +467,7 @@ export default function CamilaFormato() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-black text-white tracking-tight">Camila Formato</h1>
+              <h1 className="text-base sm:text-lg font-black text-white tracking-tight">Camila Formato · Claude</h1>
               <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-teal-500/20 text-teal-300 border border-teal-400/30">
                 Word Vivo
               </span>
@@ -1199,8 +1196,6 @@ export default function CamilaFormato() {
             </div>
           </div>
         </div>
-      )}
-    </div>
       )}
     </div>
   );

@@ -5,8 +5,8 @@
 export const FEATURE_FLAGS = {
   // Feature flag for "Mi Formato" (subida de formatos escolares PDF, Word, fotos)
   MI_FORMATO_ENABLED: true,
-  // Poner en false para abrir Mi Formato a todos los docentes Pro
-  MI_FORMATO_SOLO_ADMIN: true,
+  // En esta rama de Preview se habilita a docentes Pro; producción no se modifica.
+  MI_FORMATO_SOLO_ADMIN: false,
   // Feature flag para clonación exacta byte a byte de archivos Word .docx
   MI_FORMATO_CLONAR_ENABLED: true,
   // Máximo tamaño de archivo en bytes (10 MB)

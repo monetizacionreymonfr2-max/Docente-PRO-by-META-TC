@@ -286,7 +286,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Layout isAdmin={isAdmin} codeId={codeId} teacherId={user.id} expiresAt={expiresAt} />}>
+        <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} generationsCount={generationsCount} codeId={codeId} teacherId={user.id} expiresAt={expiresAt} />}>
           <Route index element={<Navigate to="/home" replace />} />
           <Route path="home" element={<Home />} />
           <Route path="earn-money" element={<EarnMoney />} />
@@ -299,8 +299,8 @@ export default function App() {
           <Route path="especial" element={<EducacionEspecial />} />
           <Route path="educacion-especial" element={<Navigate to="/especial" replace />} />
           <Route path="camila" element={<Camila />} />
-          <Route path="mi-formato" element={puedeVerMiFormato(isAdmin) ? <MiFormato /> : <Navigate to="/home" replace />} />
-          <Route path="camila-formato" element={puedeVerMiFormato(isAdmin) ? <CamilaFormato /> : <Navigate to="/home" replace />} />
+          <Route path="mi-formato" element={puedeVerMiFormato(isAdmin) && accessLevel !== 'guest' ? <MiFormato /> : <Navigate to="/home" replace />} />
+          <Route path="camila-formato" element={puedeVerMiFormato(isAdmin) && accessLevel !== 'guest' ? <CamilaFormato /> : <Navigate to="/home" replace />} />
           {isAdmin && <Route path="admin" element={<AdminPanel />} />}
         </Route>
       </Routes>

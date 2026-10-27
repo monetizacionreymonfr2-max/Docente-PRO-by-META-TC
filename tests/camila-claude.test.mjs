@@ -18,9 +18,9 @@ function makeResponse() {
   };
 }
 
-async function run(messages = [{ role: 'user', content: 'Hola' }], authorization = 'Bearer test-session') {
+async function run(messages = [{ role: 'user', content: 'Hola' }], authorization = 'Bearer test-session', mode = undefined) {
   const response = makeResponse();
-  await handler({ method: 'POST', headers: { authorization }, body: { messages } }, response);
+  await handler({ method: 'POST', headers: { authorization }, body: { messages, mode } }, response);
   return response;
 }
 
@@ -104,4 +104,64 @@ test('indica servicio no configurado sin realizar conexiones', async () => {
   globalThis.fetch = () => { throw new Error('No debería llamarse'); };
   const result = await run();
   assert.equal(result.statusCode, 503);
+});
+
+test('Camila Formato usa Claude con salida JSON estructurada sin ejecutar operaciones', async () => {
+  const requests = [];
+  globalThis.fetch = async (url, init) => {
+    requests.push({ url, init });
+    if (String(url).includes('/auth/v1/user')) {
+      return new Response(JSON.stringify({ id: 'teacher-id' }), { status: 200 });
+    }
+    if (String(url).includes('/rest/v1/profiles')) {
+      return new Response(JSON.stringify([{ is_active: true, access_level: 'pro', expires_at: null }]), { status: 200 });
+    }
+    return new Response(JSON.stringify({ content: [{ type: 'text', text: JSON.stringify({
+      respuesta: 'Revisé su solicitud.',
+      operaciones: [{ tipo: 'set_celda', id: 't0.r2.c1', lineas: ['Aprendizaje significativo'] }],
+    }) }] }), { status: 200 });
+  };
+  const result = await run([{ role: 'user', content: 'Cambie solo una celda de mi Word.' }], 'Bearer test-session', 'formato');
+  assert.equal(result.statusCode, 200);
+  assert.deepEqual(JSON.parse(result.body.text).operaciones[0].lineas, ['Aprendizaje significativo']);
+  const requestBody = JSON.parse(requests[2].init.body);
+  assert.equal(requestBody.model, 'claude-sonnet-5-5');
+  assert.equal(requestBody.output_config.format.type, 'json_schema');
+  assert.equal(requestBody.output_config.format.schema.additionalProperties, false);
+  assert.equal(requestBody.max_tokens, 8192);
+  assert.match(requestBody.system, /No asegure que el documento quedó completo/);
+});
+
+test('Camila Formato rechaza JSON inválido sin editar documentos', async () => {
+  globalThis.fetch = async (url) => String(url).includes('/auth/v1/user')
+    ? new Response(JSON.stringify({ id: 'teacher-id' }), { status: 200 })
+    : String(url).includes('/rest/v1/profiles')
+    ? new Response(JSON.stringify([{ is_active: true, access_level: 'pro', expires_at: null }]), { status: 200 })
+    : new Response(JSON.stringify({ content: [{ type: 'text', text: '{incompleto' }] }), { status: 200 });
+  const result = await run([{ role: 'user', content: 'Cambie una celda.' }], 'Bearer test-session', 'formato');
+  assert.equal(result.statusCode, 502);
+  assert.equal(result.body.error, 'Camila no devolvió operaciones válidas');
+});
+
+test('no acepta modos desconocidos o solicitudes excesivas de Formato', async () => {
+  let count = 0;
+  globalThis.fetch = async () => {
+    count++;
+    return new Response(JSON.stringify({ id: 'teacher-id' }), { status: 200 });
+  };
+  assert.equal((await run(undefined, 'Bearer test-session', 'admin')).statusCode, 400);
+  assert.equal((await run([{ role: 'user', content: 'X'.repeat(16001) }], 'Bearer test-session', 'formato')).statusCode, 400);
+  assert.equal(count, 2); // Solo valida sesiones, sin llamadas a Anthropic.
+});
+
+test('rechaza licencia de invitado sin consumir Anthropic', async () => {
+  const requests = [];
+  globalThis.fetch = async (url) => {
+    requests.push(String(url));
+    if (String(url).includes('/auth/v1/user')) return new Response(JSON.stringify({ id: 'guest-id' }), { status: 200 });
+    return new Response(JSON.stringify([{ is_active: true, access_level: 'guest' }]), { status: 200 });
+  };
+  const result = await run([{ role: 'user', content: 'Rellene mi Word.' }], 'Bearer test-session', 'formato');
+  assert.equal(result.statusCode, 403);
+  assert.equal(requests.length, 2);
 });

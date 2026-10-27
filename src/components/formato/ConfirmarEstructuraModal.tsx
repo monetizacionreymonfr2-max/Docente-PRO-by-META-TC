@@ -14,6 +14,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { FormatoDocente, FormatoEstructura, TipoDocumentoFormato } from '../../types/formato';
+import { FormatoService } from '../../lib/formatoService';
 
 interface ConfirmarEstructuraModalProps {
   isOpen: boolean;
@@ -52,33 +53,28 @@ export default function ConfirmarEstructuraModal({
     let archivoPath: string | undefined = undefined;
     const tempId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'formato_' + Date.now();
 
-    // Si es modo clonar Word, guardar el archivo binario original en storage/cache
-    if (initialData.modo === 'clonar_docx' && initialData.file) {
-      try {
-        const { FormatoService } = await import('../../lib/formatoService');
-        archivoPath = await FormatoService.uploadArchivoOriginal(teacherId, tempId, initialData.file);
-      } catch (err) {
-        console.warn('Aviso al guardar archivo original:', err);
-      }
-    }
-
-    const nuevoFormato: FormatoDocente = {
-      id: tempId,
-      teacherId,
-      nombre: nombre.trim() || 'Mi Formato Escolar',
-      tipoDocumento: initialData.tipo,
-      archivoOriginalNombre: initialData.file.name,
-      archivoMimeType: initialData.file.type,
-      tamanoBytes: initialData.file.size,
-      estructura,
-      archivoPath,
-      plantilla: initialData.plantilla,
-      modo: initialData.modo || 'reconstruir',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
     try {
+      // En el modo Copia Exacta es imprescindible persistir el Word original.
+      if (initialData.modo === 'clonar_docx' && initialData.file) {
+        archivoPath = await FormatoService.uploadArchivoOriginal(teacherId, tempId, initialData.file);
+      }
+
+      const nuevoFormato: FormatoDocente = {
+        id: tempId,
+        teacherId,
+        nombre: nombre.trim() || 'Mi Formato Escolar',
+        tipoDocumento: initialData.tipo,
+        archivoOriginalNombre: initialData.file.name,
+        archivoMimeType: initialData.file.type,
+        tamanoBytes: initialData.file.size,
+        estructura,
+        archivoPath,
+        plantilla: initialData.plantilla,
+        modo: initialData.modo || 'reconstruir',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
       await onConfirm(nuevoFormato);
     } catch (err: any) {
       console.error('Error al guardar formato:', err);

@@ -1,5 +1,6 @@
 import JSZip from 'jszip';
 import { generateContentWithRetry } from '../gemini';
+import { askCamilaFormatoClaude } from '../camila/claudeClient';
 import {
   cargarDocx,
   guardarDocx,
@@ -570,19 +571,24 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
     parts: userParts,
   });
 
-  // 3. Llamada a Gemini con retry y backoff
+  // 3. Claude edita Word a través de operaciones JSON; Gemini procesa adjuntos visuales.
+  // Los adjuntos PDF/imágenes todavía requieren el flujo multimodal existente.
   let responseText = '';
   try {
-    const aiResponse = await generateContentWithRetry({
-      model: modelo,
-      contents,
-      config: {
-        systemInstruction: CAMILA_FORMATO_SYSTEM_INSTRUCTION,
-        responseMimeType: 'application/json',
-        responseSchema: CAMILA_FORMATO_RESPONSE_SCHEMA,
-      },
-    });
-    responseText = aiResponse.text?.trim() || '{}';
+    if (!adjuntosMemoria?.some((adj) => adj.mimeType.startsWith('image/') || adj.mimeType === 'application/pdf')) {
+      responseText = (await askCamilaFormatoClaude(promptFinal, historialTurnos)).trim();
+    } else {
+      const aiResponse = await generateContentWithRetry({
+        model: modelo,
+        contents,
+        config: {
+          systemInstruction: CAMILA_FORMATO_SYSTEM_INSTRUCTION,
+          responseMimeType: 'application/json',
+          responseSchema: CAMILA_FORMATO_RESPONSE_SCHEMA,
+        },
+      });
+      responseText = aiResponse.text?.trim() || '{}';
+    }
   } catch (err: any) {
     const msg = err?.message || String(err);
     if (msg.includes('503') || msg.includes('429')) {

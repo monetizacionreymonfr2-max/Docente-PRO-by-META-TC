@@ -397,6 +397,15 @@ export default function MiFormato() {
                     <span>Vaciar Planificación en este Formato</span>
                     <ChevronRight size={14} className="group-hover/btn:translate-x-0.5 transition-transform" />
                   </button>
+                  {formato.archivoOriginalNombre?.toLowerCase().endsWith('.docx') && (
+                    <Link
+                      to="/camila-formato"
+                      state={{ formatoId: formato.id }}
+                      className="mt-2 w-full py-2.5 px-4 rounded-xl border border-teal-400/30 bg-teal-500/10 hover:bg-teal-500/20 text-teal-200 text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+                    >
+                      <Sparkles size={14} /> Editar este Word con Camila · Claude
+                    </Link>
+                  )}
                 </div>
               </div>
             );
