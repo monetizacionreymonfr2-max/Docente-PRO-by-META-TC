@@ -1,5 +1,4 @@
--- Preparación para lanzamiento de Mi Formato.
--- NO aplicar hasta autorizar el cambio en el proyecto Supabase compartido con producción.
+-- Almacenamiento privado de Mi Formato (autorizado y aplicado el 2026-10-27).
 -- Solo permite a cada docente gestionar sus propios Word originales.
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
