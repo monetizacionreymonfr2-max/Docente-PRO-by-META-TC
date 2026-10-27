@@ -47,14 +47,17 @@ test('usa Sonnet 5.5 con esfuerzo medio tras autenticar al usuario', async () =>
     if (String(url).includes('/auth/v1/user')) {
       return new Response(JSON.stringify({ id: 'user-id' }), { status: 200 });
     }
+    if (String(url).includes('/rest/v1/profiles')) {
+      return new Response(JSON.stringify([{ is_active: true, access_level: 'pro' }]), { status: 200 });
+    }
     return new Response(JSON.stringify({ content: [{ type: 'text', text: 'Hola, docente.' }], usage: { output_tokens: 6 } }), { status: 200 });
   };
   const result = await run();
   assert.equal(result.statusCode, 200);
   assert.equal(result.body.text, 'Hola, docente.');
-  assert.equal(requests.length, 2);
+  assert.equal(requests.length, 3);
   assert.equal(requests[0].init.headers.Authorization, 'Bearer test-session');
-  const claudeRequest = JSON.parse(requests[1].init.body);
+  const claudeRequest = JSON.parse(requests[2].init.body);
   assert.equal(claudeRequest.model, 'claude-sonnet-5-5');
   assert.equal(claudeRequest.output_config.effort, 'medium');
   assert.equal(claudeRequest.max_tokens, 4096);
@@ -65,6 +68,8 @@ test('registra solo categoria y HTTP al fallar Anthropic, sin datos privados', a
   console.error = (...args) => logLines.push(args.join(' '));
   globalThis.fetch = async (url) => String(url).includes('/auth/v1/user')
     ? new Response(JSON.stringify({ id: 'user-id' }), { status: 200 })
+    : String(url).includes('/rest/v1/profiles')
+    ? new Response(JSON.stringify([{ is_active: true, access_level: 'pro' }]), { status: 200 })
     : new Response(JSON.stringify({ error: { type: 'authentication_error', message: 'no-registrar-este-mensaje-secreto' } }), { status: 401 });
 
   const result = await run();
@@ -172,6 +177,18 @@ test('rechaza licencia de invitado sin consumir Anthropic', async () => {
     return new Response(JSON.stringify([{ is_active: true, access_level: 'guest' }]), { status: 200 });
   };
   const result = await run([{ role: 'user', content: 'Rellene mi Word.' }], 'Bearer test-session', 'formato');
+  assert.equal(result.statusCode, 403);
+  assert.equal(requests.length, 2);
+});
+
+test('Camila conversacional también rechaza invitados antes de consumir créditos', async () => {
+  const requests = [];
+  globalThis.fetch = async (url) => {
+    requests.push(String(url));
+    if (String(url).includes('/auth/v1/user')) return new Response(JSON.stringify({ id: 'guest-id' }), { status: 200 });
+    return new Response(JSON.stringify([{ is_active: true, access_level: 'guest' }]), { status: 200 });
+  };
+  const result = await run([{ role: 'user', content: 'Ayúdeme a planificar.' }], 'Bearer test-session', 'chat');
   assert.equal(result.statusCode, 403);
   assert.equal(requests.length, 2);
 });

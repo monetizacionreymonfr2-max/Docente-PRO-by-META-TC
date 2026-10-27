@@ -25,7 +25,12 @@ import {
   Check,
   Plus,
   Trash2,
+  Mic,
+  MicOff,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
+import { askCamilaClaude, type CamilaTurn } from '../lib/camila/claudeClient';
 import DocxPreviewViewer from '../components/formato/DocxPreviewViewer';
 import { FormatoService, fileToBase64 } from '../lib/formatoService';
 import { SupabaseService } from '../lib/supabaseService';
@@ -101,6 +106,10 @@ export default function CamilaFormato() {
   const [inputTexto, setInputTexto] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [progresoDetalle, setProgresoDetalle] = useState<string | null>(null);
+  const [escuchando, setEscuchando] = useState(false);
+  const [hablandoId, setHablandoId] = useState<string | null>(null);
+  const [avisoVoz, setAvisoVoz] = useState<string | null>(null);
+  const reconocimientoRef = useRef<any>(null);
 
   // Modales
   const [modalProyectosOpen, setModalProyectosOpen] = useState(false);
@@ -120,6 +129,75 @@ export default function CamilaFormato() {
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+
+  // Dictado y lectura en voz alta: solo funcionan tras un clic explícito.
+  // No activamos micrófono, escucha permanente ni respuestas habladas al cargar.
+  useEffect(() => () => {
+    const reconocimiento = reconocimientoRef.current;
+    if (reconocimiento) {
+      reconocimiento.onresult = null;
+      reconocimiento.onerror = null;
+      reconocimiento.onend = null;
+      reconocimiento.abort();
+    }
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  }, []);
+
+  const alternarDictado = () => {
+    setAvisoVoz(null);
+    if (escuchando) {
+      reconocimientoRef.current?.stop();
+      return;
+    }
+    const Reconocimiento = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!Reconocimiento) {
+      setAvisoVoz('El dictado no está disponible en este navegador. Puede escribir su mensaje normalmente.');
+      return;
+    }
+    try {
+      const reconocimiento = new Reconocimiento();
+      reconocimiento.lang = 'es-VE';
+      reconocimiento.continuous = false;
+      reconocimiento.interimResults = false;
+      reconocimiento.onstart = () => setEscuchando(true);
+      reconocimiento.onresult = (evento: any) => {
+        const frase = String(evento.results?.[0]?.[0]?.transcript || '').trim();
+        if (frase) setInputTexto((anterior) => [anterior.trim(), frase].filter(Boolean).join(' '));
+      };
+      reconocimiento.onerror = (evento: any) => {
+        if (evento.error !== 'no-speech' && evento.error !== 'aborted') {
+          setAvisoVoz('No se pudo utilizar el micrófono. Revise los permisos de su navegador.');
+        }
+        setEscuchando(false);
+      };
+      reconocimiento.onend = () => setEscuchando(false);
+      reconocimientoRef.current = reconocimiento;
+      reconocimiento.start();
+    } catch {
+      setEscuchando(false);
+      setAvisoVoz('No se pudo iniciar el dictado. Puede continuar escribiendo.');
+    }
+  };
+
+  const alternarLectura = (mensaje: MensajeChatFormato) => {
+    if (!('speechSynthesis' in window)) {
+      setAvisoVoz('La lectura en voz alta no está disponible en este navegador.');
+      return;
+    }
+    window.speechSynthesis.cancel();
+    if (hablandoId === mensaje.id) {
+      setHablandoId(null);
+      return;
+    }
+    const texto = mensaje.texto.replace(/\*\*|[`*_#]/g, '').replace(/\[(.*?)\]\(.*?\)/g, '$1').slice(0, 2500);
+    const lectura = new SpeechSynthesisUtterance(texto);
+    lectura.lang = 'es-VE';
+    lectura.rate = 0.95;
+    lectura.onstart = () => setHablandoId(mensaje.id);
+    lectura.onend = () => setHablandoId(null);
+    lectura.onerror = () => setHablandoId(null);
+    window.speechSynthesis.speak(lectura);
+  };
 
   // Auto-scroll del chat
   useEffect(() => {
@@ -148,6 +226,16 @@ export default function CamilaFormato() {
         texto: 'Antes de abrir otro documento, espere a que termine el proceso actual y apruebe o descarte cualquier propuesta pendiente.', fecha: new Date(),
       }]);
       return;
+    }
+    if (docVivo && (formatoActivo?.id !== formato.id || snapshots.length > 1)) {
+      const confirmado = window.confirm(
+        `Actualmente está trabajando con ${formatoActivo?.nombre || 'otro documento'}. ` +
+        'Si abre otro formato, los cambios de esta sesión que no haya descargado podrían perderse. ' +
+        '¿Desea dejar el documento actual y abrir el nuevo?'
+      );
+      if (!confirmado) return;
+    } else if (docVivo) {
+      return; // Ya está abierto este mismo formato sin cambios pendientes.
     }
     try {
       setIsProcessing(true);
@@ -200,16 +288,18 @@ export default function CamilaFormato() {
       const rev = revisarDocumentoVivo(dOrig, dVivo, plantilla);
       setRevisionActual(rev);
 
-      setMensajes((prev) => [
-        ...prev,
-        {
+      // Cambiar de Word inicia un contexto documental nuevo: no enviar mensajes
+      // ni adjuntos del archivo anterior como instrucciones del nuevo.
+      const mensajeCarga: MensajeChatFormato = {
           id: `msg-${Date.now()}`,
           emisor: 'camila',
           texto: `¡Listo! He cargado **${formato.nombre}**. Su estructura contiene ${mapa.tablas.length} tablas y ${mapa.parrafos.length} secciones en el cuerpo.\n\n¿Qué desea hacer con este formato?`,
           fecha: new Date(),
           revision: rev,
-        },
-      ]);
+      };
+      setMensajes((prev) => docVivo ? [prev[0], mensajeCarga] : [...prev, mensajeCarga]);
+      setAdjuntos([]);
+      if (docVivo) setProyectoActivo(null);
     } catch (e: any) {
       console.error('[CamilaFormato] Error al cargar formato:', e);
       setMensajes((prev) => [
@@ -351,25 +441,47 @@ export default function CamilaFormato() {
   const handleEnviarMensaje = async (textoAEnviar?: string) => {
     const texto = (textoAEnviar || inputTexto).trim();
     if ((!texto && adjuntos.length === 0) || isProcessing || propuestaPendiente) return;
+    if (escuchando) reconocimientoRef.current?.stop();
 
+    if (adjuntos.length > 0 && !texto) {
+      setMensajes((prev) => [...prev, {
+        id: `msg-${Date.now()}`, emisor: 'camila',
+        texto: adjuntos.length > 1
+          ? 'He recibido varios archivos. ¿Desea que los compare o que utilice alguno como referencia para su documento?'
+          : 'He recibido su archivo. ¿Qué desea que haga con él?',
+        fecha: new Date(),
+      }]);
+      return;
+    }
+
+    // El docente también puede conversar sobre educación antes de abrir un Word.
+    // Es una conversación temporal; no se almacena como memoria persistente.
     if (!docVivo || !mapaActual || !zipVivo) {
-      setMensajes((prev) => [
-        ...prev,
-        {
-          id: `msg-${Date.now()}`,
-          emisor: 'docente',
-          texto,
-          fecha: new Date(),
-        },
-        {
-          id: `msg-${Date.now() + 1}`,
-          emisor: 'camila',
-          texto:
-            'Todavía no ha seleccionado un formato Word (.docx). Por favor, pulse **"Mis formatos"** o adjunte su documento para comenzar.',
-          fecha: new Date(),
-        },
-      ]);
       setInputTexto('');
+      setMensajes((prev) => [...prev, {
+        id: `msg-${Date.now()}`, emisor: 'docente', texto, fecha: new Date(),
+      }]);
+      setIsProcessing(true);
+      setProgresoDetalle('Camila está preparando su respuesta...');
+      try {
+        const anteriores: CamilaTurn[] = mensajes
+          .filter((m) => m.emisor === 'docente' || m.emisor === 'camila')
+          .slice(-10)
+          .map((m) => ({ role: m.emisor === 'docente' ? 'user' : 'assistant', content: m.texto.slice(0, 3000) }));
+        const respuesta = await askCamilaClaude([...anteriores, { role: 'user', content: texto.slice(0, 3000) }]);
+        setMensajes((prev) => [...prev, {
+          id: `msg-${Date.now()}`, emisor: 'camila', texto: respuesta, fecha: new Date(),
+        }]);
+      } catch (error) {
+        setMensajes((prev) => [...prev, {
+          id: `msg-${Date.now()}`, emisor: 'camila',
+          texto: error instanceof Error ? error.message : 'No pude completar su solicitud. Por favor, inténtelo nuevamente.',
+          fecha: new Date(),
+        }]);
+      } finally {
+        setIsProcessing(false);
+        setProgresoDetalle(null);
+      }
       return;
     }
 
@@ -443,7 +555,7 @@ export default function CamilaFormato() {
         {
           id: `msg-${Date.now()}`,
           emisor: 'camila',
-          texto: err?.message || 'Ocurrió un error al procesar tu solicitud. Por favor intenta de nuevo.',
+          texto: err?.message || 'Ocurrió un error al procesar su solicitud. Por favor, inténtelo nuevamente.',
           fecha: new Date(),
         },
       ]);
@@ -544,7 +656,7 @@ export default function CamilaFormato() {
                   <span className="font-semibold text-white truncate">{formatoActivo.nombre}</span>
                 </>
               ) : (
-                <span className="text-slate-400">Sin formato cargado. Elige o sube tu Word (.docx).</span>
+                <span className="text-slate-400">Sin formato cargado. Puede conversar o adjuntar su Word (.docx).</span>
               )}
             </p>
           </div>
@@ -693,6 +805,19 @@ export default function CamilaFormato() {
                   {/* Texto principal */}
                   <div className="whitespace-pre-wrap">{m.texto}</div>
 
+                  {m.emisor === 'camila' && (
+                    <button
+                      type="button"
+                      onClick={() => alternarLectura(m)}
+                      className="mt-2 inline-flex items-center gap-1.5 text-[11px] text-teal-200 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-300"
+                      title={hablandoId === m.id ? 'Detener lectura' : 'Escuchar respuesta de Camila'}
+                      aria-label={hablandoId === m.id ? 'Detener lectura en voz alta' : 'Escuchar respuesta de Camila en voz alta'}
+                    >
+                      {hablandoId === m.id ? <VolumeX size={13} /> : <Volume2 size={13} />}
+                      {hablandoId === m.id ? 'Detener voz' : 'Escuchar'}
+                    </button>
+                  )}
+
                   {/* Operaciones ejecutadas */}
                   {m.operacionesEjecutadas && m.operacionesEjecutadas.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-white/10 flex flex-wrap gap-1 text-[10px] font-mono">
@@ -755,11 +880,11 @@ export default function CamilaFormato() {
           <div className="px-3 py-2 bg-white/5 border-t border-white/10 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
             <button
               type="button"
-              onClick={() => handleEnviarMensaje('Vacíalo con mi proyecto de aprendizaje')}
-              disabled={isProcessing || Boolean(propuestaPendiente) || !docVivo}
+              onClick={() => handleEnviarMensaje(docVivo ? 'Vacíelo con mi proyecto de aprendizaje' : 'Camila, ayúdeme a preparar un proyecto de aprendizaje.')}
+              disabled={isProcessing || Boolean(propuestaPendiente)}
               className="px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/20 text-cyan-300 text-[11px] whitespace-nowrap transition-all disabled:opacity-40"
             >
-              ⚡ Vaciar con mi proyecto
+              {docVivo ? '⚡ Vaciar con mi proyecto' : '✏️ Preparar un proyecto'}
             </button>
             <button
               type="button"
@@ -818,6 +943,12 @@ export default function CamilaFormato() {
           )}
 
           {/* INPUT BAR */}
+          {avisoVoz && (
+            <div role="alert" className="px-3 py-2 bg-amber-500/10 border-t border-amber-500/20 text-xs text-amber-200 flex items-center justify-between gap-3">
+              <span>{avisoVoz}</span>
+              <button type="button" onClick={() => setAvisoVoz(null)} aria-label="Cerrar aviso de voz"><X size={14} /></button>
+            </div>
+          )}
           <div className="p-2 sm:p-3 bg-slate-900 border-t border-white/10 flex items-end gap-2 shrink-0 z-20">
             {/* Botón Adjuntar Archivo */}
             <button
@@ -864,6 +995,23 @@ export default function CamilaFormato() {
               }}
             />
 
+            {/* Dictado voluntario: no se envía el texto hasta pulsar Enviar. */}
+            <button
+              type="button"
+              onClick={alternarDictado}
+              disabled={isProcessing || Boolean(propuestaPendiente)}
+              className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl border transition-all shrink-0 flex items-center justify-center disabled:opacity-40 ${
+                escuchando
+                  ? 'bg-rose-500/20 border-rose-400/60 text-rose-200 animate-pulse'
+                  : 'bg-white/5 hover:bg-white/10 border-white/10 text-slate-300 hover:text-white'
+              }`}
+              title={escuchando ? 'Detener dictado' : 'Dictar mensaje con el micrófono'}
+              aria-label={escuchando ? 'Detener dictado de voz' : 'Activar dictado de voz'}
+              aria-pressed={escuchando}
+            >
+              {escuchando ? <MicOff size={18} /> : <Mic size={18} />}
+            </button>
+
             {/* Input de texto */}
             <textarea
               value={inputTexto}
@@ -878,7 +1026,7 @@ export default function CamilaFormato() {
               placeholder={
                 docVivo
                   ? 'Indique a Camila qué desea preparar o modificar en su documento...'
-                  : 'Seleccione "Mis Formatos" o adjunte su documento Word para comenzar...'
+                  : 'Converse con Camila o abra un formato Word para trabajar...'
               }
               rows={1}
               className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400/50 resize-none max-h-24"
@@ -1020,7 +1168,7 @@ export default function CamilaFormato() {
             <div className="flex-1 overflow-y-auto py-3 space-y-2.5">
               {formatosGuardados.length === 0 ? (
                 <p className="text-xs text-slate-400 text-center py-6">
-                  No tienes formatos Word (.docx) guardados aún. Puedes subir uno nuevo abajo.
+                  Todavía no tiene formatos Word (.docx) guardados. Puede subir uno nuevo abajo.
                 </p>
               ) : (
                 formatosGuardados.map((fmt) => (
@@ -1084,7 +1232,7 @@ export default function CamilaFormato() {
             <div className="flex-1 overflow-y-auto py-3 space-y-2.5">
               {proyectosGuardados.length === 0 ? (
                 <p className="text-xs text-slate-400 text-center py-6">
-                  No tienes proyectos ni planificaciones guardadas en tu cuenta.
+                  Todavía no tiene proyectos ni planificaciones guardados en su cuenta.
                 </p>
               ) : (
                 proyectosGuardados.map((p) => (
@@ -1279,11 +1427,11 @@ export default function CamilaFormato() {
               edita los cuadros internos conservando logos y membretes originales.
             </p>
             <p className="text-slate-400 leading-relaxed">
-              Para formatos en <strong>PDF o fotografías</strong>, te recomendamos utilizar la pantalla estándar de{' '}
+              Para formatos en <strong>PDF o fotografías</strong>, le recomendamos utilizar la pantalla estándar de{' '}
               <Link to="/mi-formato" className="text-cyan-300 underline font-bold">
                 Mi Formato
               </Link>{' '}
-              que cuenta con el motor de reconstrucción visual, o subir la versión original en Word si la tienes en tu equipo.
+              que cuenta con el motor de reconstrucción visual, o subir la versión original en Word si la tiene en su equipo.
             </p>
             <div className="pt-2 flex justify-end">
               <button

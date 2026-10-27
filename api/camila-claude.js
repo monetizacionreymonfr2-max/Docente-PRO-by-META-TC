@@ -105,8 +105,10 @@ export default async function handler(req, res) {
       return res.status(400).json({error:'Mensajes inválidos'});
     }
     const formato=mode==='formato';
-    if (formato) {
-      // El permiso de la interfaz no sustituye esta comprobación en servidor.
+    {
+      // Tanto la conversación como la edición consumen créditos de IA. La
+      // licencia PRO se verifica en servidor para ambos modos; ocultar un
+      // botón en la interfaz no es una protección suficiente.
       const userId=encodeURIComponent(user.id);
       const profileResponse=await fetch(`${url.replace(/\/$/, '')}/rest/v1/profiles?id=eq.${userId}&select=is_active,access_level,expires_at&limit=1`,{
         headers:{apikey:anon,Authorization:bearer},signal:AbortSignal.timeout(8000)

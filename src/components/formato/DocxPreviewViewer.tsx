@@ -53,10 +53,10 @@ export default function DocxPreviewViewer({ blob, className = '' }: DocxPreviewV
         <span className="font-bold text-cyan-300 flex items-center gap-1.5">
           <Eye size={14} /> Vista Previa Visual del Documento Word
         </span>
-        <span className="text-[11px] text-slate-400">Renderizado idéntico a Microsoft Office</span>
+        <span className="text-[11px] text-slate-400 hidden sm:inline">Vista orientativa; revise el archivo final en Word</span>
       </div>
 
-      <div className="relative flex-1 overflow-auto p-4 max-h-[500px]">
+      <div className="relative flex-1 min-h-0 overflow-auto p-2 sm:p-4">
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-black/60 z-10 backdrop-blur-xs">
             <div className="flex items-center gap-2 text-cyan-300 text-xs font-semibold">
@@ -75,7 +75,7 @@ export default function DocxPreviewViewer({ blob, className = '' }: DocxPreviewV
 
         <div
           ref={containerRef}
-          className="docx-preview-container bg-white text-black p-4 sm:p-8 rounded shadow-lg max-w-full overflow-x-auto min-h-[300px]"
+          className="docx-preview-container bg-white text-black p-2 sm:p-8 rounded shadow-lg max-w-full overflow-x-auto min-h-[300px]"
           style={{ minHeight: '300px' }}
         />
       </div>
