@@ -29,9 +29,9 @@ export default function CamilaClaudeChat() {
   }
 
   return (
-    <section className="flex flex-col min-h-[420px] h-full rounded-2xl border border-white/10 bg-slate-900/70 text-slate-100" aria-label="Conversación con Camila mediante Claude">
+    <section className="flex flex-col min-h-[420px] h-full rounded-2xl border border-white/10 bg-slate-900/70 text-slate-100" aria-label="Conversación pedagógica con Camila">
       <header className="p-4 border-b border-white/10">
-        <h2 className="font-bold">Camila · Conversación con Claude</h2>
+        <h2 className="font-bold">Camila · Asistente pedagógica</h2>
         <p className="text-xs text-slate-400">Versión de prueba: conversación únicamente. No modifica ni guarda documentos.</p>
       </header>
       <div className="flex-1 overflow-y-auto p-4 space-y-3" role="log" aria-live="polite">

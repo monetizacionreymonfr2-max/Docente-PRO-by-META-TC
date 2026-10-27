@@ -49,8 +49,13 @@ import {
   ModeloGeminiInfo,
 } from '../lib/camilaFormato/camilaFormatoConfig';
 
+type ResultadoCamilaFormato = Awaited<ReturnType<typeof enviarMensajeACamilaFormato>>;
+
 export default function CamilaFormato() {
-  const { teacherId, isAdmin } = useOutletContext<{ teacherId: string; isAdmin?: boolean }>();
+  const { teacherId, isAdmin, teacherName } = useOutletContext<{ teacherId: string; isAdmin?: boolean; teacherName?: string }>();
+  const nombre = teacherName?.trim().split(/\s+/)[0] || '';
+  const hora = new Date().getHours();
+  const saludo = hora < 12 ? 'Buenos días' : hora < 19 ? 'Buenas tardes' : 'Buenas noches';
   const location = useLocation();
   const formatoPendienteId = (location.state as { formatoId?: string } | null)?.formatoId;
   const formatoAbiertoAutomaticamente = useRef<string | null>(null);
@@ -67,6 +72,12 @@ export default function CamilaFormato() {
   const [mapaActual, setMapaActual] = useState<DocxMapa | null>(null);
   const [plantillaActual, setPlantillaActual] = useState<PlantillaDocx | null>(null);
   const [blobDocx, setBlobDocx] = useState<Blob | null>(null);
+  // La propuesta se genera sobre una copia aislada. El documento activo solo
+  // cambia después de que el docente apruebe expresamente el resultado.
+  const [propuestaPendiente, setPropuestaPendiente] = useState<{
+    solicitud: string;
+    resultado: ResultadoCamilaFormato;
+  } | null>(null);
 
   // Pila de snapshots para deshacer (máx 10)
   const [snapshots, setSnapshots] = useState<SnapshotDocx[]>([]);
@@ -83,7 +94,7 @@ export default function CamilaFormato() {
       id: 'bienvenida',
       emisor: 'camila',
       texto:
-        '¡Hola! Soy Camila Formato. Elige o sube tu documento Word (.docx) oficial y cuéntame qué deseas hacer: vaciarlo con tu proyecto, cambiar una ficha, agregar semanas al cronograma o quitar materias.',
+        `${saludo}${nombre ? `, ${nombre}` : ''}. Soy Camila, su asistente pedagógica de DOCENTY PRO. Puede elegir uno de sus formatos o adjuntar un documento Word para que trabajemos en él. ¿Qué desea preparar hoy?`,
       fecha: new Date(),
     },
   ]);
@@ -131,6 +142,13 @@ export default function CamilaFormato() {
 
   // Cargar formato activo en memoria
   const cargarFormatoEnSesion = async (formato: FormatoDocente, arrayBuffer?: ArrayBuffer) => {
+    if (isProcessing || propuestaPendiente) {
+      setMensajes((prev) => [...prev, {
+        id: `msg-${Date.now()}`, emisor: 'camila',
+        texto: 'Antes de abrir otro documento, espere a que termine el proceso actual y apruebe o descarte cualquier propuesta pendiente.', fecha: new Date(),
+      }]);
+      return;
+    }
     try {
       setIsProcessing(true);
       setProgresoDetalle('Cargando documento y analizando estructura...');
@@ -187,7 +205,7 @@ export default function CamilaFormato() {
         {
           id: `msg-${Date.now()}`,
           emisor: 'camila',
-          texto: `¡Listo! He cargado **${formato.nombre}**. Su estructura contiene ${mapa.tablas.length} tablas y ${mapa.parrafos.length} secciones en el cuerpo.\n\n¿Qué te gustaría hacer con este formato?`,
+          texto: `¡Listo! He cargado **${formato.nombre}**. Su estructura contiene ${mapa.tablas.length} tablas y ${mapa.parrafos.length} secciones en el cuerpo.\n\n¿Qué desea hacer con este formato?`,
           fecha: new Date(),
           revision: rev,
         },
@@ -199,7 +217,7 @@ export default function CamilaFormato() {
         {
           id: `msg-${Date.now()}`,
           emisor: 'camila',
-          texto: `Ocurrió un error al cargar el archivo Word: ${e?.message || e}. Por favor intenta subirlo nuevamente.`,
+          texto: `Ocurrió un error al cargar el archivo Word: ${e?.message || e}. Por favor, intente subirlo nuevamente.`,
           fecha: new Date(),
         },
       ]);
@@ -221,6 +239,13 @@ export default function CamilaFormato() {
   // Manejador de subida de archivo desde el input
   const handleFileUpload = async (file: File) => {
     if (!file) return;
+    if (isProcessing || propuestaPendiente) {
+      setMensajes((prev) => [...prev, {
+        id: `msg-${Date.now()}`, emisor: 'camila',
+        texto: 'Espere a que termine el proceso actual y apruebe o descarte cualquier propuesta pendiente antes de adjuntar otro formato.', fecha: new Date(),
+      }]);
+      return;
+    }
 
     const nombreLow = file.name.toLowerCase();
 
@@ -273,7 +298,7 @@ export default function CamilaFormato() {
 
   // Deshacer el último cambio
   const handleDeshacer = async () => {
-    if (snapshots.length <= 1 || !zipVivo) return;
+    if (snapshots.length <= 1 || !zipVivo || propuestaPendiente) return;
 
     const nuevas = [...snapshots];
     const actual = nuevas.pop(); // descartar el estado actual
@@ -325,7 +350,7 @@ export default function CamilaFormato() {
   // Enviar mensaje al motor conversacional
   const handleEnviarMensaje = async (textoAEnviar?: string) => {
     const texto = (textoAEnviar || inputTexto).trim();
-    if ((!texto && adjuntos.length === 0) || isProcessing) return;
+    if ((!texto && adjuntos.length === 0) || isProcessing || propuestaPendiente) return;
 
     if (!docVivo || !mapaActual || !zipVivo) {
       setMensajes((prev) => [
@@ -340,7 +365,7 @@ export default function CamilaFormato() {
           id: `msg-${Date.now() + 1}`,
           emisor: 'camila',
           texto:
-            'Aún no has seleccionado un formato Word (.docx). Por favor presiona **"Mis formatos"** o adjunta tu archivo Word para empezar a editarlo.',
+            'Todavía no ha seleccionado un formato Word (.docx). Por favor, pulse **"Mis formatos"** o adjunte su documento para comenzar.',
           fecha: new Date(),
         },
       ]);
@@ -377,12 +402,16 @@ export default function CamilaFormato() {
           texto: m.texto,
         }));
 
+      // La inteligencia artificial prepara el borrador sobre una copia real del
+      // DOCX. Nunca modificamos docVivo ni zipVivo antes de la autorización.
+      if (!blobDocx) throw new Error('No hay un documento Word disponible.');
+      const borrador = await cargarDocx(blobDocx);
       const resultado = await enviarMensajeACamilaFormato({
         mensajeDocente: texto,
         historialTurnos,
-        mapaActual,
-        docVivo,
-        zipVivo,
+        mapaActual: construirMapa(borrador.doc),
+        docVivo: borrador.doc,
+        zipVivo: borrador.zip,
         docOrig,
         plantilla: plantillaActual,
         proyectoActivo,
@@ -391,37 +420,22 @@ export default function CamilaFormato() {
         onProgresoVaciarTodo: (paso) => setProgresoDetalle(paso),
       });
 
-      // Actualizar estado del documento
-      setBlobDocx(resultado.nuevoBlob);
-      setMapaActual(resultado.nuevoMapa);
-      setRevisionActual(resultado.revision);
-
-      // Guardar snapshot para deshacer
-      const serializer = new XMLSerializer();
-      const nuevoXml = serializer.serializeToString(docVivo);
-      setSnapshots((prev) => [
-        ...prev.slice(-9), // conservar máx 10
-        {
-          id: `snap-${Date.now()}`,
-          xml: nuevoXml,
-          mapa: resultado.nuevoMapa,
-          descripcion: texto.slice(0, 40) || 'Modificación realizada',
-          timestamp: Date.now(),
-        },
-      ]);
-
-      setMensajes((prev) => [
-        ...prev,
-        {
-          id: `msg-${Date.now()}`,
-          emisor: 'camila',
-          texto: resultado.respuestaCamila,
-          operacionesEjecutadas: resultado.operacionesEjecutadas,
-          operacionesOmitidas: resultado.operacionesOmitidas,
+      if (resultado.operacionesEjecutadas.length > 0) {
+        setPropuestaPendiente({ solicitud: texto, resultado });
+        setTabActiva('documento');
+        setMensajes((prev) => [...prev, {
+          id: `msg-${Date.now()}`, emisor: 'camila',
+          texto: `He preparado una propuesta con ${resultado.operacionesEjecutadas.length} cambio(s). Su documento original sigue intacto. Revise la vista previa y elija **Aprobar y aplicar** o **Descartar propuesta**.`,
           fecha: new Date(),
-          revision: resultado.revision,
-        },
-      ]);
+        }]);
+      } else {
+        setMensajes((prev) => [...prev, {
+          id: `msg-${Date.now()}`, emisor: 'camila',
+          texto: resultado.respuestaCamila,
+          operacionesOmitidas: resultado.operacionesOmitidas,
+          fecha: new Date(), revision: resultado.revision,
+        }]);
+      }
     } catch (err: any) {
       console.error('[CamilaFormato] Error en turno:', err);
       setMensajes((prev) => [
@@ -437,6 +451,55 @@ export default function CamilaFormato() {
       setIsProcessing(false);
       setProgresoDetalle(null);
     }
+  };
+
+  const handleAprobarPropuesta = async () => {
+    if (!propuestaPendiente || isProcessing) return;
+    setIsProcessing(true);
+    setProgresoDetalle('Aplicando únicamente los cambios autorizados...');
+    try {
+      const { solicitud, resultado } = propuestaPendiente;
+      const aprobado = await cargarDocx(resultado.nuevoBlob);
+      const mapaAprobado = construirMapa(aprobado.doc);
+      setDocVivo(aprobado.doc);
+      setZipVivo(aprobado.zip);
+      setMapaActual(mapaAprobado);
+      setBlobDocx(resultado.nuevoBlob);
+      setRevisionActual(resultado.revision);
+      const xmlAprobado = new XMLSerializer().serializeToString(aprobado.doc);
+      setSnapshots((prev) => [...prev.slice(-9), {
+        id: `snap-${Date.now()}`, xml: xmlAprobado, mapa: mapaAprobado,
+        descripcion: solicitud.slice(0, 40) || 'Modificación autorizada', timestamp: Date.now(),
+      }]);
+      setPropuestaPendiente(null);
+      setTabActiva('chat');
+      setMensajes((prev) => [...prev, {
+        id: `msg-${Date.now()}`, emisor: 'camila',
+        texto: `Cambios aplicados con su autorización.\n\n${resultado.respuestaCamila}`,
+        operacionesEjecutadas: resultado.operacionesEjecutadas,
+        operacionesOmitidas: resultado.operacionesOmitidas,
+        fecha: new Date(), revision: resultado.revision,
+      }]);
+    } catch (error) {
+      setMensajes((prev) => [...prev, {
+        id: `msg-${Date.now()}`, emisor: 'camila',
+        texto: 'No se pudieron aplicar los cambios. Su documento original sigue intacto; puede volver a intentar o descartar la propuesta.',
+        fecha: new Date(),
+      }]);
+    } finally {
+      setIsProcessing(false);
+      setProgresoDetalle(null);
+    }
+  };
+
+  const handleDescartarPropuesta = () => {
+    if (!propuestaPendiente || isProcessing) return;
+    setPropuestaPendiente(null);
+    setTabActiva('chat');
+    setMensajes((prev) => [...prev, {
+      id: `msg-${Date.now()}`, emisor: 'camila',
+      texto: 'He descartado la propuesta. Su documento no ha sido modificado. ¿Qué desea hacer ahora?', fecha: new Date(),
+    }]);
   };
 
   // Descarga del archivo Word
@@ -457,6 +520,8 @@ export default function CamilaFormato() {
     window.print();
   };
 
+  const revisionVisible = propuestaPendiente?.resultado.revision || revisionActual;
+
   return (
     <div className="flex flex-col h-[calc(100dvh-5.2rem)] md:h-[calc(100vh-2rem)] max-w-7xl mx-auto p-1 sm:p-3 gap-2 sm:gap-3">
       {/* HEADER BAR */}
@@ -467,7 +532,7 @@ export default function CamilaFormato() {
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-black text-white tracking-tight">Camila Formato · Claude</h1>
+              <h1 className="text-base sm:text-lg font-black text-white tracking-tight">Camila · Espacio pedagógico</h1>
               <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-teal-500/20 text-teal-300 border border-teal-400/30">
                 Word Vivo
               </span>
@@ -497,20 +562,20 @@ export default function CamilaFormato() {
                 setModalModelosOpen(true);
               }}
               className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-mono text-cyan-300 flex items-center gap-1.5 transition-all"
-              title="Configurar Modelo Gemini"
+              title="Configuración técnica de Camila (administrador)"
             >
               <Cpu size={14} />
-              <span className="hidden sm:inline">{modeloSeleccionado}</span>
+              <span className="hidden sm:inline">Configurar Camila</span>
             </button>
           )}
 
           {/* Botón Revisar Documento */}
-          {revisionActual && (
+          {revisionVisible && (
             <button
               type="button"
               onClick={() => setModalRevisionOpen(true)}
               className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all ${
-                revisionActual.aprobado
+                revisionVisible.aprobado
                   ? 'bg-emerald-500/10 border-emerald-400/30 text-emerald-300'
                   : 'bg-amber-500/10 border-amber-400/30 text-amber-300 hover:bg-amber-500/20'
               }`}
@@ -518,9 +583,14 @@ export default function CamilaFormato() {
               <ShieldCheck size={14} />
               <span className="hidden sm:inline">Revisar</span>
               <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-black/30">
-                {revisionActual.celdasSinCambio === 0 ? '100%' : `${revisionActual.celdasSinCambio} pend.`}
+                {revisionVisible.celdasSinCambio === 0 ? '100%' : `${revisionVisible.celdasSinCambio} pend.`}
               </span>
             </button>
+          )}
+          {propuestaPendiente && (
+            <span className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-amber-200 bg-amber-500/15 border border-amber-400/40">
+              Pendiente de su autorización
+            </span>
           )}
 
           {/* Selector de pestañas móvil */}
@@ -548,10 +618,10 @@ export default function CamilaFormato() {
       </header>
 
       {/* BODY CONTENT: SPLIT EN DESKTOP, TABS EN MÓVIL */}
-      <div className="flex-1 flex overflow-hidden gap-3">
+      <div className="flex-1 min-h-0 flex overflow-hidden gap-3">
         {/* PANEL IZQUIERDO: CHAT CON CAMILA */}
         <div
-          className={`flex-1 flex flex-col rounded-2xl bg-slate-900/40 border border-white/10 overflow-hidden ${
+          className={`flex-1 min-w-0 flex flex-col rounded-2xl bg-slate-900/40 border border-white/10 overflow-hidden ${
             tabActiva === 'chat' ? 'flex' : 'hidden lg:flex'
           }`}
         >
@@ -561,6 +631,7 @@ export default function CamilaFormato() {
               <button
                 type="button"
                 onClick={() => setModalFormatosOpen(true)}
+                disabled={isProcessing || Boolean(propuestaPendiente)}
                 className="px-3 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 text-cyan-300 text-xs font-bold flex items-center gap-1.5 transition-all"
               >
                 <FolderOpen size={14} />
@@ -570,6 +641,7 @@ export default function CamilaFormato() {
               <button
                 type="button"
                 onClick={() => setModalProyectosOpen(true)}
+                disabled={isProcessing || Boolean(propuestaPendiente)}
                 className="px-3 py-1.5 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 border border-teal-400/30 text-teal-300 text-xs font-bold flex items-center gap-1.5 transition-all"
               >
                 <BookOpen size={14} />
@@ -684,7 +756,7 @@ export default function CamilaFormato() {
             <button
               type="button"
               onClick={() => handleEnviarMensaje('Vacíalo con mi proyecto de aprendizaje')}
-              disabled={isProcessing || !docVivo}
+              disabled={isProcessing || Boolean(propuestaPendiente) || !docVivo}
               className="px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/20 text-cyan-300 text-[11px] whitespace-nowrap transition-all disabled:opacity-40"
             >
               ⚡ Vaciar con mi proyecto
@@ -700,7 +772,7 @@ export default function CamilaFormato() {
             <button
               type="button"
               onClick={() => handleEnviarMensaje('Quita el área de matemáticas')}
-              disabled={isProcessing || !docVivo}
+              disabled={isProcessing || Boolean(propuestaPendiente) || !docVivo}
               className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-[11px] whitespace-nowrap transition-all disabled:opacity-40"
             >
               Quitar matemáticas
@@ -708,7 +780,7 @@ export default function CamilaFormato() {
             <button
               type="button"
               onClick={() => handleEnviarMensaje('Agrega una semana más al cronograma')}
-              disabled={isProcessing || !docVivo}
+              disabled={isProcessing || Boolean(propuestaPendiente) || !docVivo}
               className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-[11px] whitespace-nowrap transition-all disabled:opacity-40"
             >
               +1 semana al cronograma
@@ -716,7 +788,7 @@ export default function CamilaFormato() {
             <button
               type="button"
               onClick={() => handleEnviarMensaje('Haz el diagnóstico más corto y preciso')}
-              disabled={isProcessing || !docVivo}
+              disabled={isProcessing || Boolean(propuestaPendiente) || !docVivo}
               className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-[11px] whitespace-nowrap transition-all disabled:opacity-40"
             >
               Diagnóstico más corto
@@ -751,7 +823,7 @@ export default function CamilaFormato() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isProcessing}
+              disabled={isProcessing || Boolean(propuestaPendiente)}
               className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all shrink-0 disabled:opacity-50 flex items-center justify-center cursor-pointer active:scale-95"
               title="Adjuntar Word, PDF o imagen"
             >
@@ -773,7 +845,7 @@ export default function CamilaFormato() {
             <button
               type="button"
               onClick={() => cameraInputRef.current?.click()}
-              disabled={isProcessing}
+              disabled={isProcessing || Boolean(propuestaPendiente)}
               className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all shrink-0 disabled:opacity-50 sm:hidden flex items-center justify-center cursor-pointer active:scale-95"
               title="Tomar foto con cámara"
             >
@@ -795,6 +867,7 @@ export default function CamilaFormato() {
             {/* Input de texto */}
             <textarea
               value={inputTexto}
+              disabled={isProcessing || Boolean(propuestaPendiente)}
               onChange={(e) => setInputTexto(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -804,8 +877,8 @@ export default function CamilaFormato() {
               }}
               placeholder={
                 docVivo
-                  ? 'Pídele a Camila: "vacíalo con 1er grado", "agrega una semana", "quita matemáticas"...'
-                  : 'Primero selecciona un formato con "Mis Formatos" o adjunta tu Word...'
+                  ? 'Indique a Camila qué desea preparar o modificar en su documento...'
+                  : 'Seleccione "Mis Formatos" o adjunte su documento Word para comenzar...'
               }
               rows={1}
               className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400/50 resize-none max-h-24"
@@ -815,7 +888,7 @@ export default function CamilaFormato() {
             <button
               type="button"
               onClick={() => handleEnviarMensaje()}
-              disabled={isProcessing || (!inputTexto.trim() && adjuntos.length === 0)}
+              disabled={isProcessing || Boolean(propuestaPendiente) || (!inputTexto.trim() && adjuntos.length === 0)}
               className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white shadow-lg shadow-cyan-500/30 disabled:opacity-40 transition-all shrink-0 flex items-center justify-center cursor-pointer active:scale-95 z-30"
               title="Enviar mensaje"
             >
@@ -826,7 +899,7 @@ export default function CamilaFormato() {
 
         {/* PANEL DERECHO: VISTA PREVIA Y DESCARGA DEL DOCUMENTO WORD */}
         <div
-          className={`flex-1 flex flex-col rounded-2xl bg-slate-900/40 border border-white/10 overflow-hidden ${
+          className={`flex-1 min-w-0 flex flex-col rounded-2xl bg-slate-900/40 border border-white/10 overflow-hidden ${
             tabActiva === 'documento' ? 'flex' : 'hidden lg:flex'
           }`}
         >
@@ -836,7 +909,7 @@ export default function CamilaFormato() {
               <button
                 type="button"
                 onClick={handleDeshacer}
-                disabled={snapshots.length <= 1 || isProcessing}
+                disabled={snapshots.length <= 1 || isProcessing || Boolean(propuestaPendiente)}
                 className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-300 flex items-center gap-1.5 transition-all disabled:opacity-30"
                 title="Deshacer el último cambio aplicado"
               >
@@ -849,7 +922,7 @@ export default function CamilaFormato() {
               <button
                 type="button"
                 onClick={handleDescargarDocx}
-                disabled={!blobDocx}
+                disabled={!blobDocx || Boolean(propuestaPendiente)}
                 className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-emerald-600/30 disabled:opacity-40"
               >
                 <Download size={14} />
@@ -859,7 +932,7 @@ export default function CamilaFormato() {
               <button
                 type="button"
                 onClick={handleDescargarPdf}
-                disabled={!blobDocx}
+                disabled={!blobDocx || Boolean(propuestaPendiente)}
                 className="px-3 py-1.5 rounded-xl bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-200 text-xs font-bold flex items-center gap-1.5 transition-all disabled:opacity-40"
                 title="Imprimir / Exportar PDF aproximado"
               >
@@ -869,11 +942,39 @@ export default function CamilaFormato() {
             </div>
           </div>
 
+          {/* La propuesta es un borrador aislado, no un cambio ya guardado. */}
+          {propuestaPendiente && (
+            <div className="shrink-0 px-3 py-3 border-b border-amber-400/30 bg-amber-500/10 space-y-2" role="status">
+              <div className="flex items-start gap-2">
+                <ShieldCheck size={17} className="text-amber-300 mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm text-white font-bold">Vista previa de cambios propuestos</p>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    {propuestaPendiente.resultado.operacionesEjecutadas.length} cambio(s) preparados. El documento actual aún no se ha modificado.
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">
+                    Solicitud: {propuestaPendiente.solicitud}
+                  </p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={handleDescartarPropuesta} disabled={isProcessing}
+                  className="px-2.5 py-2 rounded-xl text-xs font-bold text-slate-200 bg-white/10 border border-white/20 hover:bg-white/20 disabled:opacity-50">
+                  Descartar propuesta
+                </button>
+                <button type="button" onClick={handleAprobarPropuesta} disabled={isProcessing}
+                  className="px-2.5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50">
+                  {isProcessing ? 'Aplicando...' : 'Aprobar y aplicar'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* ÁREA DE VISUALIZACIÓN DEL WORD */}
           <div className="flex-1 overflow-auto p-3 flex flex-col items-center justify-center">
             {blobDocx ? (
               <div className="w-full h-full flex flex-col">
-                <DocxPreviewViewer blob={blobDocx} className="flex-1 w-full" />
+                <DocxPreviewViewer blob={propuestaPendiente?.resultado.nuevoBlob || blobDocx} className="flex-1 w-full" />
               </div>
             ) : (
               <div className="text-center p-8 space-y-4 max-w-sm">
@@ -883,7 +984,7 @@ export default function CamilaFormato() {
                 <div>
                   <h3 className="text-sm font-bold text-white">Ningún documento Word en pantalla</h3>
                   <p className="text-xs text-slate-400 mt-1">
-                    Elige un formato guardado o sube tu archivo .docx para visualizarlo y editarlo en vivo.
+                    Elija un formato guardado o adjunte su archivo .docx para visualizarlo y editarlo aquí.
                   </p>
                 </div>
                 <button
@@ -1032,7 +1133,7 @@ export default function CamilaFormato() {
       )}
 
       {/* MODAL: REVISIÓN DEL DOCUMENTO */}
-      {modalRevisionOpen && revisionActual && (
+      {modalRevisionOpen && revisionVisible && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-xl rounded-3xl bg-slate-900 border border-white/10 p-5 shadow-2xl flex flex-col max-h-[85vh]">
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
@@ -1051,17 +1152,17 @@ export default function CamilaFormato() {
             <div className="flex-1 overflow-y-auto py-3 space-y-3 text-xs">
               <div
                 className={`p-3 rounded-2xl border ${
-                  revisionActual.aprobado
+                  revisionVisible.aprobado
                     ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-200'
                     : 'bg-amber-500/10 border-amber-500/30 text-amber-200'
                 }`}
               >
-                <span className="font-bold block text-sm">{revisionActual.aprobado ? '¡Aprobado al 100%!' : 'Atención pendiente'}</span>
-                <p className="mt-1 leading-relaxed">{revisionActual.resumen}</p>
+                <span className="font-bold block text-sm">{revisionVisible.aprobado ? '¡Aprobado al 100%!' : 'Atención pendiente'}</span>
+                <p className="mt-1 leading-relaxed">{revisionVisible.resumen}</p>
               </div>
 
               {/* Desglose de tablas */}
-              {revisionActual.coberturaTablas.length > 0 && (
+              {revisionVisible.coberturaTablas.length > 0 && (
                 <div className="space-y-1.5">
                   <h4 className="font-bold text-white uppercase text-[10px] tracking-wider">Desglose por Tabla</h4>
                   <div className="overflow-x-auto rounded-xl border border-white/10 bg-black/30">
@@ -1076,7 +1177,7 @@ export default function CamilaFormato() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-white/5 font-mono">
-                        {revisionActual.coberturaTablas.map((c) => (
+                        {revisionVisible.coberturaTablas.map((c) => (
                           <tr key={c.id}>
                             <td className="p-2 font-bold text-white">{c.id}</td>
                             <td className="p-2 text-cyan-300 capitalize">{c.tipoDetectado.replace('_', ' ')}</td>
@@ -1092,11 +1193,11 @@ export default function CamilaFormato() {
               )}
 
               {/* Observaciones detalladas */}
-              {revisionActual.detalles.length > 0 && (
+              {revisionVisible.detalles.length > 0 && (
                 <div className="p-3 rounded-xl bg-black/40 border border-white/10 space-y-1 text-[11px] text-slate-300">
                   <span className="font-bold block text-white">Observaciones detectadas:</span>
                   <ul className="list-disc pl-4 space-y-0.5 text-slate-400">
-                    {revisionActual.detalles.map((d, idx) => (
+                    {revisionVisible.detalles.map((d, idx) => (
                       <li key={idx}>{d}</li>
                     ))}
                   </ul>
@@ -1123,7 +1224,7 @@ export default function CamilaFormato() {
           <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/10 p-5 shadow-2xl flex flex-col max-h-[85vh]">
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Cpu size={16} className="text-cyan-400" /> Modelos Gemini Disponibles
+                <Cpu size={16} className="text-cyan-400" /> Configuración de Camila
               </h3>
               <button
                 type="button"
@@ -1135,11 +1236,11 @@ export default function CamilaFormato() {
             </div>
 
             <p className="text-xs text-slate-400 py-2">
-              Modelos activos consultados desde la API con soporte para <code>generateContent</code>:
+              Opciones de procesamiento disponibles para el administrador:
             </p>
 
             <div className="flex-1 overflow-y-auto py-2 space-y-2">
-              {modelosDisponibles.map((m) => (
+              {modelosDisponibles.map((m, indice) => (
                 <div
                   key={m.id}
                   onClick={() => {
@@ -1154,11 +1255,10 @@ export default function CamilaFormato() {
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs">{m.displayName || m.id}</span>
+                    <span className="font-bold text-xs">Opción {indice + 1} · {m.description || 'Procesamiento de documentos'}</span>
                     {modeloSeleccionado === m.id && <Check size={14} className="text-cyan-400" />}
                   </div>
-                  <span className="text-[10px] font-mono text-slate-400 block mt-0.5">{m.id}</span>
-                  {m.description && <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">{m.description}</p>}
+                  <span className="text-[10px] text-slate-400 block mt-0.5">Configuración interna de DOCENTY PRO</span>
                 </div>
               ))}
             </div>

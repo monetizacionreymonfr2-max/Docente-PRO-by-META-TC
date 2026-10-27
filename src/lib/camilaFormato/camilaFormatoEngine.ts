@@ -617,13 +617,27 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
   const tieneVaciarTodo = (parsed.operaciones || []).some((o) => o.tipo === 'vaciar_todo');
   let seEjecutoVaciarTodo = false;
 
+  // Nunca completar masivamente un formato con datos de ejemplo o con un grado
+  // predeterminado: el proyecto y el Word deben estar disponibles de verdad.
+  if (tieneVaciarTodo && (!archivoOriginalData || !plantilla || !proyectoActivo?.gradoSeccion?.trim())) {
+    return {
+      respuestaCamila: 'Para completar el documento sin inventar información, necesito un proyecto con el grado y la sección definidos. ¿Qué proyecto guardado desea utilizar?',
+      operacionesEjecutadas: [],
+      operacionesOmitidas: ['No se realizó el vaciado: falta el proyecto o el formato original completo.'],
+      nuevoBlob: await guardarDocx(zipVivo, docVivo),
+      nuevoMapa: mapaActual,
+      revision: revisionPrevia,
+      seEjecutoVaciarTodo: false,
+    };
+  }
+
   if (tieneVaciarTodo && archivoOriginalData && plantilla) {
     seEjecutoVaciarTodo = true;
     onProgresoVaciarTodo?.('Iniciando vaciado completo por bloques...');
 
     const datosDocente: DatosDocenteProyecto = {
       docente: 'Docente',
-      gradoSeccion: proyectoActivo?.gradoSeccion || '1er Grado A',
+      gradoSeccion: proyectoActivo!.gradoSeccion,
       nivel: 'Educación Primaria',
       tema: proyectoActivo?.titulo || 'Proyecto de Aprendizaje',
       duracion: '4 semanas',

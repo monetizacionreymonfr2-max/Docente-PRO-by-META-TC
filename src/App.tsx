@@ -272,6 +272,9 @@ export default function App() {
   const codeId = profile?.activationCode || '';
   const generationsCount = profile?.generationsCount || 0;
   const expiresAt = profile?.expiresAt;
+  // El nombre solo se utiliza para personalizar el saludo; nunca para permisos.
+  const teacherName = [profile?.nombre, user?.user_metadata?.full_name, user?.user_metadata?.name]
+    .find((value) => typeof value === 'string' && value.trim().length > 0) || '';
 
   if (!isActive) {
     return (
@@ -286,7 +289,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} generationsCount={generationsCount} codeId={codeId} teacherId={user.id} expiresAt={expiresAt} />}>
+        <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} generationsCount={generationsCount} codeId={codeId} teacherId={user.id} teacherName={teacherName} expiresAt={expiresAt} />}>
           <Route index element={<Navigate to="/home" replace />} />
           <Route path="home" element={<Home />} />
           <Route path="earn-money" element={<EarnMoney />} />
