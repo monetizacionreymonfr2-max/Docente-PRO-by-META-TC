@@ -8,7 +8,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test:claude": "node --test tests/camila-claude.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.50.1",

@@ -46,11 +46,26 @@ export default async function handler(req, res) {
     }
     const response=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
-      body:JSON.stringify({model:process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5',max_tokens:1200,system:SYSTEM,messages}),
+      body:JSON.stringify({model:process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',max_tokens:4096,output_config:{effort:'medium'},system:SYSTEM,messages}),
       signal:AbortSignal.timeout(45000)
     });
-    if(!response.ok) return res.status(502).json({error:'No se pudo completar la solicitud a Camila'});
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      const knownErrors = new Set([
+        'invalid_request_error', 'authentication_error', 'permission_error',
+        'not_found_error', 'request_too_large', 'rate_limit_error',
+        'api_error', 'overloaded_error', 'billing_error'
+      ]);
+      const category = knownErrors.has(body?.error?.type) ? body.error.type : 'unknown_error';
+      // Solo metadatos: nunca registrar mensajes, tokens, claves ni el cuerpo del error.
+      console.error('[Camila Claude] Anthropic HTTP:', response.status, 'Categoria:', category);
+      return res.status(502).json({error:'No se pudo completar la solicitud a Camila'});
+    }
     const data=await response.json();
     return res.status(200).json({text:(data.content||[]).filter(x=>x.type==='text').map(x=>x.text).join(''),usage:data.usage});
-  } catch { return res.status(502).json({error:'Servicio temporalmente no disponible'}); }
+  } catch (error) {
+    const category = error instanceof Error && error.name === 'TimeoutError' ? 'TIMEOUT' : 'ERROR_DE_RED_O_PROCESAMIENTO';
+    console.error('[Camila Claude] Fallo de solicitud:', category);
+    return res.status(502).json({error:'Servicio temporalmente no disponible'});
+  }
 }
