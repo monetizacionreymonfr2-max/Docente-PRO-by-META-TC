@@ -3,7 +3,45 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { prepararMensajesParaGuardar, recuperarMensajesGuardados } from '../src/lib/camila/camilaPersistenceCodec.ts';
 import { hayConversacionSinGuardar } from '../src/lib/camila/camilaConversationGuard.ts';
+import { ColaHistorialPrivado } from '../src/lib/camila/colaHistorialPrivado.ts';
 import { resolverConfigSupabase } from '../src/lib/supabaseConfig.ts';
+
+test('un borrado espera las escrituras activas e impide nuevos guardados del mismo chat', async () => {
+  const cola = new ColaHistorialPrivado();
+  const operaciones = [];
+  let terminarGuardado;
+  const primera = cola.encolar('chat-a', async () => {
+    operaciones.push('guardar-inicio');
+    await new Promise((resolver) => { terminarGuardado = resolver; });
+    operaciones.push('guardar-fin');
+  });
+  await new Promise((resolver) => setImmediate(resolver));
+  assert.equal(typeof terminarGuardado, 'function');
+  const listaParaBorrar = cola.prepararEliminacion('chat-a').then(() => operaciones.push('borrar'));
+  await cola.encolar('chat-a', async () => operaciones.push('guardado-tardío'));
+  assert.deepEqual(operaciones, ['guardar-inicio']);
+  terminarGuardado();
+  await Promise.all([primera, listaParaBorrar]);
+  assert.deepEqual(operaciones, ['guardar-inicio', 'guardar-fin', 'borrar']);
+  cola.finalizarEliminacion('chat-a');
+  await cola.encolar('chat-b', async () => operaciones.push('guardar-otro'));
+  assert.equal(operaciones.at(-1), 'guardar-otro');
+});
+
+test('una escritura fallida no bloquea permanentemente el historial', async () => {
+  const cola = new ColaHistorialPrivado();
+  await assert.rejects(cola.encolar('chat-a', async () => { throw new Error('red'); }), /red/);
+  let guardado = false;
+  await cola.encolar('chat-a', async () => { guardado = true; });
+  assert.equal(guardado, true);
+});
+
+test('abrir un historial no lo guarda de nuevo sin editarlo', () => {
+  const pantalla = readFileSync(new URL('../src/pages/CamilaFormato.tsx', import.meta.url), 'utf8');
+  assert.match(pantalla, /omitirPrimerAutoguardadoRef\.current === conversacionId/);
+  assert.match(pantalla, /omitirPrimerAutoguardadoRef\.current = conversacion\.id/);
+  assert.match(pantalla, /conversacionId \? 'Guardar cambios' : 'Guardar chat'/);
+});
 
 test('avisa antes de descartar chats temporales, pero no los ya guardados', () => {
   assert.equal(hayConversacionSinGuardar(null, 1), false);

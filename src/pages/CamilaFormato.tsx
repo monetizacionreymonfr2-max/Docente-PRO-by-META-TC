@@ -39,6 +39,7 @@ import {
   CamilaPersistence, type ResumenConversacion, type RecuerdoCamila,
 } from '../lib/camila/camilaPersistence';
 import { hayConversacionSinGuardar } from '../lib/camila/camilaConversationGuard';
+import { ColaHistorialPrivado } from '../lib/camila/colaHistorialPrivado';
 import DocxPreviewViewer from '../components/formato/DocxPreviewViewer';
 import { FormatoService, fileToBase64 } from '../lib/formatoService';
 import { SupabaseService } from '../lib/supabaseService';
@@ -124,7 +125,8 @@ export default function CamilaFormato() {
   const [usarRecuerdos, setUsarRecuerdos] = useState(true);
   const [persistenciaOcupada, setPersistenciaOcupada] = useState(false);
   const [avisoPrivacidad, setAvisoPrivacidad] = useState<string | null>(null);
-  const colaGuardadoRef = useRef<Promise<void>>(Promise.resolve());
+  const colaGuardadoRef = useRef(new ColaHistorialPrivado());
+  const omitirPrimerAutoguardadoRef = useRef<string | null>(null);
   const [tituloRecuerdo, setTituloRecuerdo] = useState('');
   const [contenidoRecuerdo, setContenidoRecuerdo] = useState('');
   const [recuerdoEditandoId, setRecuerdoEditandoId] = useState<string | null>(null);
@@ -256,15 +258,18 @@ export default function CamilaFormato() {
   // de sus siguientes turnos. Se encadenan escrituras para evitar sobrescrituras.
   const actualizarHistorialEnCola = (id: string, contenido = mensajes) => {
     const instantanea = [...contenido];
-    const siguiente = colaGuardadoRef.current.catch(() => undefined).then(() =>
+    return colaGuardadoRef.current.encolar(id, () =>
       CamilaPersistence.actualizarConversacion(teacherId, id, instantanea)
     );
-    colaGuardadoRef.current = siguiente;
-    return siguiente;
   };
 
   useEffect(() => {
     if (!conversacionId || !teacherId) return;
+    // Abrir o crear un chat no cuenta como una edición de sus mensajes.
+    if (omitirPrimerAutoguardadoRef.current === conversacionId) {
+      omitirPrimerAutoguardadoRef.current = null;
+      return;
+    }
     const temporizador = window.setTimeout(() => {
       void actualizarHistorialEnCola(conversacionId).catch((error) =>
         setAvisoPrivacidad(error instanceof Error ? error.message : 'No se pudo actualizar el historial.')
@@ -288,6 +293,7 @@ export default function CamilaFormato() {
       if (conversacionId) await actualizarHistorialEnCola(conversacionId);
       else {
         const id = await CamilaPersistence.crearConversacion(teacherId, mensajes);
+        omitirPrimerAutoguardadoRef.current = id;
         setConversacionId(id);
       }
       setAvisoPrivacidad('Conversación guardada en su historial privado. Los siguientes mensajes se sincronizarán automáticamente.');
@@ -333,6 +339,7 @@ export default function CamilaFormato() {
       if (conversacionId) await actualizarHistorialEnCola(conversacionId);
       const conversacion = await CamilaPersistence.obtenerConversacion(teacherId, id);
       cerrarDocumentoDeSesion();
+      omitirPrimerAutoguardadoRef.current = conversacion.id;
       setConversacionId(conversacion.id);
       setMensajes(conversacion.mensajes.map((m) => ({
         id: m.id, emisor: m.emisor, texto: m.texto, fecha: new Date(m.fecha),
@@ -361,12 +368,20 @@ export default function CamilaFormato() {
   };
 
   const eliminarConversacion = async (id: string, titulo: string) => {
+    if (persistenciaOcupada || isProcessing || propuestaPendiente) return;
     if (!window.confirm(`Se eliminará exclusivamente la conversación «${titulo}» de su historial. Esta acción no se puede deshacer. ¿Confirma?`)) return;
+    setPersistenciaOcupada(true);
     try {
+      await colaGuardadoRef.current.prepararEliminacion(id);
       await CamilaPersistence.eliminarConversacion(teacherId, id);
       setHistorialGuardado((prev) => prev.filter((c) => c.id !== id));
       if (conversacionId === id) setConversacionId(null);
+      setAvisoPrivacidad('Se eliminó únicamente la conversación que usted confirmó.');
     } catch (error) { setAvisoPrivacidad(error instanceof Error ? error.message : 'No se pudo eliminar la conversación.'); }
+    finally {
+      colaGuardadoRef.current.finalizarEliminacion(id);
+      setPersistenciaOcupada(false);
+    }
   };
 
   const abrirMemoria = async () => {
@@ -389,12 +404,15 @@ export default function CamilaFormato() {
   };
 
   const eliminarRecuerdo = async (recuerdo: RecuerdoCamila) => {
+    if (persistenciaOcupada) return;
     if (!window.confirm(`Se borrará únicamente este recuerdo:\n${recuerdo.titulo}: ${recuerdo.contenido}\n¿Confirma la eliminación?`)) return;
+    setPersistenciaOcupada(true);
     try {
       await CamilaPersistence.eliminarRecuerdo(teacherId, recuerdo.id);
       setRecuerdos((prev) => prev.filter((r) => r.id !== recuerdo.id));
       setAvisoPrivacidad('Se eliminó solamente el recuerdo que usted confirmó.');
     } catch (error) { setAvisoPrivacidad(error instanceof Error ? error.message : 'No se pudo eliminar el recuerdo.'); }
+    finally { setPersistenciaOcupada(false); }
   };
 
   // Cargar formato activo en memoria
@@ -958,7 +976,7 @@ export default function CamilaFormato() {
                 disabled={persistenciaOcupada || isProcessing || Boolean(propuestaPendiente)}
                 className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 text-xs font-bold flex items-center gap-1.5 disabled:opacity-40"
                 title={conversacionId ? 'Actualizar conversación guardada' : 'Guardar esta conversación por primera vez'}>
-                <Save size={14} /> {conversacionId ? 'Guardada' : 'Guardar chat'}
+                <Save size={14} /> {conversacionId ? 'Guardar cambios' : 'Guardar chat'}
               </button>
               <button type="button" onClick={abrirMemoria} disabled={persistenciaOcupada}
                 className="px-3 py-1.5 rounded-xl bg-violet-500/10 hover:bg-violet-500/20 border border-violet-400/30 text-violet-200 text-xs font-bold flex items-center gap-1.5 disabled:opacity-40">
@@ -1400,7 +1418,8 @@ export default function CamilaFormato() {
                     <span className="text-[10px] text-slate-400">{new Date(c.updated_at).toLocaleString('es-VE')}</span>
                   </button>
                   <button type="button" onClick={() => eliminarConversacion(c.id, c.titulo)}
-                    className="p-2 rounded-lg hover:bg-red-500/20 text-red-300" aria-label={`Eliminar únicamente ${c.titulo}`} title="Eliminar esta conversación"><Trash2 size={15} /></button>
+                    disabled={persistenciaOcupada || isProcessing || Boolean(propuestaPendiente)}
+                    className="p-2 rounded-lg hover:bg-red-500/20 text-red-300 disabled:opacity-40" aria-label={`Eliminar únicamente ${c.titulo}`} title="Eliminar esta conversación"><Trash2 size={15} /></button>
                 </div>
               ))}
             </div>
@@ -1456,8 +1475,8 @@ export default function CamilaFormato() {
                 <div key={r.id} className="p-3 rounded-xl bg-white/5 border border-white/10 text-xs flex gap-2 justify-between items-start">
                   <div className="min-w-0 break-words"><p className="font-bold text-white">{r.titulo}</p><p className="text-slate-300 mt-1">{r.contenido}</p></div>
                   <div className="flex gap-1 shrink-0">
-                    <button type="button" onClick={() => { setRecuerdoEditandoId(r.id); setTituloRecuerdo(r.titulo); setContenidoRecuerdo(r.contenido); setRecuerdoPorAutorizar(false); }} className="px-2 py-1 rounded-lg bg-white/10 text-cyan-200 hover:bg-cyan-500/20">Editar</button>
-                    <button type="button" onClick={() => eliminarRecuerdo(r)} className="p-1.5 rounded-lg bg-red-500/10 text-red-300 hover:bg-red-500/20" aria-label={`Eliminar recuerdo ${r.titulo}`}><Trash2 size={14} /></button>
+                    <button type="button" disabled={persistenciaOcupada} onClick={() => { setRecuerdoEditandoId(r.id); setTituloRecuerdo(r.titulo); setContenidoRecuerdo(r.contenido); setRecuerdoPorAutorizar(false); }} className="px-2 py-1 rounded-lg bg-white/10 text-cyan-200 hover:bg-cyan-500/20 disabled:opacity-40">Editar</button>
+                    <button type="button" disabled={persistenciaOcupada} onClick={() => eliminarRecuerdo(r)} className="p-1.5 rounded-lg bg-red-500/10 text-red-300 hover:bg-red-500/20 disabled:opacity-40" aria-label={`Eliminar recuerdo ${r.titulo}`}><Trash2 size={14} /></button>
                   </div>
                 </div>
               ))}
