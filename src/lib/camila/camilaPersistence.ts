@@ -24,7 +24,7 @@ const errorLegible = (error: { code?: string; message?: string } | null) => {
   if (error.code === 'PGRST116') return new Error('El elemento no existe o no pertenece a esta cuenta.');
   if (['42P01', 'PGRST205'].includes(error.code || '') ||
       /schema cache|relation .* does not exist/i.test(error.message || '')) {
-    return new Error('El historial y la memoria aún no están habilitados en esta base de datos de pruebas.');
+    return new Error('El historial y la memoria todavía no están habilitados en esta instalación.');
   }
   return new Error('No se pudo acceder a sus datos privados de Camila. Inténtelo nuevamente.');
 };
