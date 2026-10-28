@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { combinarDatosProyecto, prepararVaciadoPpa } from '../src/lib/camilaFormato/contextoProyectoPpa.ts';
+import { combinarDatosProyecto, prepararVaciadoPpa, extraerDuracionSemanas } from '../src/lib/camilaFormato/contextoProyectoPpa.ts';
 
 const ficticio = {
   gradoSeccion: '4to, 5to y 6to grado', tema: 'Identidad y convivencia',
@@ -45,4 +45,11 @@ test('sin diagnóstico explícito no fabrica características de estudiantes', (
   const decision = prepararVaciadoPpa({ ...ficticio, diagnostico: '' });
   assert.equal(decision.listo, false);
   assert.match(decision.pregunta, /diagnóstico|necesidades de aprendizaje/i);
+});
+
+test('las semanas se interpretan exactamente, nunca se sustituyen silenciosamente por cuatro', () => {
+  assert.equal(extraerDuracionSemanas('3 semanas'), 3);
+  assert.equal(extraerDuracionSemanas('6 semanas'), 6);
+  assert.equal(extraerDuracionSemanas('21 días'), null);
+  assert.equal(prepararVaciadoPpa({ ...ficticio, duracion: '21 días' }).listo, false);
 });

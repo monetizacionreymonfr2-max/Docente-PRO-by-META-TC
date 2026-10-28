@@ -28,6 +28,7 @@ import {
   generarCronograma,
   generarPlanEvaluacion,
 } from './blockGenerator';
+import { extraerDuracionSemanas } from '../camilaFormato/contextoProyectoPpa';
 
 export interface ClonacionResultado {
   exito: boolean;
@@ -306,7 +307,8 @@ export async function ejecutarClonacionDocx(
     (a) => !areasExcluidas.some((ex) => coincideConArea(a, ex))
   );
 
-  const numSemanas = datos.duracion.includes('6') ? 6 : datos.duracion.includes('8') ? 8 : 4;
+  const numSemanas = extraerDuracionSemanas(datos.duracion);
+  if (numSemanas === null) throw new Error('Indique la duración del proyecto en semanas (entre 1 y 12).');
 
   for (let intento = 1; intento <= 2; intento++) {
     try {

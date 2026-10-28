@@ -36,10 +36,20 @@ export function prepararVaciadoPpa(datos: DatosProyectoPropuesto):
   if (!datos.docente?.trim()) return { listo: false, pregunta: '¿Cuál es el nombre de la docente o el docente que debe aparecer en el formato?' };
   if (!datos.institucion?.trim()) return { listo: false, pregunta: '¿Cuál es el nombre de la institución educativa?' };
   if (!datos.duracion?.trim()) return { listo: false, pregunta: '¿Cuántas semanas debe durar el PPA?' };
+  if (extraerDuracionSemanas(datos.duracion) === null) {
+    return { listo: false, pregunta: '¿Puede indicar la duración exacta del PPA en semanas (por ejemplo, 3 o 4 semanas)?' };
+  }
   return { listo: true, datos: {
     docente: datos.docente.trim(), institucion: datos.institucion.trim(),
     gradoSeccion: datos.gradoSeccion.trim(), nivel: 'Educación Primaria',
     tema: datos.tema.trim(), duracion: datos.duracion.trim(),
     diagnostico: datos.diagnostico.trim(), matricula: datos.matricula?.trim() || undefined,
   } };
+}
+
+export function extraerDuracionSemanas(duracion: string): number | null {
+  const match = duracion.match(/\b(\d{1,2})\s*semanas?\b/i);
+  if (!match) return null;
+  const semanas = Number(match[1]);
+  return Number.isInteger(semanas) && semanas >= 1 && semanas <= 12 ? semanas : null;
 }

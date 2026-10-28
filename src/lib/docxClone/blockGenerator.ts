@@ -8,6 +8,7 @@ import {
   GradoPrimaria,
 } from '../../data/curriculoMPPE';
 import { PlantillaDocx, PlantillaTablaInfo, PlantillaTextoLibre } from './types';
+import { extraerDuracionSemanas } from '../camilaFormato/contextoProyectoPpa';
 
 export interface DatosDocenteProyecto {
   institucion?: string;
@@ -249,7 +250,8 @@ export async function generarCronograma(
   ejemploFilas: string,
   ctx: ContextoProyectoBloque
 ): Promise<{ filas: Array<{ celdas: string[] }> }> {
-  const numSemanas = datos.duracion.includes('6') ? 6 : datos.duracion.includes('8') ? 8 : 4;
+  const numSemanas = extraerDuracionSemanas(datos.duracion);
+  if (numSemanas === null) throw new Error('La duración debe indicar entre 1 y 12 semanas.');
 
   const prompt = `${construirEncabezadoCoherencia(ctx)}
 
