@@ -68,7 +68,7 @@ export default function MiFormato() {
       setFormatos(list);
     } catch (err: any) {
       console.error('Error al cargar formatos de Supabase:', err);
-      setActionError('No se pudieron sincronizar los formatos de Supabase. Revisa tu conexión.');
+      setActionError('No se pudieron sincronizar sus formatos. Revise su conexión e inténtelo nuevamente.');
     } finally {
       setIsLoading(false);
     }
@@ -195,13 +195,13 @@ export default function MiFormato() {
               Mi Formato <span className="text-cyan-400">Escolar</span>
             </h1>
             <p className="text-slate-300 text-xs sm:text-sm mt-2 leading-relaxed">
-              Sube el formato de tu escuela (PDF, Word o foto). Camila lo analiza una sola vez, aprende
-              sus tablas y títulos exactos, y vacía tus PPA y planificaciones respetando los lineamientos
-              oficiales MPPE. Tus formatos quedan guardados de forma segura en la nube.
+              Suba el formato de su institución (PDF, Word o imagen). Camila identificará sus tablas,
+              títulos y secciones para ayudarle a preparar sus planificaciones respetando su estructura.
+              Podrá revisar los cambios con Camila antes de descargar el documento.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto md:shrink-0">
             {FEATURE_FLAGS.MI_FORMATO_CLONAR_ENABLED && (
               <button
                 type="button"
@@ -219,7 +219,7 @@ export default function MiFormato() {
               onClick={loadFormatos}
               disabled={isLoading}
               className="p-3 rounded-2xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all"
-              title="Sincronizar formatos con Supabase"
+              title="Actualizar mis formatos guardados"
             >
               <RefreshCw size={18} className={isLoading ? 'animate-spin' : ''} />
             </button>
@@ -227,7 +227,7 @@ export default function MiFormato() {
             <button
               type="button"
               onClick={() => setIsSubirModalOpen(true)}
-              className="px-5 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-cyan-500/25 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
+              className="flex-1 sm:flex-none px-5 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-cyan-500/25 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
             >
               <Plus size={18} />
               <span>Subir Nuevo Formato</span>
@@ -270,7 +270,7 @@ export default function MiFormato() {
 
         <span className="text-xs text-slate-400">
           {isLoading
-            ? 'Cargando de Supabase...'
+            ? 'Cargando documentos...'
             : `${filteredFormatos.length} formato${filteredFormatos.length === 1 ? '' : 's'} en tu cuenta`}
         </span>
       </div>
@@ -279,7 +279,7 @@ export default function MiFormato() {
       {isLoading ? (
         <div className="py-20 flex flex-col items-center justify-center text-center space-y-3">
           <Loader2 size={36} className="animate-spin text-cyan-400" />
-          <p className="text-xs text-slate-400">Cargando tus formatos escolares desde Supabase...</p>
+          <p className="text-xs text-slate-400">Cargando sus formatos escolares guardados...</p>
         </div>
       ) : filteredFormatos.length === 0 ? (
         <div className="glass-effect rounded-3xl p-10 text-center border border-white/10">
@@ -397,6 +397,15 @@ export default function MiFormato() {
                     <span>Vaciar Planificación en este Formato</span>
                     <ChevronRight size={14} className="group-hover/btn:translate-x-0.5 transition-transform" />
                   </button>
+                  {formato.archivoOriginalNombre?.toLowerCase().endsWith('.docx') && (
+                    <Link
+                      to="/camila-formato"
+                      state={{ formatoId: formato.id }}
+                      className="mt-2 w-full py-2.5 px-4 rounded-xl border border-teal-400/30 bg-teal-500/10 hover:bg-teal-500/20 text-teal-200 text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+                    >
+                      <Sparkles size={14} /> Trabajar este Word con Camila
+                    </Link>
+                  )}
                 </div>
               </div>
             );
@@ -413,7 +422,7 @@ export default function MiFormato() {
             </div>
             <h4 className="text-base font-bold text-white mb-2">¿Eliminar este formato?</h4>
             <p className="text-xs text-slate-300 mb-6">
-              Esta acción no se puede deshacer. Se eliminará de tu cuenta de Supabase.
+              Esta acción no se puede deshacer. El formato se eliminará de su biblioteca privada de DOCENTY PRO.
             </p>
             <div className="flex items-center justify-center gap-3">
               <button

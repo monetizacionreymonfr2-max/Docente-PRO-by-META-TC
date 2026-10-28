@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
+import { resolverConfigSupabase } from './supabaseConfig';
 
-// Supabase URL and Publishable token supplied by the user
-const SUPABASE_URL = (import.meta as any).env.VITE_SUPABASE_URL || 'https://tmkvodbjjlquvqtmnnwi.supabase.co';
-const SUPABASE_ANON_KEY = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_mLmUnbwIh2VrbqI5H5XqdQ_J56oxPyv';
+// El entorno de desarrollo o despliegue debe indicar explícitamente su base.
+const { url: SUPABASE_URL, clavePublica: SUPABASE_ANON_KEY } = resolverConfigSupabase((import.meta as any).env);
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {

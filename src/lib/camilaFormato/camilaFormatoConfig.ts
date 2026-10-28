@@ -1,4 +1,3 @@
-import { ai } from '../gemini';
 
 export const DEFAULT_CAMILA_FORMATO_MODEL = 'gemini-2.5-flash';
 
@@ -36,35 +35,6 @@ export interface ModeloGeminiInfo {
  * Lista los modelos disponibles usando ai.models.list() que soportan generateContent
  */
 export async function listarModelosDisponibles(): Promise<ModeloGeminiInfo[]> {
-  try {
-    const response = await (ai.models as any).list();
-    const items: any[] = Array.isArray(response) ? response : response?.models || [];
-    
-    const validos: ModeloGeminiInfo[] = [];
-    for (const m of items) {
-      const actions: string[] = m.supportedActions || m.supportedGenerationMethods || [];
-      const supportsGenerate = actions.length === 0 || actions.some((a: string) => a.toLowerCase().includes('generatecontent'));
-      
-      if (supportsGenerate) {
-        const id = (m.name || '').replace(/^models\//, '');
-        // Filtrar modelos obsoletos o de embeddings
-        if (id.includes('embedding') || id.includes('aqa') || id.includes('imagen')) continue;
-        
-        validos.push({
-          name: m.name || `models/${id}`,
-          id: id,
-          displayName: m.displayName || id,
-          description: m.description || '',
-          supportedActions: actions,
-        });
-      }
-    }
-
-    if (validos.length > 0) return validos;
-  } catch (e) {
-    console.warn('[CamilaFormatoConfig] Error al consultar ai.models.list():', e);
-  }
-
   // Fallback seguro con modelos oficiales estándar
   return [
     { name: 'models/gemini-2.5-flash', id: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash (Recomendado)', description: 'Rápido, preciso y altamente estructurado.' },

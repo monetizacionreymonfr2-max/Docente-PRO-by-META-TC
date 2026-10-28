@@ -70,13 +70,19 @@ export const FormatoService = {
       if (savedLocal) {
         const localItems: FormatoDocente[] = JSON.parse(savedLocal);
         if (Array.isArray(localItems) && localItems.length > 0) {
+          let migrationComplete = true;
           for (const item of localItems) {
-            await this.saveFormato(teacherId, item).catch((e) =>
-              console.warn('Error al migrar formato local a Supabase:', e)
-            );
+            try {
+              await this.saveFormato(teacherId, item);
+            } catch (e) {
+              migrationComplete = false;
+              console.warn('Error al migrar formato local a Supabase:', e);
+            }
           }
+          if (migrationComplete) localStorage.removeItem(localKey);
+        } else {
+          localStorage.removeItem(localKey);
         }
-        localStorage.removeItem(localKey);
       }
     } catch (migErr) {
       console.warn('Error durante la verificación de migración de localStorage:', migErr);
@@ -194,8 +200,8 @@ export const FormatoService = {
   },
 
   /**
-   * Sube el archivo .docx original al bucket privado de Supabase Storage
-   * y guarda copia en cache local IndexedDB para acceso inmediato
+   * Sube el archivo .docx original al bucket privado de Supabase Storage.
+   * La caché local acelera las lecturas, pero no sustituye la persistencia remota.
    */
   async uploadArchivoOriginal(teacherId: string, formatoId: string, file: File | Blob): Promise<string> {
     const cleanId = formatoId || 'temp_' + Date.now();
@@ -206,17 +212,20 @@ export const FormatoService = {
       await guardarArchivoEnCache(path, file);
     } catch {}
 
-    // 2. Intentar subir al bucket de Supabase Storage
+    // 2. Subir al bucket privado. Una falla se comunica al docente para evitar
+    // afirmar que su plantilla se sincronizó cuando solo existe en este teléfono.
     try {
       const { error } = await supabase.storage
         .from('formatos-originales')
-        .upload(path, file, { upsert: true });
+        .upload(path, file, {
+          upsert: false,
+          contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        });
 
-      if (error) {
-        console.warn('Aviso de Supabase Storage al subir original (se usará cache local):', error.message);
-      }
+      if (error) throw error;
     } catch (err) {
-      console.warn('Excepción de Supabase Storage:', err);
+      console.warn('No se pudo sincronizar la plantilla Word con Supabase Storage.');
+      throw new Error('No se pudo guardar el Word original en la nube. Intenta nuevamente más tarde.');
     }
 
     return path;
@@ -281,18 +290,22 @@ export const FormatoService = {
   async eliminarFormato(teacherId: string, formatoId: string): Promise<void> {
     if (!teacherId || !formatoId) return;
 
-    try {
-      if (isValidUUID(formatoId)) {
-        const { error } = await supabase
-          .from('formatos_docente')
-          .delete()
-          .eq('id', formatoId)
-          .eq('teacher_id', teacherId);
+    if (isValidUUID(formatoId)) {
+      const { data, error } = await supabase
+        .from('formatos_docente')
+        .delete()
+        .eq('id', formatoId)
+        .eq('teacher_id', teacherId)
+        .select('archivo_path');
+      if (error) throw new Error('No se pudo eliminar el formato de la nube. Intenta nuevamente.');
 
-        if (error) throw error;
+      const archivoPath = data?.[0]?.archivo_path;
+      if (archivoPath && archivoPath.startsWith(`${teacherId}/`)) {
+        const { error: storageError } = await supabase.storage
+          .from('formatos-originales')
+          .remove([archivoPath]);
+        if (storageError) console.warn('El formato se eliminó, pero no se pudo limpiar su Word original.');
       }
-    } catch (err: any) {
-      console.warn('Error al eliminar formato en Supabase:', err);
     }
 
     try {

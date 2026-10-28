@@ -116,23 +116,24 @@ export default function SubirFormatoModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="glass-effect w-full max-w-lg rounded-3xl border border-cyan-500/30 shadow-2xl p-6 sm:p-8 text-white relative max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center overflow-y-auto p-2 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200" role="dialog" aria-modal="true" aria-label="Subir mi formato escolar">
+      <div className="glass-effect w-full max-w-lg my-auto rounded-3xl border border-cyan-500/30 shadow-2xl p-4 sm:p-8 text-white relative max-h-[calc(100dvh-1rem)] sm:max-h-[90dvh] overflow-y-auto">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-white/10">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-cyan-500/20 text-cyan-400 border border-cyan-400/30">
+        <div className="flex items-center justify-between gap-2 pb-4 border-b border-white/10">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="p-2.5 shrink-0 rounded-2xl bg-cyan-500/20 text-cyan-400 border border-cyan-400/30">
               <Upload size={22} />
             </div>
-            <div>
-              <h2 className="text-xl font-bold tracking-tight">Subir Mi Formato</h2>
+            <div className="min-w-0">
+              <h2 className="text-lg sm:text-xl font-bold tracking-tight">Subir Mi Formato</h2>
               <p className="text-xs text-slate-300">Camila adaptará tus planificaciones a este diseño</p>
             </div>
           </div>
           <button
             onClick={onClose}
             disabled={isAnalyzing}
-            className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
+            aria-label="Cerrar formulario para subir formato"
+            className="p-2 shrink-0 text-slate-400 hover:text-white rounded-xl hover:bg-white/10 transition-colors"
           >
             <X size={20} />
           </button>
@@ -209,7 +210,7 @@ export default function SubirFormatoModal({
                   <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                     <CheckCircle2 size={28} />
                   </div>
-                  <p className="text-sm font-bold text-white truncate max-w-xs">{file.name}</p>
+                  <p className="text-sm font-bold text-white truncate max-w-full min-w-0">{file.name}</p>
                   <p className="text-xs text-slate-400">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
                   <button
                     type="button"
@@ -234,7 +235,7 @@ export default function SubirFormatoModal({
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-2 mt-2">
+                  <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
                     <button
                       type="button"
                       onClick={() => fileInputRef.current?.click()}
@@ -298,7 +299,7 @@ export default function SubirFormatoModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="mt-8 pt-4 border-t border-white/10 flex items-center justify-end gap-3">
+        <div className="mt-8 pt-4 border-t border-white/10 flex flex-wrap items-center justify-end gap-3">
           <button
             type="button"
             onClick={onClose}

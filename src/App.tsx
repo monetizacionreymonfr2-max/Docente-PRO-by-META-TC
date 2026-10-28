@@ -272,6 +272,9 @@ export default function App() {
   const codeId = profile?.activationCode || '';
   const generationsCount = profile?.generationsCount || 0;
   const expiresAt = profile?.expiresAt;
+  // El nombre solo se utiliza para personalizar el saludo; nunca para permisos.
+  const teacherName = [profile?.nombre, user?.user_metadata?.full_name, user?.user_metadata?.name]
+    .find((value) => typeof value === 'string' && value.trim().length > 0) || '';
 
   if (!isActive) {
     return (
@@ -286,7 +289,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Layout isAdmin={isAdmin} codeId={codeId} teacherId={user.id} expiresAt={expiresAt} />}>
+        <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} generationsCount={generationsCount} codeId={codeId} teacherId={user.id} teacherName={teacherName} expiresAt={expiresAt} />}>
           <Route index element={<Navigate to="/home" replace />} />
           <Route path="home" element={<Home />} />
           <Route path="earn-money" element={<EarnMoney />} />
@@ -299,8 +302,8 @@ export default function App() {
           <Route path="especial" element={<EducacionEspecial />} />
           <Route path="educacion-especial" element={<Navigate to="/especial" replace />} />
           <Route path="camila" element={<Camila />} />
-          <Route path="mi-formato" element={puedeVerMiFormato(isAdmin) ? <MiFormato /> : <Navigate to="/home" replace />} />
-          <Route path="camila-formato" element={puedeVerMiFormato(isAdmin) ? <CamilaFormato /> : <Navigate to="/home" replace />} />
+          <Route path="mi-formato" element={puedeVerMiFormato(isAdmin) && accessLevel !== 'guest' ? <MiFormato /> : <Navigate to="/home" replace />} />
+          <Route path="camila-formato" element={puedeVerMiFormato(isAdmin) && accessLevel !== 'guest' ? <CamilaFormato /> : <Navigate to="/home" replace />} />
           {isAdmin && <Route path="admin" element={<AdminPanel />} />}
         </Route>
       </Routes>

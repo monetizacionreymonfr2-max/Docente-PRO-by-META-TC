@@ -516,71 +516,49 @@ export function setValorSegmentoMultiples(
   // Ordenar por startPos
   matches.sort((a, b) => a.startPos - b.startPos);
 
-  // 3. Procesar cada etiqueta y su rango de valor
+  // 3. Construir todas las sustituciones sobre el texto ORIGINAL. Modificar un
+  // run dentro del bucle invalidaba los desplazamientos de las etiquetas que
+  // compartían ese mismo run y revertía los valores editados previamente.
+  const nuevosTextos = runIntervals.map(() => '');
+
+  const conservarOriginal = (desde: number, hasta: number) => {
+    for (let i = 0; i < runIntervals.length; i++) {
+      const ri = runIntervals[i];
+      const inicio = Math.max(desde, ri.start);
+      const fin = Math.min(hasta, ri.end);
+      if (fin > inicio) {
+        nuevosTextos[i] += ri.text.slice(inicio - ri.start, fin - ri.start);
+      }
+    }
+  };
+
+  const insertarNuevoValor = (posicion: number, texto: string) => {
+    // Si el valor empieza entre dos runs, usar el segundo: normalmente tiene
+    // el estilo de los valores y no la negrita de la etiqueta institucional.
+    let indice = runIntervals.findIndex((ri) => ri.start <= posicion && posicion < ri.end);
+    if (indice === -1) indice = runIntervals.findIndex((ri) => ri.start >= posicion);
+    if (indice === -1) indice = runIntervals.length - 1;
+    nuevosTextos[indice] += texto;
+  };
+
+  let cursor = 0;
   for (let k = 0; k < matches.length; k++) {
-    const currentMatch = matches[k];
-    const valRangeStart = currentMatch.labelEndPos;
-    const valRangeEnd = k + 1 < matches.length ? matches[k + 1].startPos : fullText.length;
-
-    const textoNuevo = ` ${currentMatch.valor.trim()} `;
-
-    // Identificar runs que tocan este rango [valRangeStart, valRangeEnd)
-    const runsIntersectados = runIntervals.filter(
-      (ri) => ri.end > valRangeStart && ri.start < valRangeEnd
-    );
-
-    if (runsIntersectados.length === 0) {
-      // Si el valor cayó justo al final de un run
-      const prevRun = runIntervals.find((ri) => ri.end === valRangeStart);
-      if (prevRun) {
-        const tNode = prevRun.run.getElementsByTagNameNS(W_NS, 't')[0] || prevRun.run.querySelector('t');
-        if (tNode) {
-          tNode.textContent = (tNode.textContent || '') + textoNuevo;
-          tNode.setAttribute('xml:space', 'preserve');
-        }
-      }
-      continue;
-    }
-
-    const primerRunInfo = runsIntersectados[0];
-    const primerRunElem = primerRunInfo.run;
-    const tNodePrimero = primerRunElem.getElementsByTagNameNS(W_NS, 't')[0] || primerRunElem.querySelector('t');
-
-    // El primer run conserva su prefijo (la etiqueta o parte previa al rango)
-    const prefijo =
-      primerRunInfo.start < valRangeStart
-        ? primerRunInfo.text.slice(0, valRangeStart - primerRunInfo.start)
-        : '';
-
-    // Si el primer run también llega más allá de valRangeEnd
-    const sufijo =
-      primerRunInfo.end > valRangeEnd
-        ? primerRunInfo.text.slice(valRangeEnd - primerRunInfo.start)
-        : '';
-
-    if (tNodePrimero) {
-      tNodePrimero.textContent = `${prefijo}${textoNuevo}${sufijo}`;
-      tNodePrimero.setAttribute('xml:space', 'preserve');
-    }
-
-    // Vaciar o recortar los demás runs en este rango
-    for (let rIdx = 1; rIdx < runsIntersectados.length; rIdx++) {
-      const runInfo = runsIntersectados[rIdx];
-      const rElem = runInfo.run;
-      const tNode = rElem.getElementsByTagNameNS(W_NS, 't')[0] || rElem.querySelector('t');
-      if (!tNode) continue;
-
-      if (runInfo.end > valRangeEnd) {
-        // Run cruza el final del rango hacia la siguiente etiqueta: conservar solo el sufijo desde valRangeEnd
-        const offsetEnRun = Math.max(0, valRangeEnd - runInfo.start);
-        tNode.textContent = runInfo.text.slice(offsetEnRun);
-        tNode.setAttribute('xml:space', 'preserve');
-      } else {
-        // Totalmente dentro del rango del valor anterior: vaciar
-        tNode.textContent = '';
-      }
-    }
+    const campo = matches[k];
+    conservarOriginal(cursor, campo.labelEndPos); // Conserva todas las etiquetas.
+    insertarNuevoValor(campo.labelEndPos, ` ${campo.valor.trim()} `);
+    cursor = k + 1 < matches.length ? matches[k + 1].startPos : fullText.length;
   }
+  conservarOriginal(cursor, fullText.length);
+
+  // Actualizar cada run una sola vez, sin tocar sus propiedades de formato.
+  runIntervals.forEach(({ run }, indice) => {
+    const nodosNS = Array.from(run.getElementsByTagNameNS(W_NS, 't'));
+    const nodosTexto = nodosNS.length > 0 ? nodosNS : Array.from(run.querySelectorAll('t'));
+    nodosTexto.forEach((nodo, n) => {
+      nodo.textContent = n === 0 ? nuevosTextos[indice] : '';
+      nodo.setAttribute('xml:space', 'preserve');
+    });
+  });
 }
 
 /**
@@ -757,12 +735,34 @@ export async function validarDocxClonado(
       }
     }
 
-    // 3. Verificar que los archivos de medios (logos, imágenes) siguen idénticos
-    const origMedia = Object.keys(originalZip.files).filter((f) => f.startsWith('word/media/'));
-    const clonedMedia = Object.keys(testZip.files).filter((f) => f.startsWith('word/media/'));
+    // 3. Verificar identidad de cada imagen, además de su cantidad. Contar
+    // archivos no detecta un logo sustituido o alterado que use el mismo nombre.
+    const origMedia = Object.keys(originalZip.files).filter(
+      (f) => f.startsWith('word/media/') && !originalZip.files[f].dir
+    );
+    const clonedMedia = Object.keys(testZip.files).filter(
+      (f) => f.startsWith('word/media/') && !testZip.files[f].dir
+    );
 
     if (origMedia.length !== clonedMedia.length) {
       errores.push(`Se perdieron archivos de imagen: original tenía ${origMedia.length}, generado tiene ${clonedMedia.length}`);
+    }
+
+    for (const nombre of origMedia) {
+      const archivoOriginal = originalZip.file(nombre);
+      const archivoGenerado = testZip.file(nombre);
+      if (!archivoOriginal || !archivoGenerado) {
+        errores.push(`La imagen original ${nombre} no está en el Word generado.`);
+        continue;
+      }
+      const [bytesOriginales, bytesGenerados] = await Promise.all([
+        archivoOriginal.async('uint8array'),
+        archivoGenerado.async('uint8array'),
+      ]);
+      if (bytesOriginales.length !== bytesGenerados.length ||
+          bytesOriginales.some((byte, index) => byte !== bytesGenerados[index])) {
+        errores.push(`La imagen original ${nombre} fue modificada en el Word generado.`);
+      }
     }
 
     if (docGenerado) {

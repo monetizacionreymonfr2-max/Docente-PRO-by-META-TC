@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 import AccessProtection from '../AccessProtection';
-import { CamilaInner } from '../../pages/Camila';
 import { 
   Home as HomeIcon,
   Users, 
@@ -24,7 +23,7 @@ import {
   FileUp,
   Bot
 } from 'lucide-react';
-import { FEATURE_FLAGS, puedeVerMiFormato } from '../../config/features';
+import { puedeVerMiFormato } from '../../config/features';
 
 interface LayoutProps {
   isAdmin?: boolean;
@@ -32,13 +31,13 @@ interface LayoutProps {
   codeId?: string;
   generationsCount?: number;
   teacherId?: string;
+  teacherName?: string;
   expiresAt?: any;
 }
 
-export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', generationsCount = 0, teacherId = '', expiresAt }: LayoutProps) {
+export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', generationsCount = 0, teacherId = '', teacherName = '', expiresAt }: LayoutProps) {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [isCamilaWidgetOpen, setIsCamilaWidgetOpen] = useState(false);
   const isGuest = accessLevel === 'guest';
   const GUEST_LIMIT = 3;
   const usagePercentage = Math.min((generationsCount / GUEST_LIMIT) * 100, 100);
@@ -84,8 +83,8 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
     { path: '/planner', icon: <CalendarDays size={20} />, label: 'Planificador Diario' },
     { path: '/reports', icon: <FileText size={20} />, label: 'Generador de Boletines' },
     { path: '/camila', icon: <Sparkles size={20} className="text-amber-400" />, label: 'IA Camila' },
-    ...(puedeVerMiFormato(isAdmin) ? [{ path: '/mi-formato', icon: <FileUp size={20} className="text-cyan-400" />, label: 'Mi Formato' }] : []),
-    ...(puedeVerMiFormato(isAdmin) ? [{ path: '/camila-formato', icon: <Bot size={20} className="text-teal-400" />, label: 'Camila Formato' }] : []),
+    ...(puedeVerMiFormato(isAdmin) && !isGuest ? [{ path: '/mi-formato', icon: <FileUp size={20} className="text-cyan-400" />, label: 'Mi Formato' }] : []),
+    ...(puedeVerMiFormato(isAdmin) && !isGuest ? [{ path: '/camila-formato', icon: <Bot size={20} className="text-teal-400" />, label: 'Camila Formato' }] : []),
   ];
 
   if (isAdmin) {
@@ -271,28 +270,11 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
       <main className="flex-1 overflow-y-auto bg-transparent pt-16 md:pt-0">
         <AccessProtection accessLevel={accessLevel} codeId={codeId}>
           <div className={location.pathname === '/camila-formato' ? "p-1 sm:p-4 max-w-7xl mx-auto" : "p-4 md:p-8 max-w-7xl mx-auto"}>
-            <Outlet context={{ isGuest, generationsCount, teacherId, isAdmin }} />
+            <Outlet context={{ isGuest, generationsCount, teacherId, teacherName, isAdmin }} />
           </div>
         </AccessProtection>
       </main>
 
-      {/* Floating Camila Widget */}
-      {!location.pathname.startsWith('/camila') && (
-        <div className="no-print">
-          <button
-            onClick={() => setIsCamilaWidgetOpen(!isCamilaWidgetOpen)}
-            className="fixed bottom-6 right-6 p-4 rounded-full bg-gradient-to-br from-futuristic-purple to-futuristic-magenta text-white shadow-2xl hover:shadow-futuristic-purple/40 hover:scale-110 transition-all z-50 flex items-center justify-center border-2 border-white/20 group"
-          >
-            {isCamilaWidgetOpen ? <X size={28} /> : <Sparkles size={28} className="group-hover:rotate-12 transition-transform" />}
-          </button>
-
-          {isCamilaWidgetOpen && (
-            <div className="fixed bottom-24 right-4 sm:right-6 w-[calc(100vw-2rem)] sm:w-[450px] h-[600px] max-h-[80vh] rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] z-50 overflow-hidden neon-border flex flex-col animate-in fade-in slide-in-from-bottom-5">
-              <CamilaInner teacherId={teacherId} isEmbedded={true} onClose={() => setIsCamilaWidgetOpen(false)} isAdmin={isAdmin} />
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

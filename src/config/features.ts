@@ -5,7 +5,7 @@
 export const FEATURE_FLAGS = {
   // Feature flag for "Mi Formato" (subida de formatos escolares PDF, Word, fotos)
   MI_FORMATO_ENABLED: true,
-  // Poner en false para abrir Mi Formato a todos los docentes Pro
+  // Lanzamiento controlado: Mi Formato y Camila Formato solo para administradores.
   MI_FORMATO_SOLO_ADMIN: true,
   // Feature flag para clonación exacta byte a byte de archivos Word .docx
   MI_FORMATO_CLONAR_ENABLED: true,
