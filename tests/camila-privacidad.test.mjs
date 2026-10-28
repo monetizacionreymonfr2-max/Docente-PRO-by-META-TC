@@ -2,6 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { prepararMensajesParaGuardar, recuperarMensajesGuardados } from '../src/lib/camila/camilaPersistenceCodec.ts';
+import { resolverConfigSupabase } from '../src/lib/supabaseConfig.ts';
+
+test('Supabase requiere configuración explícita sin conectarse por defecto a producción', () => {
+  assert.throws(() => resolverConfigSupabase({}), /Falta configurar/);
+  assert.throws(() => resolverConfigSupabase({ VITE_SUPABASE_URL: 'https://ejemplo.supabase.co' }), /Falta configurar/);
+  assert.throws(() => resolverConfigSupabase({ VITE_SUPABASE_ANON_KEY: 'clave-publica' }), /Falta configurar/);
+  assert.throws(() => resolverConfigSupabase({ VITE_SUPABASE_URL: 'no-es-url', VITE_SUPABASE_ANON_KEY: 'clave-publica' }), /URL válida/);
+  assert.throws(() => resolverConfigSupabase({ VITE_SUPABASE_URL: 'http://ejemplo.supabase.co', VITE_SUPABASE_ANON_KEY: 'clave-publica' }), /HTTPS/);
+  assert.deepEqual(
+    resolverConfigSupabase({ VITE_SUPABASE_URL: ' https://ejemplo.supabase.co ', VITE_SUPABASE_ANON_KEY: ' clave-publica ' }),
+    { url: 'https://ejemplo.supabase.co', clavePublica: 'clave-publica' },
+  );
+  assert.equal(resolverConfigSupabase({ VITE_SUPABASE_URL: 'http://localhost:54321', VITE_SUPABASE_ANON_KEY: 'clave-publica' }).url, 'http://localhost:54321');
+});
 
 test('el historial guarda solo texto y no adjuntos ni datos binarios', () => {
   const mensajes = [
