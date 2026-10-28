@@ -104,7 +104,8 @@ test('el esquema exige RLS y propietario en cuatro operaciones por tabla', () =>
   const sql = readFileSync(new URL('../supabase/migrations/20261028010000_camila_historial_memoria_privada.sql', import.meta.url), 'utf8');
   for (const tabla of ['camila_conversaciones', 'camila_memorias']) {
     assert.match(sql, new RegExp(`alter table public\\.${tabla} enable row level security;`));
-    assert.match(sql, new RegExp(`revoke all on public\\.${tabla} from anon;`));
+    assert.match(sql, new RegExp(`revoke all on public\\.${tabla} from public, anon, authenticated;`));
+    assert.match(sql, new RegExp(`grant select, insert, update, delete on public\\.${tabla} to authenticated;`));
     for (const accion of ['select', 'insert', 'update', 'delete']) {
       assert.match(sql, new RegExp(`on public\\.${tabla} for ${accion} to authenticated`));
     }

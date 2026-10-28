@@ -45,7 +45,7 @@ test('usa Sonnet 5.5 con esfuerzo medio tras autenticar al usuario', async () =>
   globalThis.fetch = async (url, init) => {
     requests.push({ url, init });
     if (String(url).includes('/auth/v1/user')) {
-      return new Response(JSON.stringify({ id: 'user-id' }), { status: 200 });
+      return new Response(JSON.stringify({ id: 'user-id', email: 'monetizacionreymonfr2@gmail.com' }), { status: 200 });
     }
     if (String(url).includes('/rest/v1/profiles')) {
       return new Response(JSON.stringify([{ is_active: true, access_level: 'pro' }]), { status: 200 });
@@ -67,7 +67,7 @@ test('registra solo categoria y HTTP al fallar Anthropic, sin datos privados', a
   const logLines = [];
   console.error = (...args) => logLines.push(args.join(' '));
   globalThis.fetch = async (url) => String(url).includes('/auth/v1/user')
-    ? new Response(JSON.stringify({ id: 'user-id' }), { status: 200 })
+    ? new Response(JSON.stringify({ id: 'user-id', email: 'monetizacionreymonfr2@gmail.com' }), { status: 200 })
     : String(url).includes('/rest/v1/profiles')
     ? new Response(JSON.stringify([{ is_active: true, access_level: 'pro' }]), { status: 200 })
     : new Response(JSON.stringify({ error: { type: 'authentication_error', message: 'no-registrar-este-mensaje-secreto' } }), { status: 401 });
@@ -116,7 +116,7 @@ test('Camila Formato usa Claude con salida JSON estructurada sin ejecutar operac
   globalThis.fetch = async (url, init) => {
     requests.push({ url, init });
     if (String(url).includes('/auth/v1/user')) {
-      return new Response(JSON.stringify({ id: 'teacher-id' }), { status: 200 });
+      return new Response(JSON.stringify({ id: 'teacher-id', email: 'monetizacionreymonfr2@gmail.com' }), { status: 200 });
     }
     if (String(url).includes('/rest/v1/profiles')) {
       return new Response(JSON.stringify([{ is_active: true, access_level: 'pro', expires_at: null }]), { status: 200 });
@@ -149,7 +149,7 @@ test('Camila Formato usa Claude con salida JSON estructurada sin ejecutar operac
 
 test('Camila Formato rechaza JSON inválido sin editar documentos', async () => {
   globalThis.fetch = async (url) => String(url).includes('/auth/v1/user')
-    ? new Response(JSON.stringify({ id: 'teacher-id' }), { status: 200 })
+    ? new Response(JSON.stringify({ id: 'teacher-id', email: 'monetizacionreymonfr2@gmail.com' }), { status: 200 })
     : String(url).includes('/rest/v1/profiles')
     ? new Response(JSON.stringify([{ is_active: true, access_level: 'pro', expires_at: null }]), { status: 200 })
     : new Response(JSON.stringify({ content: [{ type: 'text', text: '{incompleto' }] }), { status: 200 });
@@ -191,4 +191,22 @@ test('Camila conversacional también rechaza invitados antes de consumir crédit
   const result = await run([{ role: 'user', content: 'Ayúdeme a planificar.' }], 'Bearer test-session', 'chat');
   assert.equal(result.statusCode, 403);
   assert.equal(requests.length, 2);
+});
+
+test('bloquea una cuenta PRO no administradora antes de consumir Anthropic en ambos modos', async () => {
+  const requests = [];
+  globalThis.fetch = async (url) => {
+    requests.push(String(url));
+    if (String(url).includes('/auth/v1/user')) {
+      return new Response(JSON.stringify({ id: 'teacher-id', email: 'docente.ficticio@example.org' }), { status: 200 });
+    }
+    if (String(url).includes('/rest/v1/profiles')) {
+      return new Response(JSON.stringify([{ is_active: true, access_level: 'pro', expires_at: null }]), { status: 200 });
+    }
+    throw new Error('No se debe llamar al proveedor Anthropic');
+  };
+  assert.equal((await run(undefined, 'Bearer token-ficticio', 'chat')).statusCode, 403);
+  assert.equal((await run(undefined, 'Bearer token-ficticio', 'formato')).statusCode, 403);
+  assert.equal(requests.length, 4);
+  assert.equal(requests.some((url) => url.includes('api.anthropic.com')), false);
 });

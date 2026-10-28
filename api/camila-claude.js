@@ -123,6 +123,11 @@ export default async function handler(req, res) {
       if (!isAdmin && (!profile?.is_active || profile?.access_level!=='pro' || expired)) {
         return res.status(403).json({error:'Esta función requiere una licencia DOCENTY PRO activa'});
       }
+      // Mientras Mi Formato se lanza solo a administradores, la API también
+      // debe impedir solicitudes directas que consumirían créditos de Claude.
+      if (!isAdmin) {
+        return res.status(403).json({error:'Camila Claude está disponible temporalmente solo para administradores'});
+      }
     }
     const response=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},

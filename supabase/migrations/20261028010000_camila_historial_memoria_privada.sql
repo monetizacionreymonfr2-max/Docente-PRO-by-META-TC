@@ -32,8 +32,10 @@ create index if not exists camila_memorias_docente_fecha_idx
 alter table public.camila_conversaciones enable row level security;
 alter table public.camila_memorias enable row level security;
 
-revoke all on public.camila_conversaciones from anon;
-revoke all on public.camila_memorias from anon;
+-- Supabase puede otorgar permisos amplios por defecto en public.
+-- Retirarlos de PUBLIC, anon y authenticated antes de conceder solo lo necesario.
+revoke all on public.camila_conversaciones from public, anon, authenticated;
+revoke all on public.camila_memorias from public, anon, authenticated;
 grant select, insert, update, delete on public.camila_conversaciones to authenticated;
 grant select, insert, update, delete on public.camila_memorias to authenticated;
 
