@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { renderAsync } from 'docx-preview';
 import { Loader2, AlertCircle, Eye } from 'lucide-react';
+import { calcularEscalaVistaPrevia } from '../../lib/docxClone/escalaVistaPrevia';
 
 interface DocxPreviewViewerProps {
   blob: Blob | null;
@@ -73,9 +74,7 @@ export default function DocxPreviewViewer({ blob, className = '' }: DocxPreviewV
     };
   }, [blob]);
 
-  const escala = ajustarAlAncho && anchoNatural && anchoDisponible
-    ? Math.min(1, (anchoDisponible - 4) / anchoNatural)
-    : 1;
+  const escala = calcularEscalaVistaPrevia(anchoNatural, anchoDisponible, ajustarAlAncho);
 
   return (
     <div className={`relative flex flex-col bg-slate-900/60 rounded-2xl border border-white/10 overflow-hidden ${className}`}>
@@ -90,6 +89,7 @@ export default function DocxPreviewViewer({ blob, className = '' }: DocxPreviewV
             onClick={() => setAjustarAlAncho((valor) => !valor)}
             className="rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-2 py-1 text-[11px] font-bold text-cyan-200 hover:bg-cyan-400/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-300"
             aria-label={ajustarAlAncho ? 'Ver documento a tamaño real' : 'Ajustar documento al ancho de pantalla'}
+            aria-pressed={!ajustarAlAncho}
           >
             {ajustarAlAncho ? '100 %' : 'Ajustar'}
           </button>
