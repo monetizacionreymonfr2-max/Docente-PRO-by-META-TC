@@ -5,9 +5,24 @@ import JSZip from 'jszip';
 import { DOMParser as XmlDOMParser, XMLSerializer } from '@xmldom/xmldom';
 import { cargarDocx, construirMapa, guardarDocx, validarDocxClonado } from '../src/lib/docxClone/docxEditor.ts';
 import { calcularEscalaVistaPrevia } from '../src/lib/docxClone/escalaVistaPrevia.ts';
+import { FEATURE_FLAGS, puedeVerMiFormato } from '../src/config/features.ts';
 
 const NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const rutaWord = new URL('./fixtures/mi-formato-visual-ficticio.docx', import.meta.url);
+
+test('el lanzamiento controlado solo permite Mi Formato a administradores', () => {
+  assert.equal(FEATURE_FLAGS.MI_FORMATO_ENABLED, true);
+  assert.equal(FEATURE_FLAGS.MI_FORMATO_SOLO_ADMIN, true);
+  assert.equal(puedeVerMiFormato(true), true);
+  assert.equal(puedeVerMiFormato(false), false);
+  assert.equal(puedeVerMiFormato(undefined), false);
+
+  const rutas = readFileSync(new URL('../src/App.tsx', import.meta.url), 'utf8');
+  const menu = readFileSync(new URL('../src/components/layout/Layout.tsx', import.meta.url), 'utf8');
+  assert.match(rutas, /path="mi-formato" element=\{puedeVerMiFormato\(isAdmin\)/);
+  assert.match(rutas, /path="camila-formato" element=\{puedeVerMiFormato\(isAdmin\)/);
+  assert.match(menu, /puedeVerMiFormato\(isAdmin\)/);
+});
 
 async function conDomDePrueba(funcion) {
   const parserAnterior = globalThis.DOMParser;
