@@ -56,6 +56,7 @@ import {
   enviarMensajeACamilaFormato,
   revisarDocumentoVivo,
 } from '../lib/camilaFormato/camilaFormatoEngine';
+import { obtenerAccionesDocumento } from '../lib/camilaFormato/accionesDocumento';
 import { prepararDeshacerSeguro } from '../lib/camilaFormato/deshacerSeguro';
 import {
   getCamilaFormatoModel,
@@ -115,6 +116,13 @@ export default function CamilaFormato() {
   ]);
   const [inputTexto, setInputTexto] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const accionesDocumento = obtenerAccionesDocumento({
+    hayDocumento: Boolean(blobDocx),
+    hayZip: Boolean(zipVivo),
+    cantidadSnapshots: snapshots.length,
+    hayPropuesta: Boolean(propuestaPendiente),
+    procesando: isProcessing,
+  });
   const [progresoDetalle, setProgresoDetalle] = useState<string | null>(null);
   const [escuchando, setEscuchando] = useState(false);
   const [hablandoId, setHablandoId] = useState<string | null>(null);
@@ -593,7 +601,7 @@ export default function CamilaFormato() {
 
   // Deshacer el último cambio
   const handleDeshacer = async () => {
-    if (snapshots.length <= 1 || !zipVivo || !blobDocx || propuestaPendiente || isProcessing) return;
+    if (!accionesDocumento.deshacer || !blobDocx) return;
 
     const nuevas = [...snapshots];
     nuevas.pop(); // descartar el estado actual
@@ -773,7 +781,7 @@ export default function CamilaFormato() {
   };
 
   const handleAprobarPropuesta = async () => {
-    if (!propuestaPendiente || isProcessing) return;
+    if (!accionesDocumento.aprobar || !propuestaPendiente) return;
     setIsProcessing(true);
     setProgresoDetalle('Aplicando únicamente los cambios autorizados...');
     try {
@@ -812,7 +820,7 @@ export default function CamilaFormato() {
   };
 
   const handleDescartarPropuesta = () => {
-    if (!propuestaPendiente || isProcessing) return;
+    if (!accionesDocumento.descartar || !propuestaPendiente) return;
     setPropuestaPendiente(null);
     setTabActiva('chat');
     setMensajes((prev) => [...prev, {
@@ -823,7 +831,7 @@ export default function CamilaFormato() {
 
   // Descarga del archivo Word
   const handleDescargarDocx = () => {
-    if (!blobDocx) return;
+    if (!accionesDocumento.descargar || !blobDocx) return;
     const url = URL.createObjectURL(blobDocx);
     const a = document.createElement('a');
     a.href = url;
@@ -836,6 +844,7 @@ export default function CamilaFormato() {
 
   // Descarga PDF aproximada (impresión del navegador)
   const handleDescargarPdf = () => {
+    if (!accionesDocumento.descargar) return;
     window.print();
   };
 
@@ -1300,7 +1309,7 @@ export default function CamilaFormato() {
               <button
                 type="button"
                 onClick={handleDeshacer}
-                disabled={snapshots.length <= 1 || isProcessing || Boolean(propuestaPendiente)}
+                disabled={!accionesDocumento.deshacer}
                 className="px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-slate-300 flex items-center gap-1.5 transition-all disabled:opacity-30"
                 title="Deshacer el último cambio aplicado"
               >
@@ -1313,7 +1322,7 @@ export default function CamilaFormato() {
               <button
                 type="button"
                 onClick={handleDescargarDocx}
-                disabled={!blobDocx || Boolean(propuestaPendiente)}
+                disabled={!accionesDocumento.descargar}
                 className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-emerald-600/30 disabled:opacity-40"
               >
                 <Download size={14} />
@@ -1323,7 +1332,7 @@ export default function CamilaFormato() {
               <button
                 type="button"
                 onClick={handleDescargarPdf}
-                disabled={!blobDocx || Boolean(propuestaPendiente)}
+                disabled={!accionesDocumento.descargar}
                 className="px-3 py-1.5 rounded-xl bg-red-600/20 hover:bg-red-600/40 border border-red-500/30 text-red-200 text-xs font-bold flex items-center gap-1.5 transition-all disabled:opacity-40"
                 title="Imprimir / Exportar PDF aproximado"
               >
@@ -1349,11 +1358,11 @@ export default function CamilaFormato() {
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={handleDescartarPropuesta} disabled={isProcessing}
+                <button type="button" onClick={handleDescartarPropuesta} disabled={!accionesDocumento.descartar}
                   className="px-2.5 py-2 rounded-xl text-xs font-bold text-slate-200 bg-white/10 border border-white/20 hover:bg-white/20 disabled:opacity-50">
                   Descartar propuesta
                 </button>
-                <button type="button" onClick={handleAprobarPropuesta} disabled={isProcessing}
+                <button type="button" onClick={handleAprobarPropuesta} disabled={!accionesDocumento.aprobar}
                   className="px-2.5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50">
                   {isProcessing ? 'Aplicando...' : 'Aprobar y aplicar'}
                 </button>
