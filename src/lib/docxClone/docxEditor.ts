@@ -735,12 +735,34 @@ export async function validarDocxClonado(
       }
     }
 
-    // 3. Verificar que los archivos de medios (logos, imágenes) siguen idénticos
-    const origMedia = Object.keys(originalZip.files).filter((f) => f.startsWith('word/media/'));
-    const clonedMedia = Object.keys(testZip.files).filter((f) => f.startsWith('word/media/'));
+    // 3. Verificar identidad de cada imagen, además de su cantidad. Contar
+    // archivos no detecta un logo sustituido o alterado que use el mismo nombre.
+    const origMedia = Object.keys(originalZip.files).filter(
+      (f) => f.startsWith('word/media/') && !originalZip.files[f].dir
+    );
+    const clonedMedia = Object.keys(testZip.files).filter(
+      (f) => f.startsWith('word/media/') && !testZip.files[f].dir
+    );
 
     if (origMedia.length !== clonedMedia.length) {
       errores.push(`Se perdieron archivos de imagen: original tenía ${origMedia.length}, generado tiene ${clonedMedia.length}`);
+    }
+
+    for (const nombre of origMedia) {
+      const archivoOriginal = originalZip.file(nombre);
+      const archivoGenerado = testZip.file(nombre);
+      if (!archivoOriginal || !archivoGenerado) {
+        errores.push(`La imagen original ${nombre} no está en el Word generado.`);
+        continue;
+      }
+      const [bytesOriginales, bytesGenerados] = await Promise.all([
+        archivoOriginal.async('uint8array'),
+        archivoGenerado.async('uint8array'),
+      ]);
+      if (bytesOriginales.length !== bytesGenerados.length ||
+          bytesOriginales.some((byte, index) => byte !== bytesGenerados[index])) {
+        errores.push(`La imagen original ${nombre} fue modificada en el Word generado.`);
+      }
     }
 
     if (docGenerado) {

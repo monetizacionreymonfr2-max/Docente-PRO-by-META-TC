@@ -11,7 +11,7 @@
     "lint": "tsc --noEmit",
     "test:claude": "node --test tests/camila-claude.test.mjs",
     "test:camila-privacidad": "node --test tests/camila-privacidad.test.mjs",
-    "test:mi-formato": "node --import tsx tests/mi-formato-encabezados.test.mjs"
+    "test:mi-formato": "node --import tsx tests/mi-formato-encabezados.test.mjs && node --import tsx tests/mi-formato-integridad-docx.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.50.1",
