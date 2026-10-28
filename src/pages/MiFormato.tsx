@@ -195,9 +195,9 @@ export default function MiFormato() {
               Mi Formato <span className="text-cyan-400">Escolar</span>
             </h1>
             <p className="text-slate-300 text-xs sm:text-sm mt-2 leading-relaxed">
-              Sube el formato de tu escuela (PDF, Word o foto). Camila lo analiza una sola vez, aprende
-              sus tablas y títulos exactos, y vacía tus PPA y planificaciones respetando los lineamientos
-              oficiales MPPE. Tus formatos quedan guardados de forma segura en la nube.
+              Suba el formato de su institución (PDF, Word o imagen). Camila identificará sus tablas,
+              títulos y secciones para ayudarle a preparar sus planificaciones respetando su estructura.
+              Podrá revisar los cambios con Camila antes de descargar el documento.
             </p>
           </div>
 

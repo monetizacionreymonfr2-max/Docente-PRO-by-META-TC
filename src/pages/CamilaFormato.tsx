@@ -867,7 +867,7 @@ export default function CamilaFormato() {
           )}
 
           {/* Botón Revisar Documento */}
-          {revisionVisible && (
+          {revisionVisible && (snapshots.length > 1 || Boolean(propuestaPendiente)) && (
             <button
               type="button"
               onClick={() => setModalRevisionOpen(true)}

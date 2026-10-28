@@ -63,3 +63,8 @@ test('el esquema exige RLS y propietario en cuatro operaciones por tabla', () =>
   }
   assert.equal((sql.match(/\(select auth\.uid\(\)\) = teacher_id/g) || []).length, 10);
 });
+
+test('la revisión de cobertura aparece solo después de preparar o aplicar cambios al Word', () => {
+  const pantalla = readFileSync(new URL('../src/pages/CamilaFormato.tsx', import.meta.url), 'utf8');
+  assert.match(pantalla, /revisionVisible && \(snapshots\.length > 1 \|\| Boolean\(propuestaPendiente\)\)/);
+});
