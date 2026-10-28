@@ -19,7 +19,13 @@ export default function DocxPreviewViewer({ blob, className = '' }: DocxPreviewV
   useEffect(() => {
     const viewport = viewportRef.current;
     if (!viewport) return;
-    const medir = () => setAnchoDisponible(viewport.clientWidth);
+    const medir = () => {
+      // El ancho útil excluye el relleno del visor, de modo que el documento
+      // ajustado no provoque una barra horizontal innecesaria.
+      const estilo = window.getComputedStyle(viewport);
+      const relleno = parseFloat(estilo.paddingLeft) + parseFloat(estilo.paddingRight);
+      setAnchoDisponible(Math.max(0, viewport.clientWidth - relleno));
+    };
     medir();
     const observer = new ResizeObserver(medir);
     observer.observe(viewport);

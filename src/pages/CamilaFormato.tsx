@@ -880,7 +880,7 @@ export default function CamilaFormato() {
           </div>
 
           {/* CHIPS DE SUGERENCIAS */}
-          <div className="px-3 py-2 bg-white/5 border-t border-white/10 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
+          <div className="px-3 py-2 bg-white/5 border-t border-white/10 flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0">
             <button
               type="button"
               onClick={() => handleEnviarMensaje(docVivo ? 'Vacíelo con mi proyecto de aprendizaje' : 'Camila, ayúdeme a preparar un proyecto de aprendizaje.')}
@@ -925,7 +925,7 @@ export default function CamilaFormato() {
 
           {/* BARRA DE ADJUNTOS EN MEMORIA */}
           {adjuntos.length > 0 && (
-            <div className="px-3 py-1.5 bg-cyan-950/40 border-t border-cyan-500/20 flex items-center gap-2 overflow-x-auto shrink-0">
+            <div className="px-3 py-1.5 bg-cyan-950/40 border-t border-cyan-500/20 flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0">
               <span className="text-[10px] text-cyan-300 font-bold shrink-0">Adjuntos:</span>
               {adjuntos.map((a) => (
                 <div
@@ -1028,11 +1028,11 @@ export default function CamilaFormato() {
               }}
               placeholder={
                 docVivo
-                  ? 'Indique a Camila qué desea preparar o modificar en su documento...'
-                  : 'Converse con Camila o abra un formato Word para trabajar...'
+                  ? 'Escriba su instrucción para Camila...'
+                  : 'Escriba su mensaje para Camila...'
               }
               rows={1}
-              className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400/50 resize-none max-h-24"
+              className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400/50 resize-none min-h-10 max-h-24"
             />
 
             {/* Botón Enviar */}
