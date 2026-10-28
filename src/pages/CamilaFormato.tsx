@@ -847,12 +847,12 @@ export default function CamilaFormato() {
     <div className="flex flex-col h-[calc(100dvh-5.2rem)] md:h-[calc(100vh-2rem)] max-w-7xl mx-auto p-1 sm:p-3 gap-2 sm:gap-3">
       {/* HEADER BAR */}
       <header className="flex flex-wrap items-center justify-between gap-2.5 p-3 sm:p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-md shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-cyan-500 to-teal-500 flex items-center justify-center text-white shadow-md shadow-cyan-500/20">
+        <div className="flex items-center gap-3 min-w-0 max-w-full">
+          <div className="w-10 h-10 shrink-0 rounded-xl bg-gradient-to-tr from-cyan-500 to-teal-500 flex items-center justify-center text-white shadow-md shadow-cyan-500/20">
             <Bot size={22} />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-base sm:text-lg font-black text-white tracking-tight">Camila · Espacio pedagógico</h1>
               <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-teal-500/20 text-teal-300 border border-teal-400/30">
                 Word Vivo
@@ -1395,8 +1395,8 @@ export default function CamilaFormato() {
 
       {/* HISTORIAL PRIVADO: ningún mensaje se guarda sin pulsar Guardar chat. */}
       {modalHistorialOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Historial privado de Camila">
-          <div className="w-full max-w-lg rounded-3xl bg-slate-900 border border-white/10 p-5 shadow-2xl flex flex-col max-h-[85vh] gap-3">
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center overflow-y-auto p-2 sm:p-4 bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Historial privado de Camila">
+          <div className="w-full max-w-lg my-auto rounded-3xl bg-slate-900 border border-white/10 p-4 sm:p-5 shadow-2xl flex flex-col max-h-[calc(100dvh-1rem)] sm:max-h-[85dvh] gap-3">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <h3 className="font-bold text-white flex items-center gap-2"><History size={18} className="text-cyan-300" /> Historial privado</h3>
               <button type="button" onClick={() => setModalHistorialOpen(false)} aria-label="Cerrar historial" className="text-slate-300 hover:text-white"><X size={17} /></button>
@@ -1429,8 +1429,8 @@ export default function CamilaFormato() {
 
       {/* MEMORIA PRIVADA: revisión explícita antes de crear o modificar un dato. */}
       {modalMemoriaOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Memoria privada de Camila">
-          <div className="w-full max-w-xl rounded-3xl bg-slate-900 border border-white/10 p-5 shadow-2xl flex flex-col max-h-[90vh] gap-3">
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center overflow-y-auto p-2 sm:p-4 bg-black/80 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Memoria privada de Camila">
+          <div className="w-full max-w-xl my-auto rounded-3xl bg-slate-900 border border-white/10 p-4 sm:p-5 shadow-2xl flex flex-col max-h-[calc(100dvh-1rem)] sm:max-h-[90dvh] gap-3">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
               <h3 className="font-bold text-white flex items-center gap-2"><Brain size={18} className="text-violet-300" /> Mi memoria privada</h3>
               <button type="button" onClick={() => setModalMemoriaOpen(false)} aria-label="Cerrar memoria" className="text-slate-300 hover:text-white"><X size={17} /></button>

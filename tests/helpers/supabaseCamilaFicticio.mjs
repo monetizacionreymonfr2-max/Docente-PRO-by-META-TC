@@ -3,6 +3,7 @@
 export function crearSupabaseCamilaFicticio() {
   const tablas = { camila_conversaciones: [], camila_memorias: [] };
   let siguienteId = 1;
+  let falloSiguiente = null;
 
   const clientePara = (usuarioId, { esquemaDisponible = true } = {}) => ({
     from(tabla) {
@@ -56,6 +57,11 @@ export function crearSupabaseCamilaFicticio() {
       };
 
       function ejecutar(unico) {
+        if (falloSiguiente) {
+          const error = falloSiguiente;
+          falloSiguiente = null;
+          return { data: null, error };
+        }
         if (!esquemaDisponible) {
           return { data: null, error: { code: '42P01', message: `relation ${tabla} does not exist` } };
         }
@@ -96,5 +102,10 @@ export function crearSupabaseCamilaFicticio() {
     },
   });
 
-  return { clientePara };
+  return {
+    clientePara,
+    simularFalloUnaVez(code = 'PGRST500', message = 'Fallo de red simulado') {
+      falloSiguiente = { code, message };
+    },
+  };
 }

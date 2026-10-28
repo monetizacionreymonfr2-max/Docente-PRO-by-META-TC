@@ -83,9 +83,68 @@ test('un esquema ausente muestra un aviso comprensible sin revelar detalles inte
   await assert.rejects(servicio.guardarRecuerdo(ANA, 'Dato', 'Ficticio'), /todavía no están habilitados/);
 });
 
+test('un fallo temporal al crear un recuerdo no guarda datos y permite reintentar', async () => {
+  const simulador = crearSupabaseCamilaFicticio();
+  const ana = crearCamilaPersistence(simulador.clientePara(ANA));
+  simulador.simularFalloUnaVez('PGRST500', 'Error sensible de conexión ficticio');
+  await assert.rejects(ana.guardarRecuerdo(ANA, 'Sección', 'Tercero A'), (error) => {
+    assert.match(error.message, /No se pudo acceder a sus datos privados/);
+    assert.ok(!error.message.includes('Error sensible'));
+    return true;
+  });
+  assert.deepEqual(await ana.listarRecuerdos(ANA), []);
+  await ana.guardarRecuerdo(ANA, 'Sección', 'Tercero A');
+  assert.equal((await ana.listarRecuerdos(ANA)).length, 1);
+});
+
+test('fallas al actualizar o borrar no alteran conversaciones hasta el reintento', async () => {
+  const simulador = crearSupabaseCamilaFicticio();
+  const ana = crearCamilaPersistence(simulador.clientePara(ANA));
+  const id = await ana.crearConversacion(ANA, [mensaje('a', 'Versión original')]);
+
+  simulador.simularFalloUnaVez();
+  await assert.rejects(ana.actualizarConversacion(ANA, id, [mensaje('b', 'Versión revisada')]), /No se pudo acceder/);
+  assert.equal((await ana.obtenerConversacion(ANA, id)).mensajes[0].texto, 'Versión original');
+  await ana.actualizarConversacion(ANA, id, [mensaje('b', 'Versión revisada')]);
+
+  simulador.simularFalloUnaVez();
+  await assert.rejects(ana.eliminarConversacion(ANA, id), /No se pudo acceder/);
+  assert.equal((await ana.obtenerConversacion(ANA, id)).mensajes[0].texto, 'Versión revisada');
+  await ana.eliminarConversacion(ANA, id);
+  assert.deepEqual(await ana.listarConversaciones(ANA), []);
+});
+
+test('las listas están limitadas a 50 elementos por docente', async () => {
+  const simulador = crearSupabaseCamilaFicticio();
+  const ana = crearCamilaPersistence(simulador.clientePara(ANA));
+  for (let i = 0; i < 53; i++) await ana.crearConversacion(ANA, [mensaje(`${i}`, `Conversación ${i}`)]);
+  assert.equal((await ana.listarConversaciones(ANA)).length, 50);
+  for (let i = 0; i < 53; i++) await ana.guardarRecuerdo(ANA, `Dato ${i}`, `Contenido ${i}`);
+  assert.equal((await ana.listarRecuerdos(ANA)).length, 50);
+});
+
 test('la interfaz conserva la autorización explícita para crear o editar memoria', () => {
   const pantalla = readFileSync(new URL('../src/pages/CamilaFormato.tsx', import.meta.url), 'utf8');
   assert.match(pantalla, /if \(!recuerdoPorAutorizar \|\| persistenciaOcupada\) return/);
   assert.match(pantalla, /¿Autoriza conservar esta información en su memoria privada\?/);
   assert.match(pantalla, /Sí, autorizo/);
+});
+
+test('historial y memoria disponen de desplazamiento y altura adaptable en teléfonos', () => {
+  const pantalla = readFileSync(new URL('../src/pages/CamilaFormato.tsx', import.meta.url), 'utf8');
+  assert.match(pantalla, /overflow-y-auto p-2 sm:p-4 bg-black\/80 backdrop-blur-sm.*Historial privado de Camila/);
+  assert.match(pantalla, /overflow-y-auto p-2 sm:p-4 bg-black\/80 backdrop-blur-sm.*Memoria privada de Camila/);
+  assert.equal((pantalla.match(/max-h-\[calc\(100dvh-1rem\)\]/g) || []).length, 2);
+  assert.match(pantalla, /sm:max-h-\[85dvh\]/);
+  assert.match(pantalla, /sm:max-h-\[90dvh\]/);
+});
+
+test('Mi Formato admite acciones y carga de archivos en una pantalla estrecha', () => {
+  const principal = readFileSync(new URL('../src/pages/MiFormato.tsx', import.meta.url), 'utf8');
+  const subida = readFileSync(new URL('../src/components/formato/SubirFormatoModal.tsx', import.meta.url), 'utf8');
+  assert.match(principal, /flex flex-wrap items-center gap-2 w-full md:w-auto md:shrink-0/);
+  assert.match(subida, /items-start sm:items-center justify-center overflow-y-auto p-2 sm:p-4/);
+  assert.match(subida, /max-h-\[calc\(100dvh-1rem\)\] sm:max-h-\[90dvh\]/);
+  assert.match(subida, /role="dialog" aria-modal="true" aria-label="Subir mi formato escolar"/);
+  assert.match(subida, /flex flex-wrap items-center justify-center gap-2 mt-2/);
 });

@@ -201,7 +201,7 @@ export default function MiFormato() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto md:shrink-0">
             {FEATURE_FLAGS.MI_FORMATO_CLONAR_ENABLED && (
               <button
                 type="button"
@@ -227,7 +227,7 @@ export default function MiFormato() {
             <button
               type="button"
               onClick={() => setIsSubirModalOpen(true)}
-              className="px-5 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-cyan-500/25 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
+              className="flex-1 sm:flex-none px-5 py-3.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-cyan-500/25 flex items-center justify-center gap-2 transition-all hover:scale-[1.02] active:scale-95"
             >
               <Plus size={18} />
               <span>Subir Nuevo Formato</span>
