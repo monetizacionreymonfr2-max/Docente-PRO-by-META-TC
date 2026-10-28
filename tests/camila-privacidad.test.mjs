@@ -2,7 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { prepararMensajesParaGuardar, recuperarMensajesGuardados } from '../src/lib/camila/camilaPersistenceCodec.ts';
+import { hayConversacionSinGuardar } from '../src/lib/camila/camilaConversationGuard.ts';
 import { resolverConfigSupabase } from '../src/lib/supabaseConfig.ts';
+
+test('avisa antes de descartar chats temporales, pero no los ya guardados', () => {
+  assert.equal(hayConversacionSinGuardar(null, 1), false);
+  assert.equal(hayConversacionSinGuardar(null, 2), true);
+  assert.equal(hayConversacionSinGuardar('conversacion-guardada', 5), false);
+  const pantalla = readFileSync(new URL('../src/pages/CamilaFormato.tsx', import.meta.url), 'utf8');
+  assert.match(pantalla, /hayConversacionSinGuardar\(conversacionId, mensajes\.length\)/);
+  assert.match(pantalla, /Esta conversación no está guardada y se perderá al cambiar de chat/);
+});
 
 test('Supabase requiere configuración explícita sin conectarse por defecto a producción', () => {
   assert.throws(() => resolverConfigSupabase({}), /Falta configurar/);

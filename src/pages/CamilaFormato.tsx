@@ -38,6 +38,7 @@ import { askCamilaClaude, type CamilaTurn } from '../lib/camila/claudeClient';
 import {
   CamilaPersistence, type ResumenConversacion, type RecuerdoCamila,
 } from '../lib/camila/camilaPersistence';
+import { hayConversacionSinGuardar } from '../lib/camila/camilaConversationGuard';
 import DocxPreviewViewer from '../components/formato/DocxPreviewViewer';
 import { FormatoService, fileToBase64 } from '../lib/formatoService';
 import { SupabaseService } from '../lib/supabaseService';
@@ -300,6 +301,8 @@ export default function CamilaFormato() {
       setAvisoPrivacidad('Primero apruebe o descarte la propuesta pendiente.');
       return false;
     }
+    if (hayConversacionSinGuardar(conversacionId, mensajes.length) &&
+        !window.confirm('Esta conversación no está guardada y se perderá al cambiar de chat. ¿Desea continuar?')) return false;
     if (docVivo && !window.confirm('Al cambiar de conversación se cerrará el Word actual de esta sesión. Descargue primero cualquier modificación que quiera conservar. ¿Desea continuar?')) return false;
     return true;
   };
@@ -320,6 +323,10 @@ export default function CamilaFormato() {
   };
 
   const abrirConversacionGuardada = async (id: string) => {
+    if (id === conversacionId) {
+      setModalHistorialOpen(false);
+      return;
+    }
     if (!confirmarCambioDeConversacion()) return;
     setPersistenciaOcupada(true);
     try {
@@ -339,7 +346,6 @@ export default function CamilaFormato() {
 
   const nuevaConversacion = async () => {
     if (!confirmarCambioDeConversacion()) return;
-    if (!conversacionId && mensajes.length > 1 && !window.confirm('Esta conversación no está guardada y se perderá. ¿Desea empezar una nueva?')) return;
     setPersistenciaOcupada(true);
     try {
       if (conversacionId) await actualizarHistorialEnCola(conversacionId);
