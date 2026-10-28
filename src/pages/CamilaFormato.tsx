@@ -56,6 +56,7 @@ import {
   enviarMensajeACamilaFormato,
   revisarDocumentoVivo,
 } from '../lib/camilaFormato/camilaFormatoEngine';
+import { prepararDeshacerSeguro } from '../lib/camilaFormato/deshacerSeguro';
 import {
   getCamilaFormatoModel,
   setCamilaFormatoModel,
@@ -592,10 +593,10 @@ export default function CamilaFormato() {
 
   // Deshacer el último cambio
   const handleDeshacer = async () => {
-    if (snapshots.length <= 1 || !zipVivo || propuestaPendiente) return;
+    if (snapshots.length <= 1 || !zipVivo || !blobDocx || propuestaPendiente || isProcessing) return;
 
     const nuevas = [...snapshots];
-    const actual = nuevas.pop(); // descartar el estado actual
+    nuevas.pop(); // descartar el estado actual
     const anterior = nuevas[nuevas.length - 1];
 
     if (!anterior) return;
@@ -604,23 +605,14 @@ export default function CamilaFormato() {
       setIsProcessing(true);
       setProgresoDetalle('Revirtiendo cambios al estado anterior...');
 
-      const parser = new DOMParser();
-      const docRevertido = parser.parseFromString(anterior.xml, 'application/xml');
-      const mapaRevertido = construirMapa(docRevertido);
+      const revertido = await prepararDeshacerSeguro(blobDocx, anterior.xml);
+      const rev = revisarDocumentoVivo(docOrig, revertido.doc, plantillaActual);
 
-      zipVivo.file('word/document.xml', anterior.xml);
-      const nuevoBlob = await zipVivo.generateAsync({
-        type: 'blob',
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        compression: 'DEFLATE',
-      });
-
-      setDocVivo(docRevertido);
-      setMapaActual(mapaRevertido);
-      setBlobDocx(nuevoBlob);
+      setDocVivo(revertido.doc);
+      setZipVivo(revertido.zip);
+      setMapaActual(revertido.mapa);
+      setBlobDocx(revertido.blob);
       setSnapshots(nuevas);
-
-      const rev = revisarDocumentoVivo(docOrig, docRevertido, plantillaActual);
       setRevisionActual(rev);
 
       setMensajes((prev) => [
@@ -635,6 +627,12 @@ export default function CamilaFormato() {
       ]);
     } catch (e: any) {
       console.error('[CamilaFormato] Error al deshacer:', e);
+      setMensajes((prev) => [...prev, {
+        id: `msg-${Date.now()}`,
+        emisor: 'camila',
+        texto: 'No pude deshacer el último cambio. Su documento permanece como estaba; puede intentarlo nuevamente.',
+        fecha: new Date(),
+      }]);
     } finally {
       setIsProcessing(false);
       setProgresoDetalle(null);
