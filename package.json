@@ -10,7 +10,7 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "test:claude": "node --test tests/camila-claude.test.mjs",
-    "test:camila-privacidad": "node --test tests/camila-privacidad.test.mjs",
+    "test:camila-privacidad": "node --test tests/camila-privacidad.test.mjs && node --import tsx --test tests/camila-persistencia-simulada.test.mjs",
     "test:mi-formato": "node --import tsx tests/mi-formato-encabezados.test.mjs && node --import tsx tests/mi-formato-integridad-docx.test.mjs"
   },
   "dependencies": {
