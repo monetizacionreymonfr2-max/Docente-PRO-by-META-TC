@@ -133,6 +133,11 @@ test('Camila Formato usa Claude con salida JSON estructurada sin ejecutar operac
   assert.equal(requestBody.model, 'claude-sonnet-5-5');
   assert.equal(requestBody.output_config.format.type, 'json_schema');
   assert.equal(requestBody.output_config.format.schema.additionalProperties, false);
+  const libro = requestBody.output_config.format.schema.properties.libroHechos;
+  assert.deepEqual(libro.required, ['version', 'hechos', 'pendientes']);
+  assert.deepEqual(libro.properties.hechos.items.required, ['campo', 'valor', 'estado', 'fuente']);
+  assert.deepEqual(libro.properties.hechos.items.properties.estado.enum,
+    ['dicho', 'supuesto', 'falta', 'contradiccion']);
   const variants = requestBody.output_config.format.schema.properties.operaciones.items.anyOf;
   const operation = (type) => variants.find((variant) => variant.properties.tipo.const === type);
   assert.equal(variants.length, 10);
@@ -145,6 +150,7 @@ test('Camila Formato usa Claude con salida JSON estructurada sin ejecutar operac
   assert.equal(variants.every((variant) => variant.additionalProperties === false), true);
   assert.equal(requestBody.max_tokens, 8192);
   assert.match(requestBody.system, /No asegure que el documento quedó completo/);
+  assert.match(requestBody.system, /libroHechos incluya un resumen estructurado/i);
 });
 
 test('Camila Formato rechaza JSON inválido sin editar documentos', async () => {

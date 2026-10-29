@@ -33,7 +33,7 @@ import {
   Brain,
   Save,
 } from 'lucide-react';
-import { askCamilaClaude, askCamilaClaudeConAdjuntos, type CamilaTurn } from '../lib/camila/claudeClient';
+import { askCamilaClaude, type CamilaTurn } from '../lib/camila/claudeClient';
 import {
   CamilaPersistence, type ResumenConversacion, type RecuerdoCamila,
 } from '../lib/camila/camilaPersistence';
@@ -52,11 +52,13 @@ import {
   AdjuntoSesion,
   ProyectoCargadoDocente,
   RevisionCoberturaDocx,
+  analizarSolicitudPpaSinWord,
   enviarMensajeACamilaFormato,
   revisarDocumentoVivo,
 } from '../lib/camilaFormato/camilaFormatoEngine';
 import { obtenerAccionesDocumento } from '../lib/camilaFormato/accionesDocumento';
 import { combinarDatosProyecto, type DatosProyectoPropuesto } from '../lib/camilaFormato/contextoProyectoPpa';
+import type { LibroHechosPpa } from '../lib/camilaFormato/libroHechosPpa';
 import { prepararDeshacerSeguro } from '../lib/camilaFormato/deshacerSeguro';
 import {
   getCamilaFormatoModel,
@@ -101,6 +103,7 @@ export default function CamilaFormato() {
   // Proyecto activo cargado
   const [proyectoActivo, setProyectoActivo] = useState<ProyectoCargadoDocente | null>(null);
   const [datosProyectoTemporal, setDatosProyectoTemporal] = useState<DatosProyectoPropuesto>({});
+  const [libroHechosTemporal, setLibroHechosTemporal] = useState<LibroHechosPpa | null>(null);
 
   // Adjuntos temporales en memoria
   const [adjuntos, setAdjuntos] = useState<AdjuntoSesion[]>([]);
@@ -334,6 +337,7 @@ export default function CamilaFormato() {
     setSnapshots([]);
     setProyectoActivo(null);
     setDatosProyectoTemporal({});
+    setLibroHechosTemporal(null);
     setAdjuntos([]);
     setRevisionActual(null);
   };
@@ -516,6 +520,7 @@ export default function CamilaFormato() {
       if (docVivo) {
         setProyectoActivo(null);
         setDatosProyectoTemporal({});
+        setLibroHechosTemporal(null);
       }
     } catch (e: any) {
       console.error('[CamilaFormato] Error al cargar formato:', e);
@@ -696,9 +701,26 @@ export default function CamilaFormato() {
           { role: 'assistant', content: 'Entendido. Usaré esos datos solo cuando sean pertinentes para su solicitud educativa.' },
         ] : [];
         const turnos = [...recuerdosAutorizados, ...anteriores, { role: 'user' as const, content: texto.slice(0, 3000) }];
-        const respuesta = adjuntosEnviados.length
-          ? await askCamilaClaudeConAdjuntos(turnos, adjuntosEnviados)
-          : await askCamilaClaude(turnos);
+        const esTrabajoPpa = adjuntosEnviados.length > 0 || Object.keys(datosProyectoTemporal).length > 0 ||
+          /\b(ppa|proyecto|planificaci[oó]n|formato|diagn[oó]stico|word)\b/i.test(texto);
+        let respuesta: string;
+        if (esTrabajoPpa) {
+          const resultado = await analizarSolicitudPpaSinWord({
+            mensajeDocente: texto,
+            historialTurnos: anteriores.slice(-6).map((m) => ({
+              rol: m.role === 'user' ? 'user' : 'model', texto: m.content,
+            })),
+            adjuntos: adjuntosEnviados,
+            datosProyectoTemporal,
+            libroHechosTemporal,
+            memoriasAutorizadas: usarRecuerdos ? recuerdos.map(({ titulo, contenido }) => ({ titulo, contenido })) : [],
+          });
+          respuesta = resultado.respuestaCamila;
+          setDatosProyectoTemporal((prev) => combinarDatosProyecto(prev, resultado.datosProyectoExtraidos));
+          if (resultado.libroHechosExtraidos) setLibroHechosTemporal(resultado.libroHechosExtraidos);
+        } else {
+          respuesta = await askCamilaClaude(turnos);
+        }
         setMensajes((prev) => [...prev, {
           id: `msg-${Date.now()}`, emisor: 'camila', texto: respuesta, fecha: new Date(),
         }]);
@@ -758,6 +780,7 @@ export default function CamilaFormato() {
         plantilla: plantillaActual,
         proyectoActivo,
         datosProyectoTemporal,
+        libroHechosTemporal,
         memoriasAutorizadas: usarRecuerdos ? recuerdos.map(({ titulo, contenido }) => ({ titulo, contenido })) : [],
         adjuntosMemoria: adjuntosEnviados,
         archivoOriginalData: archivoOriginalBuffer,
@@ -767,6 +790,7 @@ export default function CamilaFormato() {
       if (resultado.datosProyectoExtraidos) {
         setDatosProyectoTemporal((prev) => combinarDatosProyecto(prev, resultado.datosProyectoExtraidos));
       }
+      if (resultado.libroHechosExtraidos) setLibroHechosTemporal(resultado.libroHechosExtraidos);
 
       if (resultado.operacionesEjecutadas.length > 0) {
         setPropuestaPendiente({ solicitud: texto, resultado });

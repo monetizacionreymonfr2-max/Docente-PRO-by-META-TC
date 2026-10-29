@@ -20,6 +20,16 @@ export interface LibroHechosPpa {
   pendientes: string[];
 }
 
+const ORIGENES = new Set<OrigenHechoPpa>([
+  'mensaje_docente', 'archivo_actual', 'memoria_autorizada', 'plantilla_referencia',
+]);
+
+const CAMPOS_PROYECTO = [
+  'gradoSeccion', 'tema', 'diagnostico', 'duracion', 'docente', 'institucion', 'matricula',
+] as const;
+
+export type DatosProyectoDesdeLibro = Partial<Record<typeof CAMPOS_PROYECTO[number], string>>;
+
 export const INSTRUCCION_LIBRO_HECHOS_PPA = `Extraiga datos para un PPA venezolano exclusivamente de mensajes y archivos adjuntos.
 Responda como objeto JSON: {version:1,hechos:[{campo,valor,estado,fuente:{origen,referencia},observacion}],pendientes:[]}.
 Los estados permitidos son dicho, supuesto, falta, contradiccion.
@@ -34,18 +44,37 @@ export function validarLibroHechosPpa(libro: LibroHechosPpa): string[] {
   if (libro?.version !== 1 || !Array.isArray(libro.hechos) || !Array.isArray(libro.pendientes)) {
     return ['El libro de hechos no tiene la estructura esperada.'];
   }
+  if (libro.hechos.length > 40 || libro.pendientes.length > 15 ||
+      libro.pendientes.some((p) => typeof p !== 'string' || p.length > 500)) {
+    return ['El libro de hechos excede los límites permitidos.'];
+  }
   const estados = new Set<EstadoHechoPpa>(['dicho', 'supuesto', 'falta', 'contradiccion']);
+  const confirmados = new Map<string, string>();
   for (const h of libro.hechos) {
-    if (!h || typeof h.campo !== 'string' || !h.campo.trim() || !estados.has(h.estado)) {
+    if (!h || typeof h.campo !== 'string' || !h.campo.trim() || h.campo.length > 80 || !estados.has(h.estado) ||
+        (h.valor !== null && (typeof h.valor !== 'string' || h.valor.length > 2500))) {
       errores.push('Existe un hecho sin campo o estado válido.');
       continue;
     }
+    if (h.fuente !== null && (!h.fuente || !ORIGENES.has(h.fuente.origen) ||
+        typeof h.fuente.referencia !== 'string' || h.fuente.referencia.length > 500)) {
+      errores.push(`${h.campo}: la fuente del dato no es válida.`);
+      continue;
+    }
     if (h.estado === 'dicho' &&
-        (!h.fuente || h.fuente.origen === 'plantilla_referencia' || !h.fuente.referencia?.trim())) {
+        (!h.fuente || h.fuente.origen === 'plantilla_referencia' || !h.fuente.referencia?.trim() ||
+         !h.valor?.trim())) {
       errores.push(`${h.campo}: no se puede confirmar un dato sin fuente actual o autorizada.`);
     }
     if (h.estado === 'falta' && h.valor !== null) {
       errores.push(`${h.campo}: un dato faltante no debe contener un valor inventado.`);
+    }
+    if (h.estado === 'dicho' && h.valor?.trim()) {
+      const previo = confirmados.get(h.campo);
+      if (previo && previo.toLocaleLowerCase('es') !== h.valor.trim().toLocaleLowerCase('es')) {
+        errores.push(`${h.campo}: hay dos valores confirmados incompatibles.`);
+      }
+      confirmados.set(h.campo, h.valor.trim());
     }
   }
   const numeros = new Map<string, number>();
@@ -69,4 +98,30 @@ export function datosConfirmadosDelLibro(libro: LibroHechosPpa): Record<string, 
   return Object.fromEntries(libro.hechos
     .filter((h) => h.estado === 'dicho' && h.valor?.trim() && h.fuente?.origen !== 'plantilla_referencia')
     .map((h) => [h.campo, h.valor!.trim()]));
+}
+
+/** Nunca trasladar una suposición o un dato de una plantilla ajena al PPA. */
+export function datosProyectoDesdeLibro(libro: LibroHechosPpa): DatosProyectoDesdeLibro {
+  const confirmados = datosConfirmadosDelLibro(libro);
+  const ambiguos = new Set(libro.hechos.filter((h) => h.estado === 'contradiccion').map((h) => h.campo));
+  const datos: DatosProyectoDesdeLibro = {};
+  for (const campo of CAMPOS_PROYECTO) {
+    if (confirmados[campo] && !ambiguos.has(campo)) datos[campo] = confirmados[campo];
+  }
+  // Alias estructurados usados por la extracción de fotografías y conversaciones.
+  if (!datos.gradoSeccion && confirmados.grado && !ambiguos.has('grado')) datos.gradoSeccion = confirmados.grado;
+  if (!datos.matricula && confirmados.matricula_total && !ambiguos.has('matricula_total')) datos.matricula = confirmados.matricula_total;
+  return datos;
+}
+
+export function preguntaPendienteLibroPpa(libro: LibroHechosPpa): string | null {
+  const errores = validarLibroHechosPpa(libro);
+  if (errores.length > 0) {
+    return `${errores[0]} ¿Puede aclararme ese dato antes de preparar el documento?`;
+  }
+  const conflicto = libro.hechos.find((h) => h.estado === 'contradiccion');
+  if (conflicto) {
+    return `Encontré información contradictoria sobre ${conflicto.campo}. ¿Cuál dato es el correcto?`;
+  }
+  return null;
 }
