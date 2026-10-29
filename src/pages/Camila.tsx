@@ -5,6 +5,7 @@ import { SupabaseService } from '../lib/supabaseService';
 import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio, X, Sparkles, MessageCircle, FileUp } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { puedeVerMiFormato } from '../config/features';
+import { SesionVozCamila } from '../lib/camila/vozEnVivo';
 
 interface Message {
   id: string;
@@ -18,6 +19,8 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat', isA
   const [isLoading, setIsLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isLiveMode, setIsLiveMode] = useState(false);
+  const [isConnectingVoice, setIsConnectingVoice] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
 
   useEffect(() => {
@@ -37,13 +40,9 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat', isA
   const recognitionRef = useRef<any>(null);
   const isSingleListenRef = useRef(false);
 
-  // Live API architecture refs
-  const liveClientRef = useRef<any>(null);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const scriptNodeRef = useRef<ScriptProcessorNode | null>(null);
-  const nextPlaybackTimeRef = useRef<number>(0);
-  const audioQueueRef = useRef<AudioBufferSourceNode[]>([]);
+  const sesionVozRef = useRef<SesionVozCamila | null>(null);
+
+  useEffect(() => () => sesionVozRef.current?.detener(), []);
 
   // Use refs for closures inside event listeners
   const isLiveModeRef = useRef(isLiveMode);
@@ -181,39 +180,33 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat', isA
   };
 
   const startLiveAPI = async () => {
-    alert('El modo de voz en vivo está temporalmente deshabilitado por seguridad. Puedes usar el chat escrito y el dictado del dispositivo.');
-    setIsLiveMode(false);
+    if (sesionVozRef.current || isConnectingVoice || isLiveMode) return;
+    setVoiceError(null);
+    setIsConnectingVoice(true);
+    stopListening();
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    const controlador = new SesionVozCamila({
+      alConectar: () => { setIsConnectingVoice(false); setIsLiveMode(true); },
+      alCerrar: () => {
+        sesionVozRef.current = null;
+        setIsConnectingVoice(false);
+        setIsLiveMode(false);
+      },
+      alError: (mensaje) => setVoiceError(mensaje),
+      alTurno: (usuario, camila) => {
+        setMessages(actual => [
+          ...actual,
+          ...(usuario ? [{ id: crypto.randomUUID(), role: 'user' as const, text: usuario }] : []),
+          ...(camila ? [{ id: crypto.randomUUID(), role: 'model' as const, text: camila }] : []),
+        ]);
+      },
+    });
+    sesionVozRef.current = controlador;
+    await controlador.iniciar();
   };
 
   const stopLiveAPI = () => {
-    setIsLiveMode(false);
-    
-    // Stop and clear audio queue
-    audioQueueRef.current.forEach(node => {
-      try { node.stop(); } catch(e){}
-    });
-    audioQueueRef.current = [];
-    
-    if (audioContextRef.current) {
-      try { audioContextRef.current.suspend(); } catch(e){}
-    }
-
-    if (liveClientRef.current) {
-      try { liveClientRef.current.close(); } catch(e){}
-      liveClientRef.current = null;
-    }
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
-      streamRef.current = null;
-    }
-    if (scriptNodeRef.current) {
-      scriptNodeRef.current.disconnect();
-      scriptNodeRef.current = null;
-    }
-    if (audioContextRef.current) {
-      try { audioContextRef.current.close(); } catch(e){}
-      audioContextRef.current = null;
-    }
+    sesionVozRef.current?.detener();
   };
 
   const toggleLiveMode = () => {
@@ -511,6 +504,13 @@ Directrices:
         </div>
       </div>
 
+      {voiceError && (
+        <div role="alert" className="px-5 py-2 bg-amber-500/15 text-amber-100 text-xs flex items-center justify-between gap-2 border-b border-amber-400/30">
+          <span>{voiceError}</span>
+          <button type="button" onClick={() => setVoiceError(null)} aria-label="Cerrar aviso de voz"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+
       {/* Messages Area - Modified for Sales Mode */}
       <div className={`flex-1 overflow-y-auto p-4 sm:p-6 relative scroll-smooth ${mode === 'sales' ? 'hex-bg flex items-center justify-center' : 'bg-transparent'}`}>
         {mode === 'sales' ? (
@@ -619,11 +619,11 @@ Directrices:
                {!isLiveMode ? (
                  <button
                    type="button"
-                   onClick={startLiveAPI}
+                   onClick={isConnectingVoice ? stopLiveAPI : startLiveAPI}
                    className="flex items-center gap-4 px-12 py-6 rounded-2xl font-black shadow-[0_15px_40px_rgba(112,0,255,0.3)] transform active:scale-95 bg-gradient-to-r from-futuristic-purple to-futuristic-magenta text-white hover:to-indigo-600 transition-all group border border-white/20"
                  >
                    <Radio className="w-10 h-10 group-hover:scale-110 transition-transform text-futuristic-accent" />
-                   <span className="text-2xl uppercase tracking-tighter">HABLAR CON CAMILA</span>
+                   <span className="text-2xl uppercase tracking-tighter">{isConnectingVoice ? 'CANCELAR CONEXIÓN' : 'HABLAR CON CAMILA'}</span>
                  </button>
                ) : (
                  <div className="flex flex-col items-center justify-center p-2 animate-in fade-in zoom-in-95 duration-500 w-full">
@@ -649,11 +649,11 @@ Directrices:
                   <div className="flex flex-wrap items-center justify-center gap-2 transition-opacity mb-2">
                     <button
                       type="button"
-                      onClick={startLiveAPI}
+                      onClick={isConnectingVoice ? stopLiveAPI : startLiveAPI}
                       className="flex items-center gap-2 px-5 py-2 rounded-full font-black shadow-lg transform active:scale-95 bg-white/5 text-futuristic-accent hover:bg-futuristic-purple/20 border border-futuristic-accent/30 tracking-widest text-[10px] uppercase"
                     >
                       <Radio className="w-3.5 h-3.5 mr-1 animate-pulse" />
-                      HABLAR CON CAMILA
+                      {isConnectingVoice ? 'CANCELAR CONEXIÓN' : 'HABLAR CON CAMILA'}
                     </button>
                     {puedeVerMiFormato(isAdmin) && (
                       <Link
