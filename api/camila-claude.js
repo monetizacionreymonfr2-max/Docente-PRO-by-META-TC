@@ -94,6 +94,47 @@ const FORMATO_RESPONSE_SCHEMA = {
   required: ['respuesta', 'operaciones'],
   additionalProperties: false,
 };
+const PPA_LINEAS = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    lineas: { type: 'array', items: { type: 'string' } },
+  },
+  required: ['id', 'lineas'],
+  additionalProperties: false,
+};
+const PPA_FILA = {
+  type: 'object',
+  properties: { celdas: { type: 'array', items: { type: 'string' } } },
+  required: ['celdas'], additionalProperties: false,
+};
+const PPA_BLOQUE_SCHEMAS = Object.freeze({
+  textos: {
+    type: 'object', properties: { resultados: { type: 'array', items: PPA_LINEAS } },
+    required: ['resultados'], additionalProperties: false,
+  },
+  area: {
+    type: 'object', properties: {
+      celdas: { type: 'array', items: PPA_LINEAS },
+      filasNuevas: { type: 'array', items: PPA_FILA },
+    },
+    required: ['celdas', 'filasNuevas'], additionalProperties: false,
+  },
+  cronograma: {
+    type: 'object', properties: { filas: { type: 'array', items: PPA_FILA } },
+    required: ['filas'], additionalProperties: false,
+  },
+  evaluacion: {
+    type: 'object', properties: { filas: { type: 'array', items: PPA_FILA } },
+    required: ['filas'], additionalProperties: false,
+  },
+});
+const SYSTEM_PPA_BLOQUE = `Usted es Camila de DOCENTY PRO, especialista en planificaciones venezolanas.
+Genere contenido pedagógico en JSON para la plantilla Word suministrada, a partir del tema, grado, diagnóstico y datos actuales del docente.
+Nunca copie nombres, institución ni matrícula del texto de ejemplo de otra persona. Preserve IDs exactos; nunca invente IDs de celdas.
+No invente normas oficiales, citas ni fichas del MPPE que no estén en el contexto. Evite afirmaciones pedagógicas no confirmadas.
+No convierta suposiciones en hechos ni altere número de semanas, áreas excluidas, datos o identidad de la docente.
+Si un dato esencial es ambiguo, no rellene con contenido ficticio. El programa validará el documento antes de ofrecerlo para aprobación.`;
 const SYSTEM_FORMATO = `Usted es Camila Formato, asistente pedagógica venezolana que edita el documento Word original del docente mediante operaciones JSON.
 Responda en español cálido y claro. Respete la estructura, las etiquetas, los logos y los títulos; no invente IDs de párrafos ni de celdas.
 Para set_celda indique SIEMPRE el id exacto de la celda de contenido tomado del mapa y lineas como lista de cadenas. Para set_parrafo indique id y texto. No sustituya estos campos por explicaciones ni omita IDs existentes.
@@ -109,14 +150,14 @@ const MAX_BASE64_TOTAL = 3_500_000;
 function contenidoValido(mensaje, indice, total, mode) {
   const contenido = mensaje.content;
   if (typeof contenido === 'string') {
-    return contenido.trim().length > 0 && contenido.length <= (mode === 'formato' ? 16000 : 12000);
+    return contenido.trim().length > 0 && contenido.length <= (mode === 'formato' || mode === 'ppa_bloque' ? 16000 : 12000);
   }
   // Nunca aceptar adjuntos en mensajes anteriores ni en respuestas simuladas del asistente.
   if (!Array.isArray(contenido) || mensaje.role !== 'user' || indice !== total - 1 ||
       contenido.length < 2 || contenido.length > 4) return false;
   const textos = contenido.filter(b => b?.type === 'text');
   if (textos.length !== 1 || typeof textos[0].text !== 'string' || !textos[0].text.trim() ||
-      textos[0].text.length > (mode === 'formato' ? 16000 : 12000)) return false;
+      textos[0].text.length > (mode === 'formato' || mode === 'ppa_bloque' ? 16000 : 12000)) return false;
   let longitudTotal = 0;
   let adjuntos = 0;
   for (const bloque of contenido) {
@@ -176,9 +217,12 @@ export default async function handler(req, res) {
     const user=await auth.json();
     if (!user.id) return res.status(401).json({error:'Sesión inválida'});
     const mode=req.body?.mode || 'chat';
-    if (mode !== 'chat' && mode !== 'formato') return res.status(400).json({error:'Modo inválido'});
+    if (mode !== 'chat' && mode !== 'formato' && mode !== 'ppa_bloque') return res.status(400).json({error:'Modo inválido'});
+    const esBloque=mode==='ppa_bloque';
+    const blockType=req.body?.blockType;
+    if (esBloque && !Object.hasOwn(PPA_BLOQUE_SCHEMAS, blockType)) return res.status(400).json({error:'Bloque PPA inválido'});
     const messages=req.body?.messages;
-    if (!Array.isArray(messages) || messages.length<1 || messages.length>(mode==='formato' ? 8 : 20) ||
+    if (!Array.isArray(messages) || messages.length<1 || messages.length>(esBloque ? 2 : mode==='formato' ? 8 : 20) ||
         messages.some((m, indice)=>!m || !['user','assistant'].includes(m.role) ||
           !contenidoValido(m, indice, messages.length, mode)) ||
         messages[messages.length-1].role!=='user') {
@@ -213,12 +257,12 @@ export default async function handler(req, res) {
       method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
       body:JSON.stringify({
         model:process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',
-        max_tokens:formato ? 8192 : 4096,
-        output_config:{effort:'medium',...(formato ? {format:{type:'json_schema',schema:FORMATO_RESPONSE_SCHEMA}} : {})},
-        system:formato ? SYSTEM_FORMATO : SYSTEM,
+        max_tokens:formato || esBloque ? 8192 : 4096,
+        output_config:{effort:'medium',...(formato || esBloque ? {format:{type:'json_schema',schema:esBloque ? PPA_BLOQUE_SCHEMAS[blockType] : FORMATO_RESPONSE_SCHEMA}} : {})},
+        system:esBloque ? SYSTEM_PPA_BLOQUE : formato ? SYSTEM_FORMATO : SYSTEM,
         messages,
       }),
-      signal:AbortSignal.timeout(formato ? 55000 : 45000)
+      signal:AbortSignal.timeout(formato || esBloque ? 55000 : 45000)
     });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
@@ -234,10 +278,13 @@ export default async function handler(req, res) {
     }
     const data=await response.json();
     const answer=(data.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('');
-    if (formato) {
+    if (formato || esBloque) {
       let parsed;
       try { parsed=JSON.parse(answer); } catch { return res.status(502).json({error:'Camila no devolvió operaciones válidas'}); }
-      if (typeof parsed?.respuesta!=='string' || !Array.isArray(parsed?.operaciones) || parsed.operaciones.length>100) {
+      const estructuraInvalida=esBloque
+        ? !Array.isArray(parsed?.[blockType==='textos' ? 'resultados' : blockType==='area' ? 'celdas' : 'filas'])
+        : typeof parsed?.respuesta!=='string' || !Array.isArray(parsed?.operaciones) || parsed.operaciones.length>100;
+      if (estructuraInvalida) {
         return res.status(502).json({error:'Camila no devolvió operaciones válidas'});
       }
     }

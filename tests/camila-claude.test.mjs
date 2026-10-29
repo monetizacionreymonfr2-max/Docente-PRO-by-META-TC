@@ -18,9 +18,9 @@ function makeResponse() {
   };
 }
 
-async function run(messages = [{ role: 'user', content: 'Hola' }], authorization = 'Bearer test-session', mode = undefined) {
+async function run(messages = [{ role: 'user', content: 'Hola' }], authorization = 'Bearer test-session', mode = undefined, blockType = undefined) {
   const response = makeResponse();
-  await handler({ method: 'POST', headers: { authorization }, body: { messages, mode } }, response);
+  await handler({ method: 'POST', headers: { authorization }, body: { messages, mode, blockType } }, response);
   return response;
 }
 
@@ -151,6 +151,43 @@ test('Camila Formato usa Claude con salida JSON estructurada sin ejecutar operac
   assert.equal(requestBody.max_tokens, 8192);
   assert.match(requestBody.system, /No asegure que el documento quedó completo/);
   assert.match(requestBody.system, /libroHechos incluya un resumen estructurado/i);
+});
+
+test('Claude genera bloques PPA JSON distintos para textos, áreas, cronograma y evaluación', async () => {
+  for (const [tipo, clave] of [['textos', 'resultados'], ['area', 'celdas'], ['cronograma', 'filas'], ['evaluacion', 'filas']]) {
+    const requests = [];
+    globalThis.fetch = async (url, init) => {
+      requests.push({ url, init });
+      if (String(url).includes('/auth/v1/user')) {
+        return new Response(JSON.stringify({ id: 'docente-ficticia', email: 'monetizacionreymonfr2@gmail.com' }), { status: 200 });
+      }
+      if (String(url).includes('/rest/v1/profiles')) {
+        return new Response(JSON.stringify([{ is_active: true, access_level: 'pro' }]), { status: 200 });
+      }
+      const respuesta = tipo === 'textos' ? { resultados: [{ id: 'p0', lineas: ['Diagnóstico ficticio'] }] } :
+        tipo === 'area' ? { celdas: [], filasNuevas: [] } : { filas: [{ celdas: ['Semana ficticia'] }] };
+      return new Response(JSON.stringify({ content: [{ type: 'text', text: JSON.stringify(respuesta) }] }), { status: 200 });
+    };
+    const result = await run([{ role: 'user', content: 'Generar datos ficticios.' }], 'Bearer token-ficticio', 'ppa_bloque', tipo);
+    assert.equal(result.statusCode, 200, `bloque ${tipo}`);
+    const request = JSON.parse(requests[2].init.body);
+    assert.equal(request.output_config.format.type, 'json_schema');
+    assert.deepEqual(request.output_config.format.schema.required.includes(clave), true);
+    assert.equal(request.output_config.format.schema.additionalProperties, false);
+    assert.match(request.system, /nunca invente ids/i);
+    assert.equal(request.max_tokens, 8192);
+  }
+});
+
+test('rechaza un bloque PPA desconocido antes de llamar a Anthropic', async () => {
+  let fetchCount = 0;
+  globalThis.fetch = async () => {
+    fetchCount++;
+    return new Response(JSON.stringify({ id: 'docente-ficticia' }), { status: 200 });
+  };
+  const result = await run([{ role: 'user', content: 'Generar Word.' }], 'Bearer token-ficticio', 'ppa_bloque', 'desconocido');
+  assert.equal(result.statusCode, 400);
+  assert.equal(fetchCount, 1);
 });
 
 test('Camila Formato rechaza JSON inválido sin editar documentos', async () => {

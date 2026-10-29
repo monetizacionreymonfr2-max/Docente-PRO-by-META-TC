@@ -712,7 +712,6 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
   }
 
   if (tieneVaciarTodo && archivoOriginalData && plantilla && datosVaciado?.listo) {
-    seEjecutoVaciarTodo = true;
     onProgresoVaciarTodo?.('Iniciando vaciado completo por bloques...');
 
     const datosDocente: DatosDocenteProyecto = {
@@ -728,6 +727,7 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
     );
 
     if (resClonacion.exito && resClonacion.blobDocx) {
+      seEjecutoVaciarTodo = true;
       const reloaded = await cargarDocx(resClonacion.blobDocx);
       const nuevoMapa = construirMapa(reloaded.doc);
       const revision = revisarDocumentoVivo(docOrig, reloaded.doc, plantilla);
@@ -744,6 +744,18 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
         libroHechosExtraidos: libroValido,
       };
     }
+
+    return {
+      respuestaCamila: `Todavía no pude completar el Word con seguridad: ${resClonacion.mensaje}. Su documento original no fue modificado.`,
+      operacionesEjecutadas: [],
+      operacionesOmitidas: ['La clonación del Word no superó la validación; no se propuso un documento incompleto.'],
+      nuevoBlob: await guardarDocx(zipVivo, docVivo),
+      nuevoMapa: mapaActual,
+      revision: revisionPrevia,
+      seEjecutoVaciarTodo: false,
+      datosProyectoExtraidos,
+      libroHechosExtraidos: libroValido,
+    };
   }
 
   // 5. Ejecutar operaciones regulares sobre el DOM vivo
