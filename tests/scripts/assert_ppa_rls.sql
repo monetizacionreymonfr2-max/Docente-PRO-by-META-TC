@@ -14,6 +14,9 @@ INSERT INTO public.camila_cuotas(teacher_id,plan,max_tokens_mes,max_peticiones_d
 VALUES
 ('11111111-1111-1111-1111-111111111111','30_dias',5000,10),
 ('22222222-2222-2222-2222-222222222222','4_meses',10000,20);
+INSERT INTO storage.objects(bucket_id,name) VALUES
+('camila-documentos','11111111-1111-1111-1111-111111111111/a.docx'),
+('camila-documentos','22222222-2222-2222-2222-222222222222/b.docx');
 SET ROLE authenticated;
 SELECT set_config('request.jwt.claim.sub','11111111-1111-1111-1111-111111111111',false);
 DO $$
@@ -25,6 +28,8 @@ BEGIN
  IF n<>1 THEN RAISE EXCEPTION 'RLS consumo: esperado 1, recibido %',n; END IF;
  SELECT count(*) INTO n FROM public.camila_cuotas;
  IF n<>1 THEN RAISE EXCEPTION 'RLS cuotas: esperado 1, recibido %',n; END IF;
+ SELECT count(*) INTO n FROM storage.objects WHERE bucket_id='camila-documentos';
+ IF n<>1 THEN RAISE EXCEPTION 'RLS bucket: esperado 1, recibido %',n; END IF;
 END $$;
 DO $$
 DECLARE blocked boolean:=false;
@@ -46,4 +51,14 @@ BEGIN
  END;
  IF NOT blocked THEN RAISE EXCEPTION 'Consumo falsificado por docente'; END IF;
 END $$;
-SELECT 'RLS PPA, consumo y cuotas comprobados' AS resultado;
+DO $
+DECLARE blocked boolean:=false;
+BEGIN
+ BEGIN
+  INSERT INTO storage.objects(bucket_id,name)
+  VALUES('camila-documentos','22222222-2222-2222-2222-222222222222/ataque.docx');
+ EXCEPTION WHEN insufficient_privilege THEN blocked:=true;
+ END;
+ IF NOT blocked THEN RAISE EXCEPTION 'El docente pudo cargar Word en bucket ajeno'; END IF;
+END $;
+SELECT 'RLS PPA, consumo, cuotas y bucket comprobados' AS resultado;
