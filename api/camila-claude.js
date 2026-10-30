@@ -224,6 +224,55 @@ function contenidoValido(mensaje, indice, total, mode) {
   }
   return adjuntos > 0 && longitudTotal <= MAX_BASE64_TOTAL;
 }
+
+/** Registro sin mensajes ni nombres: solo tokens de Anthropic. No se activa
+ * hasta aplicar la migración y configurar SUPABASE_SERVICE_ROLE_KEY en servidor.
+ */
+function servicioHeaders(serviceKey) {
+  return { apikey:serviceKey, Authorization:'Bearer '+serviceKey, 'Content-Type':'application/json' };
+}
+async function consultarCuota(url, serviceKey, teacherId, modo, tokensMaximos) {
+  const root=url.replace(/\/$/,'')+'/rest/v1';
+  const id=encodeURIComponent(teacherId);
+  const h=servicioHeaders(serviceKey);
+  const quota=await fetch(root+'/camila_cuotas?teacher_id=eq.'+id+'&select=max_tokens_mes,max_peticiones_dia&limit=1',{
+    headers:h,signal:AbortSignal.timeout(4500)});
+  if (!quota.ok) return {permitido:false,motivo:'No se pudo verificar la cuota de Camila.'};
+  const [item]=await quota.json();
+  if (!item) return {permitido:false,motivo:'La cuenta aún no tiene una cuota de IA configurada.'};
+  const ahora=new Date(), mes=new Date(Date.UTC(ahora.getUTCFullYear(),ahora.getUTCMonth(),1)).toISOString();
+  const dia=new Date(Date.UTC(ahora.getUTCFullYear(),ahora.getUTCMonth(),ahora.getUTCDate())).toISOString();
+  const resp=await fetch(root+'/camila_consumo_tokens?teacher_id=eq.'+id+
+    '&created_at=gte.'+encodeURIComponent(mes)+'&select=input_tokens,output_tokens,created_at&limit=1000',{
+    headers:h,signal:AbortSignal.timeout(4500)});
+  if(!resp.ok) return {permitido:false,motivo:'No se pudo calcular la cuota de Camila.'};
+  const registros=await resp.json();
+  if (!Array.isArray(registros) || registros.length>=1000) return {permitido:false,motivo:'Se alcanzó el límite de consulta de consumo.'};
+  const usados=registros.reduce((a,r)=>a+Number(r.input_tokens||0)+Number(r.output_tokens||0),0);
+  const peticionesHoy=registros.filter(r=>r.created_at>=dia).length;
+  if(usados+tokensMaximos>item.max_tokens_mes || peticionesHoy>=item.max_peticiones_dia){
+    return {permitido:false,motivo:'Se alcanzó el límite de uso de Camila para el plan actual.'};
+  }
+  return {permitido:true};
+}
+async function registrarUso(url, serviceKey, userId, model, mode, usage) {
+  if (!serviceKey) return;
+  const raw={
+    teacher_id:userId,modelo:model,modo:mode,
+    input_tokens:Number(usage?.input_tokens)||0,
+    output_tokens:Number(usage?.output_tokens)||0,
+    cache_read_tokens:Number(usage?.cache_read_input_tokens)||0,
+    cache_creation_tokens:Number(usage?.cache_creation_input_tokens)||0,
+  };
+  try {
+    const r=await fetch(url.replace(/\/$/,'')+'/rest/v1/camila_consumo_tokens',{
+      method:'POST',headers:{...servicioHeaders(serviceKey),Prefer:'return=minimal'},
+      body:JSON.stringify(raw),signal:AbortSignal.timeout(4000),
+    });
+    if(!r.ok) console.error('[Camila uso] No se pudo registrar consumo:',r.status);
+  } catch { console.error('[Camila uso] Registro de consumo no disponible.'); }
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).json({error:'Método no permitido'}); }
@@ -299,11 +348,19 @@ export default async function handler(req, res) {
         return res.status(403).json({error:'Camila Claude está disponible temporalmente solo para administradores'});
       }
     }
+    const modelo=process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
+    const tokensSalida=esCompleto ? 20000 : formato || esBloque ? 8192 : 4096;
+    const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (process.env.CAMILA_CUOTAS_ACTIVAS==='true') {
+      if (!serviceKey) return res.status(503).json({error:'Las cuotas aún no están configuradas en el servidor'});
+      const cuota=await consultarCuota(url,serviceKey,user.id,mode,tokensSalida);
+      if (!cuota.permitido) return res.status(429).json({error:cuota.motivo});
+    }
     const response=await fetch('https://api.anthropic.com/v1/messages',{
       method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
       body:JSON.stringify({
-        model:process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5',
-        max_tokens:esCompleto ? 20000 : formato || esBloque ? 8192 : 4096,
+        model:modelo,
+        max_tokens:tokensSalida,
         output_config:{effort:'medium',...(formato || esBloque || esCompleto ? {format:{type:'json_schema',schema:esCompleto ? PPA_COMPLETO_SCHEMA : esBloque ? PPA_BLOQUE_SCHEMAS[blockType] : FORMATO_RESPONSE_SCHEMA}} : {})},
         system:esCompleto ? [{type:'text',text:SYSTEM_PPA_COMPLETO,cache_control:{type:'ephemeral'}}] : esBloque ? SYSTEM_PPA_BLOQUE : formato ? SYSTEM_FORMATO : SYSTEM,
         messages,
@@ -337,6 +394,7 @@ export default async function handler(req, res) {
         return res.status(502).json({error:'Camila no devolvió operaciones válidas'});
       }
     }
+    await registrarUso(url,serviceKey,user.id,modelo,mode,data.usage);
     return res.status(200).json({text:answer,usage:data.usage});
   } catch (error) {
     const category = error instanceof Error && error.name === 'TimeoutError' ? 'TIMEOUT' : 'ERROR_DE_RED_O_PROCESAMIENTO';
