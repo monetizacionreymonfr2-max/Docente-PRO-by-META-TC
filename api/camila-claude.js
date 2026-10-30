@@ -403,3 +403,6 @@ export default async function handler(req, res) {
     return res.status(502).json({error:'Servicio temporalmente no disponible'});
   }
 }
+
+// Contrato compartido con las pruebas aisladas de Anthropic.
+export { PPA_COMPLETO_SCHEMA, SYSTEM_PPA_COMPLETO };
