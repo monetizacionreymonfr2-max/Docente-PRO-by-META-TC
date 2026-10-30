@@ -775,53 +775,6 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
   if (tieneVaciarTodo && !ordenIntegral) {
     throw new Error('Para reconstruir todo el PPA, confirme que desea completar el documento completo.');
   }
-  if (false && tieneVaciarTodo && archivoOriginalData && plantilla && datosVaciado?.listo) {
-    onProgresoVaciarTodo?.('Iniciando vaciado completo por bloques...');
-
-    const datosDocente: DatosDocenteProyecto = {
-      ...datosVaciado.datos,
-      instruccionesExtra: mensajeDocente,
-    };
-
-    const resClonacion = await ejecutarClonacionDocx(
-      archivoOriginalData,
-      plantilla,
-      datosDocente,
-      onProgresoVaciarTodo
-    );
-
-    if (resClonacion.exito && resClonacion.blobDocx) {
-      seEjecutoVaciarTodo = true;
-      const reloaded = await cargarDocx(resClonacion.blobDocx);
-      const nuevoMapa = construirMapa(reloaded.doc);
-      const revision = revisarDocumentoVivo(docOrig, reloaded.doc, plantilla);
-
-      return {
-        respuestaCamila: `${parsed.respuesta || 'He vaciado todo el proyecto en tu formato.'}\n\n${revision.resumen}`,
-        operacionesEjecutadas: [{ tipo: 'vaciar_todo' }],
-        operacionesOmitidas: [],
-        nuevoBlob: resClonacion.blobDocx,
-        nuevoMapa,
-        revision,
-        seEjecutoVaciarTodo: true,
-        datosProyectoExtraidos,
-        libroHechosExtraidos: libroValido,
-      };
-    }
-
-    return {
-      respuestaCamila: `Todavía no pude completar el Word con seguridad: ${resClonacion.mensaje}. Su documento original no fue modificado.`,
-      operacionesEjecutadas: [],
-      operacionesOmitidas: ['La clonación del Word no superó la validación; no se propuso un documento incompleto.'],
-      nuevoBlob: await guardarDocx(zipVivo, docVivo),
-      nuevoMapa: mapaActual,
-      revision: revisionPrevia,
-      seEjecutoVaciarTodo: false,
-      datosProyectoExtraidos,
-      libroHechosExtraidos: libroValido,
-    };
-  }
-
   // 5. Ejecutar operaciones regulares sobre el DOM vivo
   const { ejecutadas, omitidas } = ejecutarOperacionesEnDocx(
     docVivo,
