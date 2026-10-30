@@ -72,12 +72,18 @@ function agregarDias(fecha: Date, dias: number): Date {
 export function semanasDeCalendario(inicio?: string, fin?: string): Array<{ inicio: Date; fin: Date }> | null {
   const a = fechaDesdeDato(inicio), b = fechaDesdeDato(fin);
   if (!a || !b || b < a) return null;
+  // Las parrillas de aula son por semanas LUNES a VIERNES.
+  // No convertir por error el domingo en cierre de actividades escolares.
+  if ([0,6].includes(a.getUTCDay()) || [0,6].includes(b.getUTCDay())) return null;
   const resultado: Array<{ inicio: Date; fin: Date }> = [];
   for (let cursor = a; cursor <= b; ) {
-    const domingo = agregarDias(cursor, (7 - cursor.getUTCDay()) % 7);
-    const ultimo = domingo > b ? b : domingo;
+    const viernes = agregarDias(cursor, 5 - cursor.getUTCDay());
+    const ultimo = viernes > b ? b : viernes;
     resultado.push({ inicio: cursor, fin: ultimo });
     cursor = agregarDias(ultimo, 1);
+    // Avanzar al próximo lunes, ignorando el fin de semana.
+    if (cursor.getUTCDay() === 6) cursor = agregarDias(cursor, 2);
+    if (cursor.getUTCDay() === 0) cursor = agregarDias(cursor, 1);
     if (resultado.length > 12) return null;
   }
   return resultado;
