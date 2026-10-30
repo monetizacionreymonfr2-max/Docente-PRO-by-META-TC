@@ -95,6 +95,7 @@ test('DOCX integral: reconstruye 6 semanas, borra identidad antigua y conserva l
 test('rechaza un PPA incompleto sin modificar el archivo anterior',async()=>{
   await withXmlDom(async()=>{
     const x=plan();x.semanas.pop();
-    await assert.rejects(()=>adaptarPpaCompletoAWord(await fixture(),x,identidad),/6 semanas/);
+    const original = await fixture();
+    await assert.rejects(()=>adaptarPpaCompletoAWord(original,x,identidad),/6 semanas/);
   });
 });
