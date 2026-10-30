@@ -51,7 +51,7 @@ BEGIN
  END;
  IF NOT blocked THEN RAISE EXCEPTION 'Consumo falsificado por docente'; END IF;
 END $$;
-DO $
+DO $rol$
 DECLARE blocked boolean:=false;
 BEGIN
  BEGIN
@@ -60,5 +60,5 @@ BEGIN
  EXCEPTION WHEN insufficient_privilege THEN blocked:=true;
  END;
  IF NOT blocked THEN RAISE EXCEPTION 'El docente pudo cargar Word en bucket ajeno'; END IF;
-END $;
+END $rol$;
 SELECT 'RLS PPA, consumo, cuotas y bucket comprobados' AS resultado;
