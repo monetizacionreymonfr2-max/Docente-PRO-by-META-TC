@@ -39,8 +39,14 @@ export default async function handler(req, res) {
   };
   const casos = [
     ['mínimo', base],
-    ['restricción básica', { ...base, liveConnectConstraints: { model: 'models/gemini-3.8-live', config: { responseModalities: ['AUDIO'] } } }],
-    ['restricción completa', { ...base, liveConnectConstraints: { model: 'models/gemini-3.8-live', config: configuracion } }],
+    ['estructura REST básica', { ...base, bidiGenerateContentSetup: { model: 'models/gemini-3.8-live', generationConfig: { responseModalities: ['AUDIO'] } } }],
+    ['estructura REST completa', { ...base, bidiGenerateContentSetup: {
+      model: 'models/gemini-3.8-live',
+      generationConfig: { responseModalities: configuracion.responseModalities, speechConfig: configuracion.speechConfig },
+      systemInstruction: configuracion.systemInstruction,
+      inputAudioTranscription: configuracion.inputAudioTranscription,
+      outputAudioTranscription: configuracion.outputAudioTranscription,
+    } }],
   ];
 
   const pruebas = [];
