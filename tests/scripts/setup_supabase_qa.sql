@@ -27,6 +27,7 @@ CREATE TABLE storage.objects (
   bucket_id text NOT NULL REFERENCES storage.buckets(id),
   name text NOT NULL
 );
+ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 GRANT USAGE ON SCHEMA auth, storage, public TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON storage.objects TO authenticated;
 GRANT USAGE, SELECT ON SEQUENCE storage.objects_id_seq TO authenticated;
