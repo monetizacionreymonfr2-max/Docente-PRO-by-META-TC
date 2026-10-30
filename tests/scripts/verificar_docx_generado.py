@@ -8,7 +8,7 @@ doc=Document(p)
 assert len(doc.tables)==7, f"Esperadas 7 tablas, recibidas {len(doc.tables)}"
 tabla=doc.tables[4]
 assert len(tabla.rows)==31, f"Se requieren 1 cabecera + 6 títulos semanales + 24 filas de áreas: {len(tabla.rows)}"
-titulos=[r.cells[0].text for r in tabla.rows if re.match(r"^SEMANA\\s+\\d",r.cells[0].text)]
+titulos=[r.cells[0].text for r in tabla.rows if r.cells[0].text.startswith("SEMANA ")]
 assert len(titulos)==6, titulos
 for i,titulo in enumerate(titulos,1):
     assert titulo.startswith(f"SEMANA {i} "), titulo
