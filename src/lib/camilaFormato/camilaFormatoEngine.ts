@@ -1,3 +1,4 @@
+import { solicitaPpaIntegral } from './solicitudIntegral';
 import { generarPpaCompletoClaude } from '../camila/claudeClient';
 import { adaptarPpaCompletoAWord } from './adaptarPpaDocx';
 import { validarPpaCompleto, type PpaCompleto, type IdentidadPpa } from './ppaEstructurado';
@@ -673,9 +674,7 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
   // Un pedido de crear/adaptar/completar TODO un PPA nunca puede resolverse
   // mediante 20 set_celda parciales. Primero Claude redacta TODO el JSON y
   // solo después el editor aplica los cambios a una copia del DOCX.
-  const ordenIntegral = /\\b(crea(r|me)?|elabora(r)?|prepara(r)?|completa(r|lo)?|adapta(r|lo)?|llena(r)?|vac[ií]a(r)?|ajustar(lo)?)\\b/i.test(mensajeDocente) &&
-    (/\\b(ppa|proyecto|identidad|formato|word)\\b/i.test(mensajeDocente) ||
-      /\\b(completa(r|lo)?|adapta(r|lo)?)\\b/i.test(mensajeDocente));
+  const ordenIntegral = solicitaPpaIntegral(mensajeDocente);
   if (ordenIntegral && archivoOriginalData) {
     if (preguntaHechos) return {
       respuestaCamila: `Antes de adaptar el PPA completo debo aclarar un dato: ${preguntaHechos}`,
@@ -771,7 +770,12 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
     };
   }
 
-  if (tieneVaciarTodo && archivoOriginalData && plantilla && datosVaciado?.listo) {
+  // Los parches del motor antiguo no están autorizados para vaciado integral.
+  // Una orden completa explícita siempre usa el adaptador JSON anterior.
+  if (tieneVaciarTodo && !ordenIntegral) {
+    throw new Error('Para reconstruir todo el PPA, confirme que desea completar el documento completo.');
+  }
+  if (false && tieneVaciarTodo && archivoOriginalData && plantilla && datosVaciado?.listo) {
     onProgresoVaciarTodo?.('Iniciando vaciado completo por bloques...');
 
     const datosDocente: DatosDocenteProyecto = {
