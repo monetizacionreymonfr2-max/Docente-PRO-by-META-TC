@@ -13,6 +13,7 @@
     "test:camila-voz": "node --test tests/camila-voz-segura.test.mjs",
     "test:ppa-contexto": "node --import tsx --test tests/ppa-contexto-ficticio.test.mjs",
     "test:ppa-libro": "node --import tsx --test tests/ppa-libro-hechos.test.mjs",
+    "test:ppa-sin-plantilla": "node --import tsx --test tests/ppa-sin-plantilla-ficticio.test.mjs",
     "test:camila-privacidad": "node --test tests/camila-privacidad.test.mjs && node --import tsx --test tests/camila-persistencia-simulada.test.mjs",
     "test:mi-formato": "node --import tsx tests/mi-formato-encabezados.test.mjs && node --import tsx tests/mi-formato-integridad-docx.test.mjs && node --import tsx tests/mi-formato-flujo-propuestas.test.mjs && node --import tsx tests/mi-formato-responsive.test.mjs"
   },
