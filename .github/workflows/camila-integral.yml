@@ -17,6 +17,7 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
+      - run: npm run test:claude
       - run: npm run test:ppa-completo
       - run: npm run test:mi-formato
       - run: npm run test:ppa-libro
