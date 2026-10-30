@@ -1,6 +1,4 @@
-import { Type } from '@google/genai';
-import { generateContentWithRetry } from '../gemini';
-import { GEMINI_FORMATO_MODEL } from '../formatoPrompts';
+import { generarBloquePpaClaude } from '../camila/claudeClient';
 import {
   CURRICULO_MPPE_2026_2027,
   AREAS_CURRICULARES,
@@ -8,6 +6,7 @@ import {
   GradoPrimaria,
 } from '../../data/curriculoMPPE';
 import { PlantillaDocx, PlantillaTablaInfo, PlantillaTextoLibre } from './types';
+import { extraerDuracionSemanas } from '../camilaFormato/contextoProyectoPpa';
 
 export interface DatosDocenteProyecto {
   institucion?: string;
@@ -47,11 +46,11 @@ function obtenerCurriculoOficial(gradoStr: string, areaName: string): string {
 
   const areaData = CURRICULO_MPPE_2026_2027[areaKey];
   if (!areaData || !areaData.grados[grado]) {
-    return 'Lineamientos Generales del Currículo Bolivariano MPPE 2026-2027.';
+    return 'No hay una referencia curricular local específica para este grado y área. No inventar contenidos oficiales.';
   }
 
   const componentes = Object.entries(areaData.grados[grado]);
-  let resumen = `ÁREA OFICIAL: ${areaData.nombre} (${grado}° Grado)\n`;
+  let resumen = `ÁREA DE REFERENCIA INTERNA: ${areaData.nombre} (${grado}° Grado). Verificar vigencia con el MPPE y las fichas del docente.\n`;
   componentes.forEach(([comp, items]) => {
     resumen += `• COMPONENTE: ${comp}\n`;
     items.slice(0, 3).forEach((it) => {
@@ -76,6 +75,15 @@ export interface ContextoProyectoBloque {
   instruccionesExtra?: string;
   areasActivas: string[];
   areasExcluidas: string[];
+}
+
+function filasValidas(datos: unknown): Array<{ celdas: string[] }> {
+  if (!Array.isArray(datos) || !datos.every((fila) =>
+    fila && Array.isArray(fila.celdas) && fila.celdas.length > 0 &&
+    fila.celdas.every((celda: unknown) => typeof celda === 'string'))) {
+    throw new Error('El bloque generado contiene filas inválidas; el Word original permanece intacto.');
+  }
+  return datos.map((fila) => ({ celdas: fila.celdas }));
 }
 
 /**
@@ -109,6 +117,8 @@ export async function generarTextosLibres(
     ejemploReferencia: tl.textoOriginal.slice(0, 300),
   }));
 
+  if (targets.length === 0) return {};
+
   const prompt = `${construirEncabezadoCoherencia(ctx)}
 
 SECCIONES A REDACTAR (Usa el ejemplo como referencia de estilo, extensión y formalidad; iguálalo o supéralo):
@@ -116,40 +126,20 @@ ${JSON.stringify(targets, null, 2)}
 
 Redacta párrafos formales, detallados y completos (mínimo 2-3 párrafos sustanciales para Diagnóstico y 2 párrafos para Finalidad) adaptados a ${ctx.gradoSeccion}.`;
 
-  const schema = {
-    type: Type.OBJECT,
-    properties: {
-      resultados: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            id: { type: Type.STRING },
-            lineas: { type: Type.ARRAY, items: { type: Type.STRING } },
-          },
-          required: ['id', 'lineas'],
-        },
-      },
-    },
-    required: ['resultados'],
+  const parsed = await generarBloquePpaClaude('textos', prompt) as {
+    resultados?: Array<{ id: string; lineas: string[] }>;
   };
-
-  const response = await generateContentWithRetry({
-    model: GEMINI_FORMATO_MODEL,
-    contents: prompt,
-    config: {
-      systemInstruction: 'Eres Camila, redactora curricular experta del MPPE 2026-2027. Redacta diagnósticos pedagógicos y finalidades institucionales formales, completas y extensas sin resumir.',
-      responseMimeType: 'application/json',
-      responseSchema: schema,
-    },
-  });
-
-  const parsed = JSON.parse(response.text?.trim() || '{}');
   const mapa: Record<string, string[]> = {};
-  if (Array.isArray(parsed.resultados)) {
-    parsed.resultados.forEach((r: any) => {
-      mapa[r.id] = Array.isArray(r.lineas) ? r.lineas : [String(r.lineas)];
-    });
+  const permitidos = new Set(targets.map((t) => t.id));
+  if (!Array.isArray(parsed.resultados)) throw new Error('Camila no devolvió las secciones del PPA.');
+  for (const r of parsed.resultados) {
+    if (permitidos.has(r.id) && Array.isArray(r.lineas) && r.lineas.every((v) => typeof v === 'string')) {
+      mapa[r.id] = r.lineas;
+    }
+  }
+
+  if (Object.keys(mapa).length !== targets.length) {
+    throw new Error('Camila no completó todas las secciones textuales del PPA; el Word original está intacto.');
   }
 
   return mapa;
@@ -170,7 +160,7 @@ export async function generarTablaArea(
   const prompt = `${construirEncabezadoCoherencia(ctx)}
 
 ÁREA A PLANIFICAR: ${areaName}
-CURRÍCULO OFICIAL MPPE (${ctx.gradoSeccion}):
+REFERENCIA CURRICULAR INTERNA A VERIFICAR CON EL DOCENTE (${ctx.gradoSeccion}):
 ${curricularInfo}
 
 COLUMNAS DE LA TABLA:
@@ -184,58 +174,23 @@ ${ejemploFilas.slice(0, 700)}
 
 Genera contenido pedagógico concreto para CADA celda requerida, completamente articulado con el diagnóstico y la finalidad.`;
 
-  const schema = {
-    type: Type.OBJECT,
-    properties: {
-      celdas: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            id: { type: Type.STRING },
-            lineas: { type: Type.ARRAY, items: { type: Type.STRING } },
-          },
-          required: ['id', 'lineas'],
-        },
-      },
-      filasNuevas: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            celdas: { type: Type.ARRAY, items: { type: Type.STRING } },
-          },
-          required: ['celdas'],
-        },
-      },
-    },
-    required: ['celdas'],
+  const parsed = await generarBloquePpaClaude('area', prompt) as {
+    celdas?: Array<{ id: string; lineas: string[] }>;
+    filasNuevas?: Array<{ celdas: string[] }>;
   };
-
-  const response = await generateContentWithRetry({
-    model: GEMINI_FORMATO_MODEL,
-    contents: prompt,
-    config: {
-      systemInstruction: 'Eres Camila de Docenty PRO. Genera contenido curricular para cada celda de la tabla de área respetando el currículo MPPE y la coherencia del proyecto.',
-      responseMimeType: 'application/json',
-      responseSchema: schema,
-    },
-  });
-
-  const parsed = JSON.parse(response.text?.trim() || '{}');
   const celdasActualizadas: Record<string, string[]> = {};
-  if (Array.isArray(parsed.celdas)) {
-    parsed.celdas.forEach((c: any) => {
-      celdasActualizadas[c.id] = Array.isArray(c.lineas) ? c.lineas : [String(c.lineas)];
-    });
+  const permitidas = new Set(tabla.celdasContenidoIds);
+  if (!Array.isArray(parsed.celdas)) throw new Error('Camila no devolvió las celdas del área.');
+  for (const celda of parsed.celdas) {
+    if (permitidas.has(celda.id) && Array.isArray(celda.lineas) &&
+        celda.lineas.every((v) => typeof v === 'string')) {
+      celdasActualizadas[celda.id] = celda.lineas;
+    }
   }
-
-  const filasNuevas: Array<{ celdas: string[] }> = [];
-  if (Array.isArray(parsed.filasNuevas)) {
-    parsed.filasNuevas.forEach((f: any) => {
-      if (Array.isArray(f.celdas)) filasNuevas.push({ celdas: f.celdas });
-    });
+  if (Object.keys(celdasActualizadas).length !== permitidas.size) {
+    throw new Error('Camila omitió celdas del área curricular; no se aplicaron cambios al Word original.');
   }
+  const filasNuevas = filasValidas(parsed.filasNuevas);
 
   return { celdasActualizadas, filasNuevas: filasNuevas.length > 0 ? filasNuevas : undefined };
 }
@@ -249,7 +204,8 @@ export async function generarCronograma(
   ejemploFilas: string,
   ctx: ContextoProyectoBloque
 ): Promise<{ filas: Array<{ celdas: string[] }> }> {
-  const numSemanas = datos.duracion.includes('6') ? 6 : datos.duracion.includes('8') ? 8 : 4;
+  const numSemanas = extraerDuracionSemanas(datos.duracion);
+  if (numSemanas === null) throw new Error('La duración debe indicar entre 1 y 12 semanas.');
 
   const prompt = `${construirEncabezadoCoherencia(ctx)}
 
@@ -263,41 +219,10 @@ ${ejemploFilas.slice(0, 500)}
 Genera exactamente ${numSemanas} filas secuenciales (Semana 1, Semana 2, Semana 3, Semana 4...).
 Las actividades deben desarrollar la lectura, escritura y convivencia del diagnóstico, NUNCA temas ajenos como el agua.`;
 
-  const schema = {
-    type: Type.OBJECT,
-    properties: {
-      filas: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            celdas: { type: Type.ARRAY, items: { type: Type.STRING } },
-          },
-          required: ['celdas'],
-        },
-      },
-    },
-    required: ['filas'],
-  };
-
-  const response = await generateContentWithRetry({
-    model: GEMINI_FORMATO_MODEL,
-    contents: prompt,
-    config: {
-      systemInstruction: 'Eres Camila. Genera las filas del cronograma semanal escolar respetando la coherencia pedagógica con el diagnóstico.',
-      responseMimeType: 'application/json',
-      responseSchema: schema,
-    },
-  });
-
-  const parsed = JSON.parse(response.text?.trim() || '{}');
-  const filas: Array<{ celdas: string[] }> = [];
-  if (Array.isArray(parsed.filas)) {
-    parsed.filas.forEach((f: any) => {
-      if (Array.isArray(f.celdas)) {
-        filas.push({ celdas: f.celdas });
-      }
-    });
+  const parsed = await generarBloquePpaClaude('cronograma', prompt) as { filas?: Array<{ celdas: string[] }> };
+  const filas = filasValidas(parsed.filas);
+  if (filas.length !== numSemanas) {
+    throw new Error(`El cronograma generado tiene ${filas.length} semanas, pero se solicitaron ${numSemanas}.`);
   }
 
   return { filas };
@@ -330,41 +255,10 @@ ${ctx.areasExcluidas.length > 0 ? `RECUERDA: NO incluyas ninguna fila para las �
 
 Cada fila debe contener: Área, Indicadores de logro precisos de ${ctx.gradoSeccion}, Técnicas e Instrumentos de evaluación formativa acordes a la finalidad del proyecto.`;
 
-  const schema = {
-    type: Type.OBJECT,
-    properties: {
-      filas: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            celdas: { type: Type.ARRAY, items: { type: Type.STRING } },
-          },
-          required: ['celdas'],
-        },
-      },
-    },
-    required: ['filas'],
-  };
-
-  const response = await generateContentWithRetry({
-    model: GEMINI_FORMATO_MODEL,
-    contents: prompt,
-    config: {
-      systemInstruction: 'Eres Camila. Genera las filas de evaluación formativa del MPPE articuladas con el diagnóstico.',
-      responseMimeType: 'application/json',
-      responseSchema: schema,
-    },
-  });
-
-  const parsed = JSON.parse(response.text?.trim() || '{}');
-  const filas: Array<{ celdas: string[] }> = [];
-  if (Array.isArray(parsed.filas)) {
-    parsed.filas.forEach((f: any) => {
-      if (Array.isArray(f.celdas)) {
-        filas.push({ celdas: f.celdas });
-      }
-    });
+  const parsed = await generarBloquePpaClaude('evaluacion', prompt) as { filas?: Array<{ celdas: string[] }> };
+  const filas = filasValidas(parsed.filas);
+  if (filas.length !== areasParaEvaluacion.length) {
+    throw new Error('El plan de evaluación no cubre todas las áreas activas solicitadas.');
   }
 
   return { filas };
