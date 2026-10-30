@@ -58,7 +58,8 @@ import {
 } from '../lib/camilaFormato/camilaFormatoEngine';
 import { obtenerAccionesDocumento } from '../lib/camilaFormato/accionesDocumento';
 import { combinarDatosProyecto, type DatosProyectoPropuesto } from '../lib/camilaFormato/contextoProyectoPpa';
-import type { LibroHechosPpa } from '../lib/camilaFormato/libroHechosPpa';
+import { datosProyectoDesdeLibro, preguntaPendienteLibroPpa, type LibroHechosPpa } from '../lib/camilaFormato/libroHechosPpa';
+import { generarBorradorPpaSinPlantilla, prepararBorradorPpa, solicitaCrearWordPpa } from '../lib/camilaFormato/borradorPpaSinPlantilla';
 import { prepararDeshacerSeguro } from '../lib/camilaFormato/deshacerSeguro';
 import {
   getCamilaFormatoModel,
@@ -90,11 +91,13 @@ export default function CamilaFormato() {
   const [mapaActual, setMapaActual] = useState<DocxMapa | null>(null);
   const [plantillaActual, setPlantillaActual] = useState<PlantillaDocx | null>(null);
   const [blobDocx, setBlobDocx] = useState<Blob | null>(null);
+  const [nombreBorradorLocal, setNombreBorradorLocal] = useState<string | null>(null);
   // La propuesta se genera sobre una copia aislada. El documento activo solo
   // cambia después de que el docente apruebe expresamente el resultado.
   const [propuestaPendiente, setPropuestaPendiente] = useState<{
     solicitud: string;
     resultado: ResultadoCamilaFormato;
+    generadoSinPlantilla?: boolean;
   } | null>(null);
 
   // Pila de snapshots para deshacer (máx 10)
@@ -327,6 +330,7 @@ export default function CamilaFormato() {
 
   const cerrarDocumentoDeSesion = () => {
     setFormatoActivo(null);
+    setNombreBorradorLocal(null);
     setArchivoOriginalBuffer(null);
     setDocVivo(null);
     setZipVivo(null);
@@ -487,6 +491,7 @@ export default function CamilaFormato() {
       setMapaActual(mapa);
       setPlantillaActual(plantilla);
       setFormatoActivo(formato);
+      setNombreBorradorLocal(null);
 
       const blobInicial = await guardarDocx(zVivo, dVivo);
       setBlobDocx(blobInicial);
@@ -716,8 +721,44 @@ export default function CamilaFormato() {
             memoriasAutorizadas: usarRecuerdos ? recuerdos.map(({ titulo, contenido }) => ({ titulo, contenido })) : [],
           });
           respuesta = resultado.respuestaCamila;
-          setDatosProyectoTemporal((prev) => combinarDatosProyecto(prev, resultado.datosProyectoExtraidos));
+          const datosVigentes = combinarDatosProyecto(datosProyectoTemporal, resultado.datosProyectoExtraidos);
+          setDatosProyectoTemporal(datosVigentes);
           if (resultado.libroHechosExtraidos) setLibroHechosTemporal(resultado.libroHechosExtraidos);
+          // Solo crear un Word nuevo cuando el docente lo solicite expresamente.
+          // Si adjuntó su plantilla, se usará en el flujo de edición existente.
+          const pideCrearDocumento = solicitaCrearWordPpa(texto);
+          if (pideCrearDocumento) {
+            const hechosVigentes = resultado.libroHechosExtraidos || libroHechosTemporal;
+            // Solo los hechos respaldados por mensajes/adjuntos pueden llegar a
+            // un documento: ignoramos datos libres que un modelo pudiera suponer.
+            const datosVerificados = hechosVigentes ? datosProyectoDesdeLibro(hechosVigentes) : {};
+            const preguntaHechos = hechosVigentes ? preguntaPendienteLibroPpa(hechosVigentes) : null;
+            const decision = prepararBorradorPpa(datosVerificados);
+            if (!hechosVigentes) {
+              respuesta = 'Antes de crear el Word necesito verificar el origen de los datos. ¿Puede indicarme el grado que atiende?';
+            } else if (preguntaHechos) {
+              respuesta = `Antes de crear el Word necesito aclarar un dato. ${preguntaHechos}`;
+            } else if (decision.listo === false) {
+              respuesta = `Puedo preparar un borrador Word sin exigir un proyecto guardado. ${decision.pregunta}`;
+            } else {
+              setProgresoDetalle('Camila está redactando el borrador Word para su aprobación...');
+              const generado = await generarBorradorPpaSinPlantilla(datosVerificados);
+              const archivoPropuesto = await cargarDocx(generado.blob);
+              const revision = revisarDocumentoVivo(null, archivoPropuesto.doc, null);
+              const propuesta: ResultadoCamilaFormato = {
+                respuestaCamila: 'Borrador preparado para revisión.',
+                operacionesEjecutadas: [], operacionesOmitidas: [],
+                nuevoBlob: generado.blob,
+                nuevoMapa: construirMapa(archivoPropuesto.doc),
+                revision,
+              };
+              setPropuestaPendiente({ solicitud: texto, resultado: propuesta, generadoSinPlantilla: true });
+              setTabActiva('documento');
+              respuesta = `Preparé un **borrador Word del PPA** a partir de los datos de esta conversación. No he copiado la identidad de ningún formato anterior. ${
+                generado.pendientes.length ? `Queda por confirmar: ${generado.pendientes.join(', ')}.` : 'Los datos principales están completos.'
+              } Revíselo y elija **Aprobar y aplicar** o **Descartar propuesta**. Si su escuela usa un formato propio, puede adjuntarlo después.`;
+            }
+          }
         } else {
           respuesta = await askCamilaClaude(turnos);
         }
@@ -830,7 +871,7 @@ export default function CamilaFormato() {
     setIsProcessing(true);
     setProgresoDetalle('Aplicando únicamente los cambios autorizados...');
     try {
-      const { solicitud, resultado } = propuestaPendiente;
+      const { solicitud, resultado, generadoSinPlantilla } = propuestaPendiente;
       const aprobado = await cargarDocx(resultado.nuevoBlob);
       const mapaAprobado = construirMapa(aprobado.doc);
       setDocVivo(aprobado.doc);
@@ -838,6 +879,7 @@ export default function CamilaFormato() {
       setMapaActual(mapaAprobado);
       setBlobDocx(resultado.nuevoBlob);
       setRevisionActual(resultado.revision);
+      if (generadoSinPlantilla) setNombreBorradorLocal('PPA_Borrador_Docente');
       const xmlAprobado = new XMLSerializer().serializeToString(aprobado.doc);
       setSnapshots((prev) => [...prev.slice(-9), {
         id: `snap-${Date.now()}`, xml: xmlAprobado, mapa: mapaAprobado,
@@ -847,7 +889,9 @@ export default function CamilaFormato() {
       setTabActiva('chat');
       setMensajes((prev) => [...prev, {
         id: `msg-${Date.now()}`, emisor: 'camila',
-        texto: `Cambios aplicados con su autorización: ${resultado.operacionesEjecutadas.length} modificación(es) en el documento Word. Puede revisar el resultado, utilizar Deshacer durante esta sesión o descargar la nueva versión cuando esté conforme.`,
+        texto: generadoSinPlantilla
+          ? 'Borrador Word aprobado. Ya puede descargarlo o pedirme cambios. Para respetar el formato de su escuela, adjunte el Word institucional cuando lo tenga.'
+          : `Cambios aplicados con su autorización: ${resultado.operacionesEjecutadas.length} modificación(es) en el documento Word. Puede revisar el resultado, utilizar Deshacer durante esta sesión o descargar la nueva versión cuando esté conforme.`,
         operacionesEjecutadas: resultado.operacionesEjecutadas,
         operacionesOmitidas: resultado.operacionesOmitidas,
         fecha: new Date(), revision: resultado.revision,
@@ -880,7 +924,7 @@ export default function CamilaFormato() {
     const url = URL.createObjectURL(blobDocx);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${formatoActivo?.nombre || 'Planificacion'}_Editado.docx`;
+    a.download = `${formatoActivo?.nombre || nombreBorradorLocal || 'Planificacion'}_Editado.docx`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -917,7 +961,7 @@ export default function CamilaFormato() {
                   <span className="font-semibold text-white truncate">{formatoActivo.nombre}</span>
                 </>
               ) : (
-                <span className="text-slate-400">Sin formato cargado. Puede conversar o adjuntar su Word (.docx).</span>
+                <span className="text-slate-400">{nombreBorradorLocal || 'Sin formato cargado. Puede conversar o adjuntar su Word (.docx).'}</span>
               )}
             </p>
           </div>
@@ -1393,9 +1437,11 @@ export default function CamilaFormato() {
               <div className="flex items-start gap-2">
                 <ShieldCheck size={17} className="text-amber-300 mt-0.5 shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-sm text-white font-bold">Vista previa de cambios propuestos</p>
+                  <p className="text-sm text-white font-bold">{propuestaPendiente.generadoSinPlantilla ? 'Nuevo borrador PPA para su revisión' : 'Vista previa de cambios propuestos'}</p>
                   <p className="text-xs text-slate-300 mt-0.5">
-                    {propuestaPendiente.resultado.operacionesEjecutadas.length} cambio(s) preparados. El documento actual aún no se ha modificado.
+                    {propuestaPendiente.generadoSinPlantilla
+                      ? 'Word creado sin plantilla institucional. No se guardará hasta que usted lo apruebe.'
+                      : `${propuestaPendiente.resultado.operacionesEjecutadas.length} cambio(s) preparados. El documento actual aún no se ha modificado.`}
                   </p>
                   <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">
                     Solicitud: {propuestaPendiente.solicitud}
@@ -1417,9 +1463,9 @@ export default function CamilaFormato() {
 
           {/* ÁREA DE VISUALIZACIÓN DEL WORD */}
           <div className="flex-1 overflow-auto p-3 flex flex-col items-center justify-center">
-            {blobDocx ? (
+            {blobDocx || propuestaPendiente ? (
               <div className="w-full h-full flex flex-col">
-                <DocxPreviewViewer blob={propuestaPendiente?.resultado.nuevoBlob || blobDocx} className="flex-1 w-full" />
+                <DocxPreviewViewer blob={(propuestaPendiente?.resultado.nuevoBlob || blobDocx)!} className="flex-1 w-full" />
               </div>
             ) : (
               <div className="text-center p-8 space-y-4 max-w-sm">
