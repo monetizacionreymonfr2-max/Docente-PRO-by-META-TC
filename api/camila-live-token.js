@@ -82,7 +82,20 @@ export default async function handler(req, res) {
         uses: 1,
         expireTime: new Date(actual + DURACION_SEGUNDOS * 1000).toISOString(),
         newSessionExpireTime: new Date(actual + 60_000).toISOString(),
-        liveConnectConstraints: { model: `models/${MODELO_VOZ}`, config: CONFIG_VOZ },
+        // El REST de auth_tokens recibe la configuración como
+        // bidiGenerateContentSetup, no como liveConnectConstraints (nombre SDK).
+        // La clave permanente sigue en el servidor y el token queda restringido
+        // a este modelo y configuración de conversación.
+        bidiGenerateContentSetup: {
+          model: `models/${MODELO_VOZ}`,
+          generationConfig: {
+            responseModalities: CONFIG_VOZ.responseModalities,
+            speechConfig: CONFIG_VOZ.speechConfig,
+          },
+          systemInstruction: CONFIG_VOZ.systemInstruction,
+          inputAudioTranscription: CONFIG_VOZ.inputAudioTranscription,
+          outputAudioTranscription: CONFIG_VOZ.outputAudioTranscription,
+        },
       }),
       signal: AbortSignal.timeout(12000),
     });
