@@ -12,9 +12,9 @@ CREATE TABLE public.camila_conversaciones (
   teacher_id uuid REFERENCES auth.users(id) ON DELETE CASCADE
 );
 CREATE OR REPLACE FUNCTION storage.foldername(path text)
- RETURNS text[] LANGUAGE sql IMMUTABLE AS $
+ RETURNS text[] LANGUAGE sql IMMUTABLE AS $body$
  SELECT string_to_array(path,'/')
-$;
+$body$;
 CREATE TABLE storage.buckets (
   id text PRIMARY KEY,
   name text NOT NULL,
