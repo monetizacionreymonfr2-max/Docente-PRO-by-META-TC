@@ -83,8 +83,11 @@ test('el servidor emite solo un token efímero limitado y jamás la clave real',
     assert.equal(respuesta.payload.token, 'auth_tokens/token-temporal-de-un-solo-uso');
     assert.equal(respuesta.payload.model, 'gemini-3.8-live');
     assert.equal(configuracionGoogle.uses, 1);
-    assert.equal(configuracionGoogle.liveConnectConstraints.model, 'models/gemini-3.8-live');
-    assert.deepEqual(configuracionGoogle.liveConnectConstraints.config.responseModalities, ['AUDIO']);
+    assert.equal(configuracionGoogle.bidiGenerateContentSetup.model, 'models/gemini-3.8-live');
+    assert.deepEqual(configuracionGoogle.bidiGenerateContentSetup.generationConfig.responseModalities, ['AUDIO']);
+    assert.equal(configuracionGoogle.bidiGenerateContentSetup.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, 'Kore');
+    assert.match(configuracionGoogle.bidiGenerateContentSetup.systemInstruction.parts[0].text, /Camila/);
+    assert.ok(!('liveConnectConstraints' in configuracionGoogle));
     assert.ok(Date.parse(configuracionGoogle.expireTime) - Date.now() <= 181000);
     assert.ok(Date.parse(configuracionGoogle.newSessionExpireTime) - Date.now() <= 61000);
     assert.ok(!JSON.stringify(respuesta.payload).includes('clave-ficticia-no-real'));
