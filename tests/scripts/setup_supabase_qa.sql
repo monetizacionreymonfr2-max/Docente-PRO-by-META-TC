@@ -11,6 +11,10 @@ CREATE TABLE public.camila_conversaciones (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   teacher_id uuid REFERENCES auth.users(id) ON DELETE CASCADE
 );
+CREATE OR REPLACE FUNCTION storage.foldername(path text)
+ RETURNS text[] LANGUAGE sql IMMUTABLE AS $
+ SELECT string_to_array(path,'/')
+$;
 CREATE TABLE storage.buckets (
   id text PRIMARY KEY,
   name text NOT NULL,
