@@ -1,0 +1,25 @@
+name: Camila - PPA completo (desarrollo)
+on:
+  push:
+    branches:
+      - implementacion-claude-flujo-completo-20261030
+  workflow_dispatch:
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run test:ppa-completo
+      - run: npm run test:mi-formato
+      - run: npm run test:ppa-libro
+      - run: npm run test:ppa-contexto
+      - run: npm run test:camila-privacidad
+      - run: npm run build
