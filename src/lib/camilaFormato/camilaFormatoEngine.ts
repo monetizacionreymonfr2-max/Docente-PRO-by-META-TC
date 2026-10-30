@@ -684,7 +684,7 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
       revision: revisionPrevia, datosProyectoExtraidos, libroHechosExtraidos: libroValido,
     };
     const decisionCompleta = prepararVaciadoPpa(datosProyectoExtraidos);
-    if (!decisionCompleta.listo) return {
+    if (decisionCompleta.listo === false) return {
       respuestaCamila: `Para crear un PPA completo necesito este dato: ${decisionCompleta.pregunta}`,
       operacionesEjecutadas: [], operacionesOmitidas: ['No se modificó el Word.'],
       nuevoBlob: await guardarDocx(zipVivo, docVivo), nuevoMapa: mapaActual,
