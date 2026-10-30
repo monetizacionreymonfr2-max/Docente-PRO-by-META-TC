@@ -37,7 +37,9 @@ test('seis semanas reales desde el 3 de noviembre hasta el 10 de diciembre',()=>
   const s=semanasDeCalendario(identidad.fechaInicio,identidad.fechaFin);
   assert.equal(s.length,6);
   assert.equal(textoFecha(s[0].inicio),'03-11-26');
-  assert.equal(textoFecha(s[0].fin),'08-11-26');
+  assert.equal(textoFecha(s[0].fin),'06-11-26');
+  assert.equal(textoFecha(s[1].inicio),'09-11-26');
+  assert.equal(textoFecha(s[4].fin),'04-12-26');
   assert.equal(textoFecha(s[5].fin),'10-12-26');
 });
 test('no inventa ni acepta fechas fuera de calendario',()=>{
@@ -61,4 +63,9 @@ test('rechaza áreas prohibidas y celdas incompletas',()=>{
   p.semanas[0].filas.pop();
   p.semanas[2].filas[1].indicadores='';
   assert.match(validarPpaCompleto(p,identidad).join(' '),/indicadores/);
+});
+
+test('rechaza periodos con inicio o cierre en fin de semana',()=>{
+  assert.equal(semanasDeCalendario('07-11-2026','10-12-2026'),null);
+  assert.equal(semanasDeCalendario('03-11-2026','12-12-2026'),null);
 });
