@@ -60,6 +60,7 @@ import { obtenerAccionesDocumento } from '../lib/camilaFormato/accionesDocumento
 import { combinarDatosProyecto, type DatosProyectoPropuesto } from '../lib/camilaFormato/contextoProyectoPpa';
 import { datosProyectoDesdeLibro, preguntaPendienteLibroPpa, type LibroHechosPpa } from '../lib/camilaFormato/libroHechosPpa';
 import { generarBorradorPpaSinPlantilla, prepararBorradorPpa, solicitaCrearWordPpa } from '../lib/camilaFormato/borradorPpaSinPlantilla';
+import { generarPpaSinPlantillaCompleto } from '../lib/camilaFormato/ppaSinPlantillaCompleto';
 import { prepararDeshacerSeguro } from '../lib/camilaFormato/deshacerSeguro';
 import {
   getCamilaFormatoModel,
@@ -742,7 +743,9 @@ export default function CamilaFormato() {
               respuesta = `Puedo preparar un borrador Word sin exigir un proyecto guardado. ${decision.pregunta}`;
             } else {
               setProgresoDetalle('Camila está redactando el borrador Word para su aprobación...');
-              const generado = await generarBorradorPpaSinPlantilla(datosVerificados);
+              const generado = decision.semanas
+                ? await generarPpaSinPlantillaCompleto(datosVerificados)
+                : await generarBorradorPpaSinPlantilla(datosVerificados);
               const archivoPropuesto = await cargarDocx(generado.blob);
               const revision = revisarDocumentoVivo(null, archivoPropuesto.doc, null);
               const propuesta: ResultadoCamilaFormato = {
