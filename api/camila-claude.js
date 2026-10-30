@@ -381,6 +381,8 @@ export default async function handler(req, res) {
     }
     const data=await response.json();
     const answer=(data.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('');
+    // Registrar el uso antes de analizar JSON: incluso una respuesta inválida cuesta tokens.
+    await registrarUso(url,serviceKey,user.id,modelo,mode,data.usage);
     if (formato || esBloque || esCompleto) {
       let parsed;
       try { parsed=JSON.parse(answer); } catch { return res.status(502).json({error:'Camila no devolvió operaciones válidas'}); }
@@ -394,7 +396,6 @@ export default async function handler(req, res) {
         return res.status(502).json({error:'Camila no devolvió operaciones válidas'});
       }
     }
-    await registrarUso(url,serviceKey,user.id,modelo,mode,data.usage);
     return res.status(200).json({text:answer,usage:data.usage});
   } catch (error) {
     const category = error instanceof Error && error.name === 'TimeoutError' ? 'TIMEOUT' : 'ERROR_DE_RED_O_PROCESAMIENTO';
