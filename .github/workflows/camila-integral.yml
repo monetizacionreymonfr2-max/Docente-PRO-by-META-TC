@@ -19,11 +19,20 @@ jobs:
       - run: npm run lint
       - run: npm run test:claude
       - run: npm run test:ppa-completo
+        env:
+          CAMILA_PPA_QA_OUTPUT: artifacts/camila-ppa-6-semanas-ficticio.docx
+      - run: python -m pip install --quiet python-docx
+      - run: python tests/scripts/verificar_docx_generado.py
       - run: npm run test:mi-formato
       - run: npm run test:ppa-libro
       - run: npm run test:ppa-contexto
       - run: npm run test:camila-privacidad
       - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: camila-ppa-6-semanas-ficticio
+          path: artifacts/camila-ppa-6-semanas-ficticio.docx
+          retention-days: 3
 
   verificar_rls:
     runs-on: ubuntu-latest
