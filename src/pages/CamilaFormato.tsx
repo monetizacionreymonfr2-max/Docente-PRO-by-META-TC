@@ -61,6 +61,7 @@ import { combinarDatosProyecto, type DatosProyectoPropuesto } from '../lib/camil
 import { datosProyectoDesdeLibro, preguntaPendienteLibroPpa, type LibroHechosPpa } from '../lib/camilaFormato/libroHechosPpa';
 import { generarBorradorPpaSinPlantilla, prepararBorradorPpa, solicitaCrearWordPpa } from '../lib/camilaFormato/borradorPpaSinPlantilla';
 import { generarPpaSinPlantillaCompleto } from '../lib/camilaFormato/ppaSinPlantillaCompleto';
+import { VersionesPpa, type VersionDocumentoPpa } from '../lib/camilaFormato/versionesPpa';
 import { prepararDeshacerSeguro } from '../lib/camilaFormato/deshacerSeguro';
 import {
   getCamilaFormatoModel,
@@ -155,6 +156,8 @@ export default function CamilaFormato() {
   const [modalRevisionOpen, setModalRevisionOpen] = useState(false);
   const [modalModelosOpen, setModalModelosOpen] = useState(false);
   const [modalHistorialOpen, setModalHistorialOpen] = useState(false);
+  const [modalVersionesOpen, setModalVersionesOpen] = useState(false);
+  const [versionesPrivadas, setVersionesPrivadas] = useState<VersionDocumentoPpa[]>([]);
   const [modalMemoriaOpen, setModalMemoriaOpen] = useState(false);
 
   // Datos para modales
@@ -678,6 +681,50 @@ export default function CamilaFormato() {
   };
 
   // Enviar mensaje al motor conversacional
+  const mostrarVersionesPrivadas = async () => {
+    setAvisoPrivacidad(null);
+    setModalVersionesOpen(true);
+    try { setVersionesPrivadas(await VersionesPpa.listar(teacherId)); }
+    catch (error) { setAvisoPrivacidad(error instanceof Error ? error.message : 'No se pudieron abrir las versiones privadas.'); }
+  };
+
+  const guardarVersionAutorizada = async () => {
+    if (!blobDocx || isProcessing || propuestaPendiente || persistenciaOcupada) return;
+    const nombre = formatoActivo?.nombre || nombreBorradorLocal || 'PPA';
+    if (!window.confirm(`¿Autoriza guardar una copia de «${nombre}» en su biblioteca privada de DOCENTY PRO? Solo usted podrá acceder a esta versión.`)) return;
+    setPersistenciaOcupada(true);
+    try {
+      await VersionesPpa.guardar({teacherId,conversacionId,nombre,blob:blobDocx});
+      setAvisoPrivacidad('Versión Word guardada con su autorización en almacenamiento privado.');
+      setVersionesPrivadas(await VersionesPpa.listar(teacherId));
+    } catch (error) {
+      setAvisoPrivacidad(error instanceof Error ? error.message : 'No se pudo guardar la versión.');
+    } finally { setPersistenciaOcupada(false); }
+  };
+
+  const recuperarVersion = async (version: VersionDocumentoPpa) => {
+    if (isProcessing || propuestaPendiente || persistenciaOcupada) return;
+    if (docVivo && !window.confirm('Se abrirá la versión guardada y se cerrará el Word actual. Descargue antes cualquier cambio no guardado. ¿Continuar?')) return;
+    setPersistenciaOcupada(true);
+    try {
+      const blob = await VersionesPpa.descargar(version);
+      const buf = await blob.arrayBuffer();
+      const fmt: FormatoDocente = {
+        id: `version-${version.id}`, teacherId, nombre: version.nombre,
+        tipoDocumento:'PPA', archivoOriginalNombre:`${version.nombre}.docx`,
+        archivoMimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        tamanoBytes:blob.size, modo:'clonar_docx',
+        estructura:{tipoDocumento:'PPA',orientacion:'vertical',encabezado:{},secciones:[],
+          estilo:{colorPrincipal:'#1e3a8a'}},
+        createdAt:version.created_at, updatedAt:version.created_at,
+      };
+      await cargarFormatoEnSesion(fmt,buf);
+      setModalVersionesOpen(false);
+    } catch (error) {
+      setAvisoPrivacidad(error instanceof Error ? error.message : 'No se pudo recuperar el Word.');
+    } finally { setPersistenciaOcupada(false); }
+  };
+
   const handleEnviarMensaje = async (textoAEnviar?: string) => {
     const texto = (textoAEnviar || inputTexto).trim() || (adjuntos.length
       ? 'Analice los archivos adjuntos, indíqueme qué información contienen y pregúnteme qué documento desea preparar con ellos.'
@@ -1421,6 +1468,16 @@ export default function CamilaFormato() {
                 <span>Descargar Word</span>
               </button>
 
+              <button type="button" onClick={guardarVersionAutorizada}
+                disabled={!accionesDocumento.descargar || persistenciaOcupada}
+                className="px-3 py-1.5 rounded-xl bg-violet-600/60 hover:bg-violet-500 disabled:opacity-30 text-white text-xs font-bold"
+                title="Guardar una versión privada solamente con su autorización">
+                Guardar versión
+              </button>
+              <button type="button" onClick={mostrarVersionesPrivadas}
+                className="px-3 py-1.5 rounded-xl border border-violet-400/30 bg-violet-500/10 text-violet-200 text-xs font-bold">
+                Mis versiones
+              </button>
               <button
                 type="button"
                 onClick={handleDescargarPdf}
@@ -1493,6 +1550,23 @@ export default function CamilaFormato() {
           </div>
         </div>
       </div>
+
+      {modalVersionesOpen && (
+        <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center overflow-y-auto p-3 bg-black/80" role="dialog" aria-modal="true" aria-label="Versiones privadas del PPA">
+          <div className="w-full max-w-lg my-auto rounded-2xl bg-slate-900 border border-white/20 p-4 space-y-3 max-h-[85dvh] overflow-auto">
+            <div className="flex items-center justify-between"><h3 className="font-bold text-white">Mis versiones Word privadas</h3>
+              <button type="button" onClick={()=>setModalVersionesOpen(false)} aria-label="Cerrar versiones" className="text-slate-300"><X size={18}/></button></div>
+            <p className="text-xs text-slate-300">Únicamente se guardan los documentos que usted autorizó. Puede recuperar una versión anterior y seguir corrigiéndola.</p>
+            {avisoPrivacidad && <p role="status" className="p-2 rounded-lg bg-amber-500/10 text-amber-200 text-xs">{avisoPrivacidad}</p>}
+            {versionesPrivadas.length === 0 ? <p className="text-sm text-slate-300">Aún no existen versiones guardadas.</p> : versionesPrivadas.map(v=>
+              <button key={v.id} type="button" onClick={()=>recuperarVersion(v)} disabled={persistenciaOcupada}
+                className="block w-full text-left px-3 py-2 rounded-lg bg-white/5 border border-white/10 disabled:opacity-40">
+                <span className="text-xs font-bold text-white">{v.nombre} — versión {v.version}</span>
+                <span className="block text-[11px] text-slate-400">{new Date(v.created_at).toLocaleString('es-VE')} · Abrir Word</span>
+              </button>)}
+          </div>
+        </div>
+      )}
 
       {/* HISTORIAL PRIVADO: ningún mensaje se guarda sin pulsar Guardar chat. */}
       {modalHistorialOpen && (
