@@ -158,6 +158,7 @@ export default function CamilaFormato() {
   const [modalHistorialOpen, setModalHistorialOpen] = useState(false);
   const [modalVersionesOpen, setModalVersionesOpen] = useState(false);
   const [versionesPrivadas, setVersionesPrivadas] = useState<VersionDocumentoPpa[]>([]);
+  const [versionesDisponibles, setVersionesDisponibles] = useState(false);
   const [modalMemoriaOpen, setModalMemoriaOpen] = useState(false);
 
   // Datos para modales
@@ -258,6 +259,21 @@ export default function CamilaFormato() {
         setProyectosGuardados(p || []);
       });
     }
+  }, [teacherId]);
+
+  // No mostrar controles de versiones hasta que la migración esté aplicada:
+  // el Preview comparte actualmente un Supabase con producción.
+  useEffect(() => {
+    let activo = true;
+    setVersionesDisponibles(false);
+    if (teacherId) {
+      VersionesPpa.listar(teacherId).then(() => {
+        if (activo) setVersionesDisponibles(true);
+      }).catch(() => {
+        if (activo) setVersionesDisponibles(false);
+      });
+    }
+    return () => { activo = false; };
   }, [teacherId]);
 
   // Los recuerdos se leen únicamente dentro de la sesión autenticada actual.
@@ -1468,6 +1484,7 @@ export default function CamilaFormato() {
                 <span>Descargar Word</span>
               </button>
 
+              {versionesDisponibles && (<>
               <button type="button" onClick={guardarVersionAutorizada}
                 disabled={!accionesDocumento.descargar || persistenciaOcupada}
                 className="px-3 py-1.5 rounded-xl bg-violet-600/60 hover:bg-violet-500 disabled:opacity-30 text-white text-xs font-bold"
@@ -1478,6 +1495,7 @@ export default function CamilaFormato() {
                 className="px-3 py-1.5 rounded-xl border border-violet-400/30 bg-violet-500/10 text-violet-200 text-xs font-bold">
                 Mis versiones
               </button>
+              </>)}
               <button
                 type="button"
                 onClick={handleDescargarPdf}
