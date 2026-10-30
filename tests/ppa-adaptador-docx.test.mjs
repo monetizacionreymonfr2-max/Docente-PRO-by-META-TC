@@ -1,3 +1,4 @@
+import { writeFile, mkdir } from 'node:fs/promises';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import JSZip from 'jszip';
@@ -31,8 +32,9 @@ const plan=()=>({
 async function fixture(){
   const oldHeader=row(['Áreas de Aprendizaje','Componentes','Contenidos','Tejidos Temáticos','Aprendizajes Esperados','Recursos','Indicadores','Técnicas','Fechas']);
   const viejo=row(['Lenguaje','Sexto Grado','Contenido viejo','Actividad vieja','Logros viejos','Recursos viejos','Indicadores viejos','Técnicas viejas','26-10-26']);
-  const cuadrito=`<w:tbl>${oldHeader}${row(['SEMANA 1 · 26-10-2026'])}${viejo}${row(['SEMANA 2'])}${viejo}</w:tbl>`;
-  const completo=`<w:document xmlns:w="${W}"><w:body>
+  const week=(title)=>`<w:tr><w:tc><w:tcPr><w:gridSpan w:val="9"/></w:tcPr>${p(title)}</w:tc></w:tr>`;
+  const cuadrito=`<w:tbl>${oldHeader}${week('SEMANA 1 · 26-10-2026')}${viejo}${week('SEMANA 2')}${viejo}</w:tbl>`;
+  const completo=`<w:document xmlns:w="${W}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>
     ${p('PROYECTO PEDAGÓGICO DE AULA (PPA)')}
     ${p('Educación Primaria · Sexto grado')}
     ${table([
@@ -54,9 +56,24 @@ async function fixture(){
     ${table([['Lunes','Martes','Miércoles','Jueves','Viernes'],['Feria vieja','Feria vieja','Feria vieja','Feria vieja','Feria vieja']])}
     ${p('Cierre del proyecto: antigua feria')}
     ${table([['Docente: '+vieja,'','Director(a)']])}
+    <w:sectPr><w:footerReference w:type="default" r:id="rIdFooter1"/></w:sectPr>
     </w:body></w:document>`;
   const pie=`<w:ftr xmlns:w="${W}"><w:p><w:r><w:t>PPA “TÍTULO ANTIGUO” · 6to grado · Prof. ${vieja} · Página </w:t></w:r><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText>PAGE</w:instrText></w:r></w:p></w:ftr>`;
-  const zip=new JSZip();zip.file('word/document.xml',completo);zip.file('word/footer1.xml',pie);
+  const zip=new JSZip();
+  zip.file('[Content_Types].xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+      <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+      <Default Extension="xml" ContentType="application/xml"/>
+      <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+      <Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>
+    </Types>`);
+  zip.file('_rels/.rels',`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+    <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+    </Relationships>`);
+  zip.file('word/_rels/document.xml.rels',`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+    <Relationship Id="rIdFooter1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>
+    </Relationships>`);
+  zip.file('word/document.xml',completo);zip.file('word/footer1.xml',pie);
   zip.file('word/media/logo-colegio.png',new Uint8Array([137,80,78,71,10,2,1]));
   return zip.generateAsync({type:'blob'});
 }
@@ -90,6 +107,10 @@ test('DOCX integral: reconstruye 6 semanas, borra identidad antigua y conserva l
     assert.match(xmlDoc,/03-11-26/);assert.match(xmlDoc,/10-12-26/);
     assert.deepEqual(await nuevo.file('word/media/logo-colegio.png').async('uint8array'),new Uint8Array([137,80,78,71,10,2,1]));
     assert.deepEqual(Buffer.from(await original.arrayBuffer()),originalBytes,'El original nunca se modifica');
+    if(process.env.CAMILA_PPA_QA_OUTPUT){
+      await mkdir('artifacts',{recursive:true});
+      await writeFile(process.env.CAMILA_PPA_QA_OUTPUT,Buffer.from(await terminado.arrayBuffer()));
+    }
   });
 });
 test('rechaza un PPA incompleto sin modificar el archivo anterior',async()=>{
