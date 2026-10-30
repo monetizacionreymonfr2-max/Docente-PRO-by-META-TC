@@ -72,3 +72,18 @@ create policy "Camila documentos: borrar propios" on storage.objects
   for delete to authenticated using (
     bucket_id = 'camila-documentos' AND
     (storage.foldername(name))[1] = (select auth.uid())::text);
+
+-- Cuotas explícitas por código/plan. No se deduce el plan de fechas ni se
+-- asigna un consumo inventado; el administrador configura la cuota real.
+create table if not exists public.camila_cuotas (
+  teacher_id uuid primary key references auth.users(id) on delete cascade,
+  plan text not null check (plan in ('30_dias','4_meses','hasta_2027','administrador')),
+  max_tokens_mes bigint not null check (max_tokens_mes > 0),
+  max_peticiones_dia integer not null check (max_peticiones_dia > 0),
+  updated_at timestamptz not null default now()
+);
+alter table public.camila_cuotas enable row level security;
+revoke all on public.camila_cuotas from public, anon, authenticated;
+grant select on public.camila_cuotas to authenticated;
+create policy "Camila cuota: consultar propia" on public.camila_cuotas
+  for select to authenticated using ((select auth.uid()) = teacher_id);
