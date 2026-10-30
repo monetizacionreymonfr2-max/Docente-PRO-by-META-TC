@@ -115,6 +115,20 @@ export function validarPpaCompleto(plan: PpaCompleto, identidad: IdentidadPpa, a
       errores.push(`La semana ${i + 1} no contiene entre 1 y 8 áreas de planificación.`);
       return;
     }
+    // Nunca aceptar un PPA parcialmente rellenado: las cuatro áreas básicas
+    // deben existir por semana salvo exclusión explícita del docente.
+    const requeridas = [
+      { nombre:'Lenguaje', coincide:/(lenguaje|comunicaci|practicas del lenguaje)/ },
+      { nombre:'Matemática', coincide:/(matematica|matematicas)/ },
+      { nombre:'Ciencia, Tecnología y Sociedad', coincide:/(ciencia,? tecnologia|ciencia y tecnologia|ciencias naturales)/ },
+      { nombre:'Ciencias Sociales', coincide:/(ciencias sociales|sociales|ciudadania)/ },
+    ];
+    for (const area of requeridas) {
+      if (areasExcluidas.some(ex => area.coincide.test(normalizar(ex)))) continue;
+      if (!semana.filas.some(f => area.coincide.test(normalizar(f?.area || '')))) {
+        errores.push(`Semana ${i + 1}: falta el área obligatoria ${area.nombre}.`);
+      }
+    }
     const usadas = new Set<string>();
     semana.filas.forEach((fila, j) => {
       for (const campo of CAMPOS_FILA) {
