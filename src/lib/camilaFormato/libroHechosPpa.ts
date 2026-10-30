@@ -26,6 +26,7 @@ const ORIGENES = new Set<OrigenHechoPpa>([
 
 const CAMPOS_PROYECTO = [
   'gradoSeccion', 'tema', 'diagnostico', 'duracion', 'docente', 'institucion', 'matricula',
+  'anioEscolar', 'fechaInicio', 'fechaFin',
 ] as const;
 
 export type DatosProyectoDesdeLibro = Partial<Record<typeof CAMPOS_PROYECTO[number], string>>;
@@ -34,7 +35,7 @@ export const INSTRUCCION_LIBRO_HECHOS_PPA = `Extraiga datos para un PPA venezola
 Responda como objeto JSON: {version:1,hechos:[{campo,valor,estado,fuente:{origen,referencia},observacion}],pendientes:[]}.
 Los estados permitidos son dicho, supuesto, falta, contradiccion.
 Para 'dicho', cite el mensaje o archivo actual; no atribuya a la docente datos tomados de un Word anterior.
-Si una fecha, matrícula o grado aparece en dos versiones incompatibles, marque contradiccion.
+Extraiga también anioEscolar, fechaInicio y fechaFin (formato AAAA-MM-DD o DD-MM-AAAA), SOLO si fueron confirmados. Si una fecha, matrícula o grado aparece en dos versiones incompatibles, marque contradiccion.
 Los datos de una plantilla anterior sirven para entender la estructura, jamás para copiar identidad, escuela o estudiantes.
 No invente valores para campos faltantes. Muestre las suposiciones y pida confirmación de una en una.
 No guarde memoria permanente ni incluya nombres de menores si no son imprescindibles.`;
