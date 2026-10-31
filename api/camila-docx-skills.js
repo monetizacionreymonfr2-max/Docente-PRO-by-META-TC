@@ -1,4 +1,4 @@
-import { verificarAdministradorCamila } from './_camilaAdmin.js';
+import { verificarAdministradorCamila } from '../server/camilaAdmin.js';
 
 export const maxDuration = 60;
 const API='https://api.anthropic.com';
