@@ -14,7 +14,8 @@ const getRes=()=>{
   }};
 };
 const docx=Buffer.from('504b0304ffff', 'hex');
-const base64=docx.toString('base64');
+const inputWord=Buffer.concat([docx,Buffer.alloc(40)]);
+const base64=inputWord.toString('base64');
 const adminUser={id:'uuid-admin-ficticio',email:'monetizacionreymonfr2@gmail.com'};
 function mockSupabase(){
   return async (url,opts)=>{
@@ -56,7 +57,7 @@ test('LibreOffice verifica firma HMAC y entrega PDF ficticio',async()=>{
     globalThis.fetch=async (url,opts)=>{
       if(String(url).includes('worker.example.com')){
         assert.match(opts.headers['X-Camila-Signature'],/^[a-f0-9]{64}$/);
-        assert.equal(opts.body.toString('hex'),docx.toString('hex'));
+        assert.equal(opts.body.toString('hex'),inputWord.toString('hex'));
         return new Response(Buffer.from('%PDF-'+'.'.repeat(60)),{status:200});
       }
       return upstream(url,opts);
