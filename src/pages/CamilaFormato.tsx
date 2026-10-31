@@ -105,7 +105,7 @@ export default function CamilaFormato() {
   const [blobDocx, setBlobDocx] = useState<Blob | null>(null);
   const [vistaPdfUrl, setVistaPdfUrl] = useState<string | null>(null);
   const [procesandoOpcional, setProcesandoOpcional] = useState(false);
-  const herramientasOpcionalesVisibles = isAdmin === true && import.meta.env.VITE_CAMILA_OPTIONAL_TOOLS === 'true';
+  const herramientasOpcionalesVisibles = isAdmin === true && (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_CAMILA_OPTIONAL_TOOLS === 'true';
   useEffect(()=>{setVistaPdfUrl(null)},[blobDocx]);
   const [nombreBorradorLocal, setNombreBorradorLocal] = useState<string | null>(null);
   // La propuesta se genera sobre una copia aislada. El documento activo solo
