@@ -43,7 +43,7 @@ export default async function handler(req,res) {
     });
     if (!response.ok) return res.status(502).json({error:'LibreOffice no pudo procesar el Word'});
     const pdf=Buffer.from(await response.arrayBuffer());
-    if (pdf.length<50 || pdf.length>14_000_000 || !pdf.subarray(0,5).equals(Buffer.from('%PDF-')))
+    if (pdf.length<50 || pdf.length>2_500_000 || !pdf.subarray(0,5).equals(Buffer.from('%PDF-')))
       return res.status(502).json({error:'Vista PDF inválida'});
     return res.status(200).json({mimeType:'application/pdf',pdfBase64:pdf.toString('base64')});
   } catch { return res.status(502).json({error:'El worker de vista previa no respondió'}); }
