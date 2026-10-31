@@ -26,9 +26,11 @@ async function jsonResult(resp) {
 export default async function handler(req,res) {
   res.setHeader('Cache-Control','private, no-store');
   if(req.method!=='POST')return res.status(405).json({error:'Método no permitido'});
-  // Feature *aparte*, desactivado por defecto; los contenidos escolares reales
-  // no se deben enviar a un contenedor de retención hasta 30 días.
-  if(process.env.VERCEL_ENV!=='preview' || process.env.CAMILA_DOCX_SKILLS_ENABLED!=='true')
+  // Habilitación explícita por entorno; incluso en producción sigue exigiendo
+  // sesión administradora y consentimiento para archivos exclusivamente ficticios.
+  // Nunca activar para documentos reales: el contenedor puede retener datos.
+  if(!['preview','production'].includes(process.env.VERCEL_ENV) ||
+     process.env.CAMILA_DOCX_SKILLS_ENABLED!=='true')
     return res.status(404).json({error:'Skills de Word no habilitadas'});
   const auth=await verificarAdministradorCamila(req);
   if(!auth.ok)return res.status(auth.status).json({error:auth.error});

@@ -22,8 +22,8 @@ import ActivationModal from './components/ActivationModal';
 import ResetPasswordModal from './components/ResetPasswordModal';
 import { Loader2, UserX } from 'lucide-react';
 
-const ADMIN_EMAILS = ['monetizacionreymonfr2@gmail.com', 'Tecnomundo235@gmail.com'];
-const isAdminEmail = (email: string | null | undefined) => email ? ADMIN_EMAILS.includes(email) : false;
+const ADMIN_EMAILS = ['monetizacionreymonfr2@gmail.com', 'tecnomundo235@gmail.com'];
+const isAdminEmail = (email: string | null | undefined) => email ? ADMIN_EMAILS.includes(email.trim().toLowerCase()) : false;
 
 export default function App() {
   const [user, setUser] = useState<any>(null);

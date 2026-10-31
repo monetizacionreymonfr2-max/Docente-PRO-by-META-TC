@@ -6,8 +6,14 @@ export default async function handler(req,res) {
   res.setHeader('Cache-Control','private, no-store');
   res.setHeader('X-Content-Type-Options','nosniff');
   if (req.method!=='POST') return res.status(405).json({error:'Método no permitido'});
-  // Debe habilitarse solamente para la rama Preview y nunca al inferir un host.
-  if (process.env.VERCEL_ENV!=='preview' || process.env.CAMILA_LIBREOFFICE_PREVIEW_ENABLED!=='true')
+  // Activar cada entorno deliberadamente, sin inferir permisos por dominio.
+  // La verificación de administrador y el HMAC siguen siendo obligatorios.
+  const habilitado = process.env.VERCEL_ENV==='production'
+    ? process.env.CAMILA_LIBREOFFICE_ENABLED==='true'
+    : process.env.VERCEL_ENV==='preview' &&
+      (process.env.CAMILA_LIBREOFFICE_PREVIEW_ENABLED==='true' ||
+       process.env.CAMILA_LIBREOFFICE_ENABLED==='true');
+  if (!habilitado)
     return res.status(404).json({error:'Vista fiel no habilitada'});
   const auth=await verificarAdministradorCamila(req);
   if (!auth.ok) return res.status(auth.status).json({error:auth.error});

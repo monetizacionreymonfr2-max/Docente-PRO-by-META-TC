@@ -1,0 +1,14 @@
+{$WORKER_DOMAIN} {
+    request_body {
+        max_size 2MB
+    }
+    @worker {
+        path /health /convert
+    }
+    handle @worker {
+        reverse_proxy converter:8787
+    }
+    handle {
+        respond 404
+    }
+}
