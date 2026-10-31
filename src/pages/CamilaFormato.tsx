@@ -42,6 +42,7 @@ import { ColaHistorialPrivado } from '../lib/camila/colaHistorialPrivado';
 import DocxPreviewViewer from '../components/formato/DocxPreviewViewer';
 import { FormatoService, fileToBase64 } from '../lib/formatoService';
 import { SupabaseService } from '../lib/supabaseService';
+import { supabase } from '../lib/supabase';
 import { FormatoDocente } from '../types/formato';
 import { PlantillaDocx, DocxMapa } from '../lib/docxClone/types';
 import { cargarDocx, construirMapa, guardarDocx } from '../lib/docxClone/docxEditor';
@@ -105,7 +106,7 @@ export default function CamilaFormato() {
   const [vistaPdfUrl, setVistaPdfUrl] = useState<string | null>(null);
   const [procesandoOpcional, setProcesandoOpcional] = useState(false);
   const herramientasOpcionalesVisibles = isAdmin === true && import.meta.env.VITE_CAMILA_OPTIONAL_TOOLS === 'true';
-  useEffect(()=>{setVistaPdfUrl(null)},[blobDocx,propuestaPendiente]);
+  useEffect(()=>{setVistaPdfUrl(null)},[blobDocx]);
   const [nombreBorradorLocal, setNombreBorradorLocal] = useState<string | null>(null);
   // La propuesta se genera sobre una copia aislada. El documento activo solo
   // cambia después de que el docente apruebe expresamente el resultado.
@@ -1005,7 +1006,7 @@ export default function CamilaFormato() {
     if (!window.confirm('Esta prueba enviará el documento ficticio a Anthropic para ejecutar la Skill Word. No use datos de estudiantes reales: el contenedor puede retener datos hasta 30 días y puede haber cargos. ¿Confirma que el documento es ficticio y autoriza el envío?')) return;
     setProcesandoOpcional(true);
     try {
-      const { data:{session} } = await SupabaseService.getSessionForTools();
+      const { data:{session} } = await supabase.auth.getSession();
       if (!session?.access_token) throw new Error('Debe iniciar sesión.');
       const response=await fetch('/api/camila-docx-skills',{
         method:'POST',
@@ -1024,7 +1025,8 @@ export default function CamilaFormato() {
         respuestaCamila:'La Skill preparó un Word para su revisión. No se ha aplicado.',
         operacionesEjecutadas:[{tipo:'vaciar_todo'}],operacionesOmitidas:[],
         nuevoBlob,nuevoMapa:construirMapa(parsed.doc),
-        revision:null,
+        revision:{aprobado:true,resumen:'Borrador generado por Skill. Revisión manual obligatoria antes de aprobar.',
+          detalles:[],celdasSinCambio:0,celdasReemplazadas:0,coberturaTablas:[]},
         seEjecutoVaciarTodo:true,
       };
       setPropuestaPendiente({solicitud:instruccion,resultado:propuesta});
@@ -1043,7 +1045,7 @@ export default function CamilaFormato() {
     if(!window.confirm('Se enviará temporalmente este documento ficticio al worker privado de LibreOffice para producir un PDF de vista previa. ¿Autoriza?'))return;
     setProcesandoOpcional(true);
     try {
-      const { data:{session} }=await SupabaseService.getSessionForTools();
+      const { data:{session} }=await supabase.auth.getSession();
       if(!session?.access_token)throw new Error('Sesión requerida');
       const r=await fetch('/api/camila-preview-pdf',{
         method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},
