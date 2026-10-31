@@ -60,7 +60,7 @@ def convert_docx(data: bytes) -> bytes:
         if proc.returncode or not output.exists():
             raise ValueError("No se pudo convertir el documento a PDF")
         pdf = output.read_bytes()
-        if not pdf.startswith(b"%PDF-") or len(pdf) < 50 or len(pdf) > 14_000_000:
+        if not pdf.startswith(b"%PDF-") or len(pdf) < 50 or len(pdf) > 2_500_000:
             raise ValueError("LibreOffice no produjo un PDF válido")
         return pdf
 
