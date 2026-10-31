@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { verificarAdministradorCamila } from './_camilaAdmin.js';
+import { verificarAdministradorCamila } from '../server/camilaAdmin.js';
 
 export const maxDuration = 60;
 export default async function handler(req,res) {
