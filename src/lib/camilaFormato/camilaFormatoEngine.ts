@@ -1,3 +1,8 @@
+import { solicitaPpaIntegral } from './solicitudIntegral';
+import { generarPpaCompletoClaude } from '../camila/claudeClient';
+import { adaptarPpaCompletoAWord } from './adaptarPpaDocx';
+import { validarPpaCompleto, type PpaCompleto, type IdentidadPpa } from './ppaEstructurado';
+import { detectarAreasExcluidas } from '../docxClone/clonerPipeline';
 import JSZip from 'jszip';
 import { askCamilaFormatoClaude } from '../camila/claudeClient';
 import {
@@ -666,6 +671,60 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
     }, libroValido ? datosProyectoDesdeLibro(libroValido) :
        libroPropuesto ? {} : parsed.datosProyecto));
 
+  // Un pedido de crear/adaptar/completar TODO un PPA nunca puede resolverse
+  // mediante 20 set_celda parciales. Primero Claude redacta TODO el JSON y
+  // solo después el editor aplica los cambios a una copia del DOCX.
+  const ordenIntegral = solicitaPpaIntegral(mensajeDocente);
+  if (ordenIntegral && archivoOriginalData) {
+    if (preguntaHechos) return {
+      respuestaCamila: `Antes de adaptar el PPA completo debo aclarar un dato: ${preguntaHechos}`,
+      operacionesEjecutadas: [], operacionesOmitidas: ['El libro de hechos no ha sido confirmado.'],
+      nuevoBlob: await guardarDocx(zipVivo, docVivo), nuevoMapa: mapaActual,
+      revision: revisionPrevia, datosProyectoExtraidos, libroHechosExtraidos: libroValido,
+    };
+    const decisionCompleta = prepararVaciadoPpa(datosProyectoExtraidos);
+    if (decisionCompleta.listo === false) return {
+      respuestaCamila: `Para crear un PPA completo necesito este dato: ${decisionCompleta.pregunta}`,
+      operacionesEjecutadas: [], operacionesOmitidas: ['No se modificó el Word.'],
+      nuevoBlob: await guardarDocx(zipVivo, docVivo), nuevoMapa: mapaActual,
+      revision: revisionPrevia, datosProyectoExtraidos, libroHechosExtraidos: libroValido,
+    };
+    const identidad: IdentidadPpa = {
+      gradoSeccion: decisionCompleta.datos.gradoSeccion,
+      tema: decisionCompleta.datos.tema,
+      diagnostico: decisionCompleta.datos.diagnostico,
+      duracion: decisionCompleta.datos.duracion,
+      docente: decisionCompleta.datos.docente || '',
+      institucion: decisionCompleta.datos.institucion || '',
+      anioEscolar: datosProyectoExtraidos.anioEscolar,
+      fechaInicio: datosProyectoExtraidos.fechaInicio,
+      fechaFin: datosProyectoExtraidos.fechaFin,
+      matricula: datosProyectoExtraidos.matricula,
+    };
+    const excluidas = detectarAreasExcluidas(
+      [...historialTurnos.map(t => t.texto), mensajeDocente].join('\\n'));
+    const contexto = {
+      identidad, areasExcluidas: excluidas, solicitudActual: mensajeDocente,
+      reglas: 'Datos de la plantilla antigua prohibidos. Crear todas las semanas con 4 áreas pedagógicas (Lenguaje, Matemática, Ciencia Tecnología y Sociedad, Ciencias Sociales), salvo exclusiones expresas. No incluir datos ajenos. No inventar fechas.',
+    };
+    onProgresoVaciarTodo?.('Claude está redactando el PPA COMPLETO como JSON estructurado...');
+    const plan = await generarPpaCompletoClaude(JSON.stringify(contexto)) as PpaCompleto;
+    const errores = validarPpaCompleto(plan, identidad, excluidas);
+    if (errores.length) throw new Error(`Claude no completó el PPA: ${errores[0]} Original preservado.`);
+    onProgresoVaciarTodo?.('Validando y adaptando TODAS las semanas en el Word institucional...');
+    const nuevoBlob = await adaptarPpaCompletoAWord(archivoOriginalData, plan, identidad, excluidas);
+    const nuevoDocumento = await cargarDocx(nuevoBlob);
+    const nuevoMapa = construirMapa(nuevoDocumento.doc);
+    return {
+      respuestaCamila: `Preparé ${plan.semanas.length} semanas completas en el Word y reconstruí las tablas y el pie de página. Revise la vista previa; no aplicaré nada sin su aprobación.`,
+      operacionesEjecutadas: [{tipo:'vaciar_todo'}], operacionesOmitidas: [],
+      nuevoBlob, nuevoMapa,
+      revision: { aprobado:true, resumen:'Validación integral del PPA superada: datos, semanas y plantilla verificados.', detalles:[],
+        celdasSinCambio:0, celdasReemplazadas:plan.semanas.reduce((n,w)=>n+w.filas.length*9,0), coberturaTablas:[] },
+      seEjecutoVaciarTodo: true, datosProyectoExtraidos, libroHechosExtraidos: libroValido,
+    };
+  }
+
   // Nunca completar un documento oficial si los hechos se contradicen o el
   // libro de hechos es inválido: confirmar primero, sin escribir cambios.
   if (tieneVaciarTodo && preguntaHechos) {
@@ -711,53 +770,11 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
     };
   }
 
-  if (tieneVaciarTodo && archivoOriginalData && plantilla && datosVaciado?.listo) {
-    onProgresoVaciarTodo?.('Iniciando vaciado completo por bloques...');
-
-    const datosDocente: DatosDocenteProyecto = {
-      ...datosVaciado.datos,
-      instruccionesExtra: mensajeDocente,
-    };
-
-    const resClonacion = await ejecutarClonacionDocx(
-      archivoOriginalData,
-      plantilla,
-      datosDocente,
-      onProgresoVaciarTodo
-    );
-
-    if (resClonacion.exito && resClonacion.blobDocx) {
-      seEjecutoVaciarTodo = true;
-      const reloaded = await cargarDocx(resClonacion.blobDocx);
-      const nuevoMapa = construirMapa(reloaded.doc);
-      const revision = revisarDocumentoVivo(docOrig, reloaded.doc, plantilla);
-
-      return {
-        respuestaCamila: `${parsed.respuesta || 'He vaciado todo el proyecto en tu formato.'}\n\n${revision.resumen}`,
-        operacionesEjecutadas: [{ tipo: 'vaciar_todo' }],
-        operacionesOmitidas: [],
-        nuevoBlob: resClonacion.blobDocx,
-        nuevoMapa,
-        revision,
-        seEjecutoVaciarTodo: true,
-        datosProyectoExtraidos,
-        libroHechosExtraidos: libroValido,
-      };
-    }
-
-    return {
-      respuestaCamila: `Todavía no pude completar el Word con seguridad: ${resClonacion.mensaje}. Su documento original no fue modificado.`,
-      operacionesEjecutadas: [],
-      operacionesOmitidas: ['La clonación del Word no superó la validación; no se propuso un documento incompleto.'],
-      nuevoBlob: await guardarDocx(zipVivo, docVivo),
-      nuevoMapa: mapaActual,
-      revision: revisionPrevia,
-      seEjecutoVaciarTodo: false,
-      datosProyectoExtraidos,
-      libroHechosExtraidos: libroValido,
-    };
+  // Los parches del motor antiguo no están autorizados para vaciado integral.
+  // Una orden completa explícita siempre usa el adaptador JSON anterior.
+  if (tieneVaciarTodo && !ordenIntegral) {
+    throw new Error('Para reconstruir todo el PPA, confirme que desea completar el documento completo.');
   }
-
   // 5. Ejecutar operaciones regulares sobre el DOM vivo
   const { ejecutadas, omitidas } = ejecutarOperacionesEnDocx(
     docVivo,

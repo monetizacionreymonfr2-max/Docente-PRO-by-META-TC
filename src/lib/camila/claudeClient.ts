@@ -33,7 +33,7 @@ function conAdjuntosEnUltimoTurno(messages: CamilaTurn[], adjuntos: CamilaAdjunt
 }
 
 async function sendCamilaClaude(
-  messages: MensajeClaude[], mode: 'chat' | 'formato' | 'ppa_bloque', blockType?: TipoBloquePpaClaude
+  messages: MensajeClaude[], mode: 'chat' | 'formato' | 'ppa_bloque' | 'ppa_completo', blockType?: TipoBloquePpaClaude
 ): Promise<string> {
   const { data: { session }, error } = await supabase.auth.getSession();
   if (error || !session?.access_token) throw new Error('Inicie sesión para conversar con Camila.');
@@ -41,7 +41,7 @@ async function sendCamilaClaude(
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
     body: JSON.stringify({ mode, ...(blockType ? { blockType } : {}),
-      messages: messages.slice(mode === 'formato' ? -8 : mode === 'ppa_bloque' ? -2 : -20) }),
+      messages: messages.slice(mode === 'formato' ? -8 : mode === 'ppa_bloque' || mode === 'ppa_completo' ? -2 : -20) }),
   });
   let payload: { text?: string; error?: string };
   try { payload = await response.json(); } catch { throw new Error('La respuesta del servidor no es válida.'); }
@@ -71,4 +71,11 @@ export async function askCamilaFormatoClaude(
   }));
   messages.push({ role: 'user', content: instruccionConContexto });
   return sendCamilaClaude(adjuntos.length ? conAdjuntosEnUltimoTurno(messages, adjuntos) : messages, 'formato');
+}
+
+/** PPA estructurado de una sola pieza, antes de generar/modificar el DOCX. */
+export async function generarPpaCompletoClaude(instruccion: string): Promise<unknown> {
+  const texto = await sendCamilaClaude([{ role: 'user', content: instruccion }], 'ppa_completo');
+  try { return JSON.parse(texto); }
+  catch { throw new Error('Claude no devolvió un PPA estructurado válido.'); }
 }

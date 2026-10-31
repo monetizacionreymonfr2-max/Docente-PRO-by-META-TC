@@ -9,10 +9,13 @@ export interface DatosProyectoPropuesto {
   docente?: string;
   institucion?: string;
   matricula?: string;
+  anioEscolar?: string;
+  fechaInicio?: string;
+  fechaFin?: string;
 }
 
 const CAMPOS: Array<keyof DatosProyectoPropuesto> = [
-  'gradoSeccion', 'tema', 'diagnostico', 'duracion', 'docente', 'institucion', 'matricula',
+  'gradoSeccion', 'tema', 'diagnostico', 'duracion', 'docente', 'institucion', 'matricula', 'anioEscolar', 'fechaInicio', 'fechaFin',
 ];
 
 export function combinarDatosProyecto(

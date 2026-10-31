@@ -1,0 +1,62 @@
+name: Camila - PPA completo (desarrollo)
+on:
+  push:
+    branches:
+      - implementacion-claude-flujo-completo-20261030
+  workflow_dispatch:
+jobs:
+  validar:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run lint
+      - run: npm run test:claude
+      - run: npm run test:ppa-completo
+        env:
+          CAMILA_PPA_QA_OUTPUT: artifacts/camila-ppa-6-semanas-ficticio.docx
+      - run: python -m pip install --quiet python-docx
+      - run: python tests/scripts/verificar_docx_generado.py
+      - run: npm run test:mi-formato
+      - run: npm run test:ppa-libro
+      - run: npm run test:ppa-contexto
+      - run: npm run test:camila-privacidad
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: camila-ppa-6-semanas-ficticio
+          path: artifacts/camila-ppa-6-semanas-ficticio.docx
+          retention-days: 3
+
+  verificar_rls:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comprobar esquema y políticas RLS en PostgreSQL efímero
+        run: |
+          set -euo pipefail
+          CTN="$(docker ps -q --filter 'ancestor=postgres:16' | head -1)"
+          test -n "$CTN"
+          docker exec -i "$CTN" psql -U postgres -v ON_ERROR_STOP=1 < tests/scripts/setup_supabase_qa.sql
+          docker exec -i "$CTN" psql -U postgres -v ON_ERROR_STOP=1 < supabase/migrations/20261030170000_camila_ppa_versiones_consumo.sql
+          docker exec -i "$CTN" psql -U postgres -v ON_ERROR_STOP=1 < tests/scripts/assert_ppa_rls.sql

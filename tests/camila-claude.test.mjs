@@ -304,3 +304,41 @@ test('bloquea una cuenta PRO no administradora antes de consumir Anthropic en am
   assert.equal(requests.length, 4);
   assert.equal(requests.some((url) => url.includes('api.anthropic.com')), false);
 });
+
+
+test('PPA completo solicita JSON estricto a Sonnet, sin enviar ningún Word antiguo', async () => {
+  const requests=[];
+  globalThis.fetch=async (url,init)=>{
+    requests.push({url:String(url),init});
+    if(String(url).includes('/auth/v1/user'))return new Response(JSON.stringify({id:'admin-ficticio',email:'monetizacionreymonfr2@gmail.com'}),{status:200});
+    if(String(url).includes('/rest/v1/profiles'))return new Response(JSON.stringify([{is_active:true,access_level:'pro'}]),{status:200});
+    const ppa={titulo:'Mi identidad',preguntaGeneradora:'¿Quién soy?',productoFinal:'Álbum',
+      vinculacionNacional:'Identidad',contexto:'Grupo ficticio',necesidades:'Lectura',
+      potencialidades:'Colaboración',instrumentosDiagnostico:'Lista de cotejo',
+      propositoGeneral:'Fortalecer lectura',propositosEspecificos:'Lectura y suma',
+      cierre:'Álbum',semanas:[{numero:1,tema:'Identidad',filas:[{
+        area:'Lenguaje',componente:'Lectura',contenidos:'Sílabas',tejidosTematicos:'Nombres',
+        aprendizajes:'Lee',recursos:'Tarjetas',indicadores:'Reconoce',tecnicaInstrumentos:'Cotejo'
+      }]}]};
+    return new Response(JSON.stringify({content:[{type:'text',text:JSON.stringify(ppa)}],usage:{input_tokens:10,output_tokens:200}}),{status:200});
+  };
+  const r=await run([{role:'user',content:'Datos inventados: primero grado, una semana, tema identidad.'}], 'Bearer test-session','ppa_completo');
+  assert.equal(r.statusCode,200);
+  const p=JSON.parse(requests.at(-1).init.body);
+  assert.equal(p.max_tokens,20000);
+  assert.equal(p.output_config.format.type,'json_schema');
+  assert.deepEqual(p.output_config.format.schema.properties.semanas.items.required,['numero','tema','filas']);
+  assert.equal(p.system[0].cache_control.type,'ephemeral');
+  assert.equal(p.messages.length,1);
+  assert.doesNotMatch(JSON.stringify(p),/fake-anthropic-key|Docente Ficticia Antigua/);
+});
+test('el modo PPA completo sigue vedado a docentes no administradores',async()=>{
+  let proveedor=false;
+  globalThis.fetch=async url=>{
+    if(String(url).includes('/auth/v1/user'))return new Response(JSON.stringify({id:'docente-ficticia',email:'docente@example.net'}),{status:200});
+    if(String(url).includes('/rest/v1/profiles'))return new Response(JSON.stringify([{is_active:true,access_level:'pro'}]),{status:200});
+    proveedor=true;throw Error('No debió pagar');
+  };
+  const r=await run([{role:'user',content:'Cree un PPA'}],'Bearer prueba','ppa_completo');
+  assert.equal(r.statusCode,403);assert.equal(proveedor,false);
+});
