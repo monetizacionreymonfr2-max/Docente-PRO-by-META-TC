@@ -1,6 +1,6 @@
 # DOCENTY PRO · Opciones de Claude (administrador / desarrollo)
 
-**Estado:** ambas integraciones se mantienen apagadas por defecto, solo en rama de desarrollo. No son funciones disponibles para los 69 docentes.
+**Estado:** las integraciones permanecen apagadas por defecto incluso en producción. Su activación explícita se limita a cuentas administradoras y archivos ficticios; no son funciones disponibles para los 69 docentes.
 
 ## 1. Skill Word (Anthropic)
 
@@ -10,7 +10,7 @@ Flujo: aprobación explícita del administrador con Word **ficticio** → `POST 
 - El espacio de archivos de Anthropic es por workspace, no por usuario final; antes de implementar para docentes reales debe diseñarse aislamiento real de tenants y consentimiento separado.
 - Solo para pruebas con documentación ficticia, sin nombres de estudiantes, matrículas, diagnósticos personales ni credenciales.
 - El navegador **nunca** recibe ni envía `ANTHROPIC_API_KEY` ni un `file_id` proporcionado por otros usuarios.
-- Se requiere `CAMILA_DOCX_SKILLS_ENABLED=true` solo para el Preview correspondiente, `ANTHROPIC_API_KEY` en servidor y `VITE_CAMILA_OPTIONAL_TOOLS=true` en el Preview para mostrar el botón al administrador. No aplicar esas variables a producción.
+- Se requiere `CAMILA_DOCX_SKILLS_ENABLED=true` para el entorno habilitado, `ANTHROPIC_API_KEY` en servidor y `VITE_CAMILA_SKILLS_TOOLS=true` en el build para mostrar solo el botón Skill al administrador. `VITE_CAMILA_OPTIONAL_TOOLS=true` sigue siendo un interruptor de compatibilidad que muestra ambos botones. En producción solo se permite para pruebas de administrador con archivos ficticios y consentimiento explícito; no activar globalmente para docentes.
 - El resultado requiere revisión visual, pedagógica y aprobación expresa; no se promete idéntica fidelidad de una plantilla arbitraria.
 - Los tests de API ejecutan una simulación determinista sin cargos; **una llamada real pagada aún requiere verificación**.
 
@@ -20,7 +20,7 @@ Flujo: DOCX aprobado o propuesta → autorización del administrador → `POST /
 
 - El PDF es **vista previa**, no modifica el Word original.
 - `workers/libreoffice` contiene Dockerfile + servicio Python sin base de datos. La prueba CI instala LibreOffice y convierte un Word ficticio a PDF.
-- Configurar, solo en Preview: `CAMILA_LIBREOFFICE_PREVIEW_ENABLED=true`, `CAMILA_PDF_WORKER_URL=https://dominio-privado/convert` y `CAMILA_PDF_WORKER_SECRET` (secreto aleatorio de mínimo 32 caracteres). El worker requiere el mismo secreto.
+- En Preview configurar `CAMILA_LIBREOFFICE_PREVIEW_ENABLED=true`; en Production el interruptor diferente es `CAMILA_LIBREOFFICE_ENABLED=true`, y para mostrar su botón admin `VITE_CAMILA_LIBREOFFICE_TOOLS=true`. Ambos requieren `CAMILA_PDF_WORKER_URL=https://dominio-aprobado/convert` y `CAMILA_PDF_WORKER_SECRET` (secreto aleatorio de mínimo 32 caracteres). El worker requiere el mismo secreto.
 - Configurar dominio HTTPS no público, aislamiento de red, TLS, recursos, tamaño máximo y monitoreo antes de desplegar en DigitalOcean u otro servidor. **No se ha creado un servidor nuevo, no hay gastos de hosting nuevos.**
 - DOCX máximo 1.5MB y PDF máximo 2.5MB para no superar límites de Vercel.
 - Los archivos se procesan en directorio temporal y se eliminan al responder. No activar para datos reales hasta terminar revisión de privacidad.

@@ -105,7 +105,10 @@ export default function CamilaFormato() {
   const [blobDocx, setBlobDocx] = useState<Blob | null>(null);
   const [vistaPdfUrl, setVistaPdfUrl] = useState<string | null>(null);
   const [procesandoOpcional, setProcesandoOpcional] = useState(false);
-  const herramientasOpcionalesVisibles = isAdmin === true && (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_CAMILA_OPTIONAL_TOOLS === 'true';
+  const opcionesEntorno = (import.meta as ImportMeta & { env?: Record<string, string> }).env;
+  const herramientasOpcionalesVisibles = isAdmin === true && opcionesEntorno?.VITE_CAMILA_OPTIONAL_TOOLS === 'true';
+  const skillWordVisible = isAdmin === true && (herramientasOpcionalesVisibles || opcionesEntorno?.VITE_CAMILA_SKILLS_TOOLS === 'true');
+  const pdfLibreOfficeVisible = isAdmin === true && (herramientasOpcionalesVisibles || opcionesEntorno?.VITE_CAMILA_LIBREOFFICE_TOOLS === 'true');
   useEffect(()=>{setVistaPdfUrl(null)},[blobDocx]);
   const [nombreBorradorLocal, setNombreBorradorLocal] = useState<string | null>(null);
   // La propuesta se genera sobre una copia aislada. El documento activo solo
@@ -1000,7 +1003,7 @@ export default function CamilaFormato() {
 
   /** Dos opciones de Claude. El usuario conserva el Word hasta aprobar. */
   const solicitarSkillWordFicticio = async () => {
-    if (!herramientasOpcionalesVisibles || !blobDocx || procesandoOpcional || propuestaPendiente) return;
+    if (!skillWordVisible || !blobDocx || procesandoOpcional || propuestaPendiente) return;
     const instruccion = window.prompt('¿Qué cambios debe hacer la Skill de Word en su formato FICTICIO?');
     if (!instruccion || instruccion.trim().length < 10) return;
     if (!window.confirm('Esta prueba enviará el documento ficticio a Anthropic para ejecutar la Skill Word. No use datos de estudiantes reales: el contenedor puede retener datos hasta 30 días y puede haber cargos. ¿Confirma que el documento es ficticio y autoriza el envío?')) return;
@@ -1041,7 +1044,7 @@ export default function CamilaFormato() {
 
   const solicitarPdfLibreOffice = async () => {
     const word=propuestaPendiente?.resultado.nuevoBlob || blobDocx;
-    if(!herramientasOpcionalesVisibles || !word || procesandoOpcional)return;
+    if(!pdfLibreOfficeVisible || !word || procesandoOpcional)return;
     if(!window.confirm('Se enviará temporalmente este documento ficticio al worker privado de LibreOffice para producir un PDF de vista previa. ¿Autoriza?'))return;
     setProcesandoOpcional(true);
     try {
@@ -1554,18 +1557,20 @@ export default function CamilaFormato() {
             </div>
 
             <div className="flex items-center gap-2">
-              {herramientasOpcionalesVisibles && (<>
+              {skillWordVisible && (
               <button type="button" onClick={solicitarSkillWordFicticio}
                 disabled={!blobDocx || !!propuestaPendiente || procesandoOpcional}
                 className="px-2 py-1.5 rounded-xl border border-violet-400/40 text-violet-200 text-xs disabled:opacity-30">
                 Skill Word · ficticio
               </button>
+              )}
+              {pdfLibreOfficeVisible && (
               <button type="button" onClick={solicitarPdfLibreOffice}
                 disabled={!blobDocx || procesandoOpcional}
                 className="px-2 py-1.5 rounded-xl border border-cyan-400/40 text-cyan-200 text-xs disabled:opacity-30">
                 {procesandoOpcional ? 'Procesando…' : 'Vista PDF fiel'}
               </button>
-              </>)}
+              )}
               <button
                 type="button"
                 onClick={handleDescargarDocx}

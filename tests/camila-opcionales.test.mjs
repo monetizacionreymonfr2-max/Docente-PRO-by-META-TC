@@ -38,6 +38,19 @@ test('LibreOffice deshabilitado por defecto',async()=>{
     assert.equal(result.statusCode,404);
   } finally {cleanup();}
 });
+test('LibreOffice en producción requiere flag y sesión de administrador',async()=>{
+  setup();
+  try {
+    process.env.VERCEL_ENV='production';
+    let respuesta=getRes();
+    await workerHandler({method:'POST',headers:{}},respuesta.res);
+    assert.equal(respuesta.result.statusCode,404);
+    process.env.CAMILA_LIBREOFFICE_ENABLED='true';
+    respuesta=getRes();
+    await workerHandler({method:'POST',headers:{},body:{archivoBase64:base64,consentimiento:true}},respuesta.res);
+    assert.equal(respuesta.result.statusCode,401);
+  } finally {cleanup();}
+});
 test('LibreOffice rechaza sesión anónima antes del worker',async()=>{
   setup();
   try {
@@ -74,6 +87,19 @@ test('Skill no se activa sin flag Preview',async()=>{
     const {res,result}=getRes();
     await skillHandler({method:'POST',headers:{},body:{}},res);
     assert.equal(result.statusCode,404);
+  } finally {cleanup();}
+});
+test('Skill en producción requiere flag y sesión administradora',async()=>{
+  setup();
+  try {
+    process.env.VERCEL_ENV='production';
+    let respuesta=getRes();
+    await skillHandler({method:'POST',headers:{},body:{}},respuesta.res);
+    assert.equal(respuesta.result.statusCode,404);
+    process.env.CAMILA_DOCX_SKILLS_ENABLED='true';
+    respuesta=getRes();
+    await skillHandler({method:'POST',headers:{},body:{}},respuesta.res);
+    assert.equal(respuesta.result.statusCode,401);
   } finally {cleanup();}
 });
 test('Skill no permite documentos sin consentimiento ficticio',async()=>{

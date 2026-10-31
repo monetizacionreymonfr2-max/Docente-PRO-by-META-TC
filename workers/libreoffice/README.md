@@ -15,4 +15,17 @@ Este directorio es una pieza aislada para previsualizar DOCX como PDF mediante L
 `docker build -t camila-libreoffice ./workers/libreoffice`
 `docker run --rm -p 127.0.0.1:8787:8787 -e CAMILA_PDF_WORKER_SECRET=VALOR_ALEATORIO_DE_32_CARACTERES_O_MAS camila-libreoffice`
 
-La API se mantiene apagada si falta `CAMILA_LIBREOFFICE_PREVIEW_ENABLED=true` y `CAMILA_PDF_WORKER_URL` (URL de HTTPS aprobada) en Vercel. Configurar estas variables **solo en Preview** y utilizar exclusivamente datos ficticios hasta validar la privacidad.
+La API se mantiene apagada si falta el interruptor específico de cada entorno y `CAMILA_PDF_WORKER_URL` (URL HTTPS aprobada) en Vercel. En producción solo puede activarse para administradores con documentos ficticios; no habilitarla para docentes.
+
+## Servicio aislado en DigitalOcean
+
+`compose.yaml` publica únicamente Caddy en 80/443. LibreOffice se ejecuta como usuario sin privilegios, sin puerto público, con límite de memoria, sistema de archivos de solo lectura y `/tmp` temporal. Caddy obtiene el certificado TLS del dominio configurado.
+
+Preparar en el host un archivo `.env` privado (permisos 600) en este directorio con:
+
+```dotenv
+WORKER_DOMAIN=dominio-del-worker.example.com
+CAMILA_PDF_WORKER_SECRET=secreto-aleatorio-de-32-caracteres-o-mas
+```
+
+Iniciar con `docker compose up -d --build` y comprobar `https://DOMINIO/health`. La ruta `/convert` requiere HMAC válido y un archivo DOCX; nunca abrir el puerto 8787 a Internet. No registrar archivos ni enviar documentos reales durante las pruebas.

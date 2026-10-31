@@ -1,0 +1,41 @@
+services:
+  converter:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=160m
+    mem_limit: 1350m
+    pids_limit: 128
+    networks:
+      - internal
+
+  https:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      WORKER_DOMAIN: ${WORKER_DOMAIN:?Falta WORKER_DOMAIN}
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - converter
+    networks:
+      - internal
+
+networks:
+  internal:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
