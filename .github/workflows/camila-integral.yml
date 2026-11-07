@@ -20,6 +20,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - run: npm run test:gemini
+      - run: npm run test:gemini-modelos
       - run: npm run test:ppa-completo
         env:
           CAMILA_PPA_QA_OUTPUT: artifacts/camila-ppa-6-semanas-ficticio.docx
