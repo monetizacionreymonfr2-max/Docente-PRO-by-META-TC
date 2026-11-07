@@ -1,7 +1,8 @@
 import { solicitaPpaIntegral } from './solicitudIntegral';
 import { generarPpaCompletoClaude } from '../camila/claudeClient';
 import { adaptarPpaCompletoAWord } from './adaptarPpaDocx';
-import { validarPpaCompleto, type PpaCompleto, type IdentidadPpa } from './ppaEstructurado';
+import { resguardarHechosInstitucionalesPpa, validarPpaCompleto,
+  type PpaCompleto, type IdentidadPpa } from './ppaEstructurado';
 import { detectarAreasExcluidas } from '../docxClone/clonerPipeline';
 import JSZip from 'jszip';
 import { askCamilaFormatoClaude } from '../camila/claudeClient';
@@ -708,9 +709,10 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
       reglas: 'Datos de la plantilla antigua prohibidos. Crear todas las semanas con 4 áreas pedagógicas (Lenguaje, Matemática, Ciencia Tecnología y Sociedad, Ciencias Sociales), salvo exclusiones expresas. No incluir datos ajenos. No inventar fechas.',
     };
     onProgresoVaciarTodo?.('Camila está redactando el PPA completo...');
-    const plan = await generarPpaCompletoClaude(JSON.stringify(contexto)) as PpaCompleto;
-    const errores = validarPpaCompleto(plan, identidad, excluidas);
+    const propuesta = await generarPpaCompletoClaude(JSON.stringify(contexto)) as PpaCompleto;
+    const errores = validarPpaCompleto(propuesta, identidad, excluidas);
     if (errores.length) throw new Error(`Camila no completó el PPA: ${errores[0]} Original preservado.`);
+    const plan = resguardarHechosInstitucionalesPpa(propuesta, identidad);
     onProgresoVaciarTodo?.('Validando y adaptando TODAS las semanas en el Word institucional...');
     const nuevoBlob = await adaptarPpaCompletoAWord(archivoOriginalData, plan, identidad, excluidas);
     const nuevoDocumento = await cargarDocx(nuevoBlob);

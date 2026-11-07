@@ -44,6 +44,27 @@ export interface IdentidadPpa {
   fechaFin?: string;
   matricula?: string;
 }
+
+/**
+ * El modelo puede proponer actividades, pero no es una fuente de hechos sobre
+ * una escuela ni sobre observaciones que un docente aún no ha realizado.
+ * Resguardar estos campos ANTES de escribir el Word evita que un diagnóstico
+ * plausible pero inventado termine presentado como una constatación real.
+ */
+export function resguardarHechosInstitucionalesPpa(
+  plan: PpaCompleto, identidad: IdentidadPpa
+): PpaCompleto {
+  const diagnostico = identidad.diagnostico.trim();
+  const tema = identidad.tema.trim();
+  return {
+    ...plan,
+    contexto: `Diagnóstico informado por el docente: ${diagnostico}. Otros datos del contexto institucional requieren confirmación.`,
+    necesidades: `Necesidades expresadas en el diagnóstico aportado: ${diagnostico}`,
+    potencialidades: 'Pendiente de confirmar con el docente: fortalezas, intereses, apoyos y recursos observados en este grupo.',
+    instrumentosDiagnostico: 'Propuesta aún no aplicada ni verificada: observación pedagógica, registro descriptivo y lista de cotejo. El docente debe confirmar los instrumentos que realmente utilizó.',
+    vinculacionNacional: `Vinculación pedagógica propuesta para «${tema}». El docente debe contrastarla con los lineamientos vigentes del MPPE y los acuerdos de su institución antes de considerarla oficial.`,
+  };
+}
 const CAMPOS_FILA: Array<keyof FilaPpa> = [
   'area', 'componente', 'contenidos', 'tejidosTematicos',
   'aprendizajes', 'recursos', 'indicadores', 'tecnicaInstrumentos',

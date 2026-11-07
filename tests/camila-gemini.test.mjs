@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, test } from 'node:test';
-import handler, { esquemaGemini, PPA_COMPLETO_SCHEMA } from '../api/camila-gemini.js';
+import handler, { esquemaGemini, PPA_COMPLETO_SCHEMA, SYSTEM_PPA_COMPLETO } from '../api/camila-gemini.js';
 
 const envKeys=['GEMINI_API_KEY','CAMILA_GEMINI_CHAT_MODEL','CAMILA_GEMINI_DOC_MODEL',
   'SUPABASE_URL','SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY','CAMILA_CUOTAS_ACTIVAS'];
@@ -114,6 +114,8 @@ test('cuotas activas bloquean cuenta sin cupo, límite diario y límite mensual 
   process.env.SUPABASE_SERVICE_ROLE_KEY='clave-servidor-ficticia';
   const escenarios=[
     {cuota:[],consumo:[],mensaje:/no tiene una cuota/i},
+    {cuota:[{max_tokens_mes:4097,max_peticiones_dia:5}],
+      consumo:[],mensaje:/límite de uso/i}, // la entrada también consume tokens
     {cuota:[{max_tokens_mes:90000,max_peticiones_dia:1}],
       consumo:[{input_tokens:100,output_tokens:100,created_at:new Date().toISOString()}],mensaje:/límite de uso/i},
     {cuota:[{max_tokens_mes:4500,max_peticiones_dia:5}],
@@ -242,6 +244,8 @@ test('PPA completo solicita semanas estructuradas y no envía ningún Word antig
   assert.deepEqual(request.generationConfig.responseJsonSchema.properties.semanas.items.required,['numero','tema','filas']);
   assert.equal(request.contents.length,1);
   assert.doesNotMatch(JSON.stringify(request),/Docente Ficticia Antigua|anthropic/i);
+  assert.match(SYSTEM_PPA_COMPLETO,/escasez de agua/);
+  assert.match(SYSTEM_PPA_COMPLETO,/No describas la ubicación/);
 });
 
 test('convierte imágenes y PDF a inlineData con MIME seguro',async()=>{

@@ -166,6 +166,14 @@ Primero generas un PPA COMPLETO como datos JSON, nunca código ni un Word.
 Usa SOLO los hechos confirmados en la solicitud vigente. El Word ajeno es
 ÚNICAMENTE un modelo de diseño; nunca copies su nombre de docente, escuela,
 fechas, grado ni contenidos curriculares previos.
+No describas la ubicación, disponibilidad de agua, recursos, matrícula, nivel
+socioeconómico, fortalezas observadas ni situación familiar de una institución
+si el docente no lo confirmó. Por ejemplo, el tema «cuidado del agua» NO prueba
+que la escuela padezca escasez de agua. El campo contexto debe basarse SOLO en
+el diagnóstico textual confirmado, sin añadir observaciones institucionales.
+Potencialidades e instrumentos no confirmados son PROPUESTAS por revisar, no
+observaciones ni evaluaciones supuestamente realizadas. No cites un currículo,
+artículo o lineamiento como referencia comprobada si no fue aportado.
 Genera la cantidad EXACTA de semanas especificada, en orden numérico y con
 filas detalladas por las áreas solicitadas. Cada fila debe tener todos los
 campos: componentes, contenidos, tejidos temáticos, aprendizajes, recursos,
@@ -305,6 +313,16 @@ function modeloGemini(modo) {
   return solicitado;
 }
 
+// La cuota se comprueba ANTES de llamar al proveedor. Reservar únicamente
+// maxOutputTokens infravaloraba el coste: el prompt y el esquema JSON también
+// consumen tokens. La estimación intencionalmente conservadora no sustituye
+// la medición real devuelta por Gemini, que se registra al terminar.
+function estimarReservaTokens(messages, instrucciones, esquema, maxOutputTokens) {
+  const longitud = JSON.stringify(messages).length + instrucciones.length +
+    (esquema ? JSON.stringify(esquema).length : 0);
+  return maxOutputTokens + Math.ceil(longitud / 2);
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).json({error:'Método no permitido'}); }
@@ -383,15 +401,17 @@ export default async function handler(req, res) {
     const modelo=modeloGemini(mode);
     if (!modelo) return res.status(503).json({error:'El modelo Gemini no está configurado correctamente'});
     const tokensSalida=esCompleto ? 20000 : formato || esBloque ? 8192 : 4096;
+    const esquema=esCompleto ? PPA_COMPLETO_SCHEMA : esBloque ? PPA_BLOQUE_SCHEMAS[blockType] : FORMATO_RESPONSE_SCHEMA;
+    const instrucciones=esCompleto ? SYSTEM_PPA_COMPLETO : esBloque ? SYSTEM_PPA_BLOQUE : formato ? SYSTEM_FORMATO : SYSTEM;
     const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (process.env.CAMILA_CUOTAS_ACTIVAS==='true') {
       if (!serviceKey) return res.status(503).json({error:'Las cuotas aún no están configuradas en el servidor'});
-      const cuota=await consultarCuota(url,serviceKey,user.id,mode,tokensSalida);
+      const reserva=estimarReservaTokens(messages,instrucciones,esquema,tokensSalida);
+      const cuota=await consultarCuota(url,serviceKey,user.id,mode,reserva);
       if (!cuota.permitido) return res.status(429).json({error:cuota.motivo});
     }
-    const esquema=esCompleto ? PPA_COMPLETO_SCHEMA : esBloque ? PPA_BLOQUE_SCHEMAS[blockType] : FORMATO_RESPONSE_SCHEMA;
     const body={
-      systemInstruction:{parts:[{text:esCompleto ? SYSTEM_PPA_COMPLETO : esBloque ? SYSTEM_PPA_BLOQUE : formato ? SYSTEM_FORMATO : SYSTEM}]},
+      systemInstruction:{parts:[{text:instrucciones}]},
       contents:contenidoGemini(messages),
       generationConfig:{
         maxOutputTokens:tokensSalida,
