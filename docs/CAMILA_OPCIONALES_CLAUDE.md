@@ -1,5 +1,11 @@
 # DOCENTY PRO · Opciones de Claude (administrador / desarrollo)
 
+> **Archivo histórico (noviembre de 2026).** La integración Anthropic y la ruta
+> `/api/camila-docx-skills` fueron retiradas de la aplicación. El botón Skill Word
+> ya no existe. Los flujos activos de Camila usan únicamente Gemini desde el
+> servidor. Esta guía describe un prototipo descontinuado y no es aplicable al
+> despliegue actual.
+
 **Estado:** las integraciones permanecen apagadas por defecto incluso en producción. Su activación explícita se limita a cuentas administradoras y archivos ficticios; no son funciones disponibles para los 69 docentes.
 
 ## 1. Skill Word (Anthropic)

@@ -107,7 +107,6 @@ export default function CamilaFormato() {
   const [procesandoOpcional, setProcesandoOpcional] = useState(false);
   const opcionesEntorno = (import.meta as ImportMeta & { env?: Record<string, string> }).env;
   const herramientasOpcionalesVisibles = isAdmin === true && opcionesEntorno?.VITE_CAMILA_OPTIONAL_TOOLS === 'true';
-  const skillWordVisible = isAdmin === true && (herramientasOpcionalesVisibles || opcionesEntorno?.VITE_CAMILA_SKILLS_TOOLS === 'true');
   const pdfLibreOfficeVisible = isAdmin === true && (herramientasOpcionalesVisibles || opcionesEntorno?.VITE_CAMILA_LIBREOFFICE_TOOLS === 'true');
   useEffect(()=>{setVistaPdfUrl(null)},[blobDocx]);
   const [nombreBorradorLocal, setNombreBorradorLocal] = useState<string | null>(null);
@@ -629,7 +628,7 @@ export default function CamilaFormato() {
       return;
     }
 
-    // PDF e imágenes son referencias temporales que Claude puede analizar
+    // PDF e imágenes son referencias temporales que Gemini puede analizar
     // incluso si todavía no se ha elegido ningún formato Word.
     if (nombreLow.endsWith('.pdf') || file.type.startsWith('image/')) {
       const mimeType = file.type || (nombreLow.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
@@ -999,47 +998,6 @@ export default function CamilaFormato() {
       id: `msg-${Date.now()}`, emisor: 'camila',
       texto: 'He descartado la propuesta. Su documento no ha sido modificado. ¿Qué desea hacer ahora?', fecha: new Date(),
     }]);
-  };
-
-  /** Dos opciones de Claude. El usuario conserva el Word hasta aprobar. */
-  const solicitarSkillWordFicticio = async () => {
-    if (!skillWordVisible || !blobDocx || procesandoOpcional || propuestaPendiente) return;
-    const instruccion = window.prompt('¿Qué cambios debe hacer la Skill de Word en su formato FICTICIO?');
-    if (!instruccion || instruccion.trim().length < 10) return;
-    if (!window.confirm('Esta prueba enviará el documento ficticio a Anthropic para ejecutar la Skill Word. No use datos de estudiantes reales: el contenedor puede retener datos hasta 30 días y puede haber cargos. ¿Confirma que el documento es ficticio y autoriza el envío?')) return;
-    setProcesandoOpcional(true);
-    try {
-      const { data:{session} } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('Debe iniciar sesión.');
-      const response=await fetch('/api/camila-docx-skills',{
-        method:'POST',
-        headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},
-        body:JSON.stringify({archivoBase64:await blobABase64(blobDocx),instruccion,
-          consentimiento:true,soloFicticio:true}),
-      });
-      const result=await response.json();
-      if (!response.ok || typeof result.archivoBase64!=='string')
-        throw new Error(result.error || 'No se pudo ejecutar la Skill.');
-      const bin=atob(result.archivoBase64);
-      const bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));
-      const nuevoBlob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
-      const parsed=await cargarDocx(nuevoBlob);
-      const propuesta: ResultadoCamilaFormato={
-        respuestaCamila:'La Skill preparó un Word para su revisión. No se ha aplicado.',
-        operacionesEjecutadas:[{tipo:'vaciar_todo'}],operacionesOmitidas:[],
-        nuevoBlob,nuevoMapa:construirMapa(parsed.doc),
-        revision:{aprobado:true,resumen:'Borrador generado por Skill. Revisión manual obligatoria antes de aprobar.',
-          detalles:[],celdasSinCambio:0,celdasReemplazadas:0,coberturaTablas:[]},
-        seEjecutoVaciarTodo:true,
-      };
-      setPropuestaPendiente({solicitud:instruccion,resultado:propuesta});
-      setTabActiva('documento');
-    } catch (error) {
-      const mensaje=error instanceof Error?error.message:'Error de Skill';
-      setMensajes(prev=>[...prev,{id:`msg-${Date.now()}`,emisor:'camila',
-        texto:'No se aplicó nada: '+mensaje,fecha:new Date()}]);
-      setTabActiva('chat');
-    } finally { setProcesandoOpcional(false); }
   };
 
   const solicitarPdfLibreOffice = async () => {
@@ -1557,13 +1515,6 @@ export default function CamilaFormato() {
             </div>
 
             <div className="flex items-center gap-2">
-              {skillWordVisible && (
-              <button type="button" onClick={solicitarSkillWordFicticio}
-                disabled={!blobDocx || !!propuestaPendiente || procesandoOpcional}
-                className="px-2 py-1.5 rounded-xl border border-violet-400/40 text-violet-200 text-xs disabled:opacity-30">
-                Skill Word · ficticio
-              </button>
-              )}
               {pdfLibreOfficeVisible && (
               <button type="button" onClick={solicitarPdfLibreOffice}
                 disabled={!blobDocx || procesandoOpcional}

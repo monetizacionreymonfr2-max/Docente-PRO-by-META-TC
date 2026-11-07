@@ -2,15 +2,14 @@ import {
   AlignmentType, Document, HeadingLevel, Packer, Paragraph,
   Table, TableCell, TableRow, TextRun, WidthType,
 } from 'docx';
-import { generarPpaCompletoClaude } from '../camila/claudeClient';
 import { type DatosProyectoPropuesto } from './contextoProyectoPpa';
 import { type IdentidadPpa, type PpaCompleto, validarPpaCompleto,
-  semanasDeCalendario, textoFecha } from './ppaEstructurado';
+  resguardarHechosInstitucionalesPpa, semanasDeCalendario, textoFecha } from './ppaEstructurado';
 
 /** Plantilla propia determinista: sin logotipos, ni datos prestados de otro Word. */
 export async function generarPpaSinPlantillaCompleto(
   datos: DatosProyectoPropuesto,
-  generador: (instruccion: string) => Promise<unknown> = generarPpaCompletoClaude
+  generador?: (instruccion: string) => Promise<unknown>
 ): Promise<{ blob: Blob; pendientes: string[] }> {
   const identidad: IdentidadPpa = {
     gradoSeccion: datos.gradoSeccion || '', tema: datos.tema || '',
@@ -34,12 +33,17 @@ export async function generarPpaSinPlantillaCompleto(
     identidad, areasExcluidas: [], solicitud: 'Genere PPA completo para Word de referencia no oficial.',
     requisitos: 'Una fila por área (Lenguaje, Matemática, Ciencia Tecnología y Sociedad, Ciencias Sociales) en CADA semana, con 8 campos. Todas las semanas exactas. Sin datos inventados.',
   });
-  const plan = await generador(prompt) as PpaCompleto;
-  const errores = validarPpaCompleto(plan, {
+  const ejecutar=generador || (async (instruccion:string) => {
+    const { generarPpaCompletoClaude } = await import('../camila/claudeClient');
+    return generarPpaCompletoClaude(instruccion);
+  });
+  const propuesta = await ejecutar(prompt) as PpaCompleto;
+  const errores = validarPpaCompleto(propuesta, {
     ...identidad, docente: identidad.docente || 'POR CONFIRMAR',
     institucion: identidad.institucion || 'POR CONFIRMAR',
   });
   if (errores.length) throw new Error(`Camila no entregó un PPA completo: ${errores[0]}`);
+  const plan = resguardarHechosInstitucionalesPpa(propuesta, identidad);
   const paragraph = (s: string) => new Paragraph({ spacing:{after:90},
     children:[new TextRun({text:s,size:19})] });
   const heading = (s: string) => new Paragraph({ heading: HeadingLevel.HEADING_2,

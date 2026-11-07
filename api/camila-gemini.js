@@ -1,9 +1,9 @@
-// Endpoint aislado: no reemplaza Gemini ni altera rutas existentes.
+// Camila con Gemini exclusivamente del lado del servidor.
 const SYSTEM = `Usted es Camila, asistente virtual de DOCENTY PRO, especializada exclusivamente en educación venezolana. Trate siempre de usted, con amabilidad y respeto. Haga una pregunta a la vez y reformule con sencillez cuando sea necesario. No genere código de programación, imágenes, videos ni música. Si una solicitud no cumple lineamientos educativos, explíquelo y solicite confirmación cuando proceda; nunca ignore normas de protección de estudiantes. Antes de crear o corregir documentos, explique lo que hará y pida autorización. No afirme haber guardado memoria ni documentos sin que el sistema lo confirme. No recopile datos innecesarios.`;
 
 // Las operaciones se generan como datos estructurados; solo el editor del navegador
 // decide qué IDs existen y cuáles puede modificar en el Word del docente.
-// El esquema anterior solo exigía "tipo": Claude podía proponer set_celda sin
+// El esquema anterior solo exigía "tipo": el modelo podía proponer set_celda sin
 // id ni lineas y el editor lo descartaba. Cada operación exige ahora los
 // campos que realmente necesita el ejecutor del navegador.
 const FORMATO_FIELDS = {
@@ -166,6 +166,14 @@ Primero generas un PPA COMPLETO como datos JSON, nunca código ni un Word.
 Usa SOLO los hechos confirmados en la solicitud vigente. El Word ajeno es
 ÚNICAMENTE un modelo de diseño; nunca copies su nombre de docente, escuela,
 fechas, grado ni contenidos curriculares previos.
+No describas la ubicación, disponibilidad de agua, recursos, matrícula, nivel
+socioeconómico, fortalezas observadas ni situación familiar de una institución
+si el docente no lo confirmó. Por ejemplo, el tema «cuidado del agua» NO prueba
+que la escuela padezca escasez de agua. El campo contexto debe basarse SOLO en
+el diagnóstico textual confirmado, sin añadir observaciones institucionales.
+Potencialidades e instrumentos no confirmados son PROPUESTAS por revisar, no
+observaciones ni evaluaciones supuestamente realizadas. No cites un currículo,
+artículo o lineamiento como referencia comprobada si no fue aportado.
 Genera la cantidad EXACTA de semanas especificada, en orden numérico y con
 filas detalladas por las áreas solicitadas. Cada fila debe tener todos los
 campos: componentes, contenidos, tejidos temáticos, aprendizajes, recursos,
@@ -225,7 +233,7 @@ function contenidoValido(mensaje, indice, total, mode) {
   return adjuntos > 0 && longitudTotal <= MAX_BASE64_TOTAL;
 }
 
-/** Registro sin mensajes ni nombres: solo tokens de Anthropic. No se activa
+/** Registro sin mensajes ni nombres: solo tokens de Gemini. No se activa
  * hasta aplicar la migración y configurar SUPABASE_SERVICE_ROLE_KEY en servidor.
  */
 function servicioHeaders(serviceKey) {
@@ -273,10 +281,52 @@ async function registrarUso(url, serviceKey, userId, model, mode, usage) {
   } catch { console.error('[Camila uso] Registro de consumo no disponible.'); }
 }
 
+// La API de Gemini admite "enum" pero no "const" en su subconjunto de JSON Schema.
+// Se conserva el contrato estricto de las operaciones al traducir cada discriminador.
+function esquemaGemini(valor) {
+  if (Array.isArray(valor)) return valor.map(esquemaGemini);
+  if (!valor || typeof valor !== 'object') return valor;
+  const convertido = Object.fromEntries(Object.entries(valor)
+    .filter(([clave]) => clave !== 'const')
+    .map(([clave, contenido]) => [clave, esquemaGemini(contenido)]));
+  if (Object.hasOwn(valor, 'const')) convertido.enum = [valor.const];
+  return convertido;
+}
+
+function contenidoGemini(messages) {
+  return messages.map((mensaje) => ({
+    role: mensaje.role === 'assistant' ? 'model' : 'user',
+    parts: typeof mensaje.content === 'string'
+      ? [{ text: mensaje.content }]
+      : mensaje.content.map((parte) => parte.type === 'text'
+        ? { text: parte.text }
+        : { inlineData: { mimeType: parte.source.media_type, data: parte.source.data } }),
+  }));
+}
+
+function modeloGemini(modo) {
+  const solicitado = modo === 'chat'
+    ? process.env.CAMILA_GEMINI_CHAT_MODEL || 'gemini-2.5-flash-lite'
+    : process.env.CAMILA_GEMINI_DOC_MODEL || 'gemini-2.5-flash';
+  // El modelo solo se elige desde variables privadas del servidor.
+  if (!/^gemini-[a-z0-9][a-z0-9.-]{0,70}$/.test(solicitado)) return null;
+  return solicitado;
+}
+
+// La cuota se comprueba ANTES de llamar al proveedor. Reservar únicamente
+// maxOutputTokens infravaloraba el coste: el prompt y el esquema JSON también
+// consumen tokens. La estimación intencionalmente conservadora no sustituye
+// la medición real devuelta por Gemini, que se registra al terminar.
+function estimarReservaTokens(messages, instrucciones, esquema, maxOutputTokens) {
+  const longitud = JSON.stringify(messages).length + instrucciones.length +
+    (esquema ? JSON.stringify(esquema).length : 0);
+  return maxOutputTokens + Math.ceil(longitud / 2);
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') { res.setHeader('Allow', 'POST'); return res.status(405).json({error:'Método no permitido'}); }
-  const key=process.env.ANTHROPIC_API_KEY;
+  const key=process.env.GEMINI_API_KEY;
   const url=process.env.SUPABASE_URL;
   const anon=process.env.SUPABASE_ANON_KEY;
   if (!key || !url || !anon) return res.status(503).json({error:'Servicio no configurado'});
@@ -285,7 +335,7 @@ export default async function handler(req, res) {
   try {
     const auth=await fetch(`${url.endsWith('/') ? url.slice(0,-1) : url}/auth/v1/user`,{headers:{apikey:anon,Authorization:bearer},signal:AbortSignal.timeout(8000)});
     if (!auth.ok) {
-  console.error('[Camila Claude] Supabase auth HTTP:', auth.status);
+  console.error('[Camila Gemini] Supabase auth HTTP:', auth.status);
       const detalle = await auth.json().catch(() => ({}));
 
       const mensaje = [
@@ -302,9 +352,9 @@ export default async function handler(req, res) {
         mensaje.includes('missing sub') ? 'JWT_SIN_USUARIO' :
         'NO_IDENTIFICADO';
 
-      console.error('[Camila Claude] Categoria auth:', categoria);
+      console.error('[Camila Gemini] Categoria auth:', categoria);
 
-      console.error('[Camila Claude] Supabase error code:',
+      console.error('[Camila Gemini] Supabase error code:',
         typeof detalle.code === 'string' ? detalle.code : 'sin_codigo');
   return res.status(401).json({error:'Sesión inválida'});
 }
@@ -343,46 +393,63 @@ export default async function handler(req, res) {
         return res.status(403).json({error:'Esta función requiere una licencia DOCENTY PRO activa'});
       }
       // Mientras Mi Formato se lanza solo a administradores, la API también
-      // debe impedir solicitudes directas que consumirían créditos de Claude.
+      // debe impedir solicitudes directas que consumirían créditos de Gemini.
       if (!isAdmin) {
-        return res.status(403).json({error:'Camila Claude está disponible temporalmente solo para administradores'});
+        return res.status(403).json({error:'Camila está disponible temporalmente solo para administradores'});
       }
     }
-    const modelo=process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
+    const modelo=modeloGemini(mode);
+    if (!modelo) return res.status(503).json({error:'El modelo Gemini no está configurado correctamente'});
     const tokensSalida=esCompleto ? 20000 : formato || esBloque ? 8192 : 4096;
+    const esquema=esCompleto ? PPA_COMPLETO_SCHEMA : esBloque ? PPA_BLOQUE_SCHEMAS[blockType] : FORMATO_RESPONSE_SCHEMA;
+    const instrucciones=esCompleto ? SYSTEM_PPA_COMPLETO : esBloque ? SYSTEM_PPA_BLOQUE : formato ? SYSTEM_FORMATO : SYSTEM;
     const serviceKey=process.env.SUPABASE_SERVICE_ROLE_KEY;
     if (process.env.CAMILA_CUOTAS_ACTIVAS==='true') {
       if (!serviceKey) return res.status(503).json({error:'Las cuotas aún no están configuradas en el servidor'});
-      const cuota=await consultarCuota(url,serviceKey,user.id,mode,tokensSalida);
+      const reserva=estimarReservaTokens(messages,instrucciones,esquema,tokensSalida);
+      const cuota=await consultarCuota(url,serviceKey,user.id,mode,reserva);
       if (!cuota.permitido) return res.status(429).json({error:cuota.motivo});
     }
-    const response=await fetch('https://api.anthropic.com/v1/messages',{
-      method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},
-      body:JSON.stringify({
-        model:modelo,
-        max_tokens:tokensSalida,
-        output_config:{effort:'medium',...(formato || esBloque || esCompleto ? {format:{type:'json_schema',schema:esCompleto ? PPA_COMPLETO_SCHEMA : esBloque ? PPA_BLOQUE_SCHEMAS[blockType] : FORMATO_RESPONSE_SCHEMA}} : {})},
-        system:esCompleto ? [{type:'text',text:SYSTEM_PPA_COMPLETO,cache_control:{type:'ephemeral'}}] : esBloque ? SYSTEM_PPA_BLOQUE : formato ? SYSTEM_FORMATO : SYSTEM,
-        messages,
-      }),
-      signal:AbortSignal.timeout(formato || esBloque || esCompleto ? 55000 : 45000)
+    const body={
+      systemInstruction:{parts:[{text:instrucciones}]},
+      contents:contenidoGemini(messages),
+      generationConfig:{
+        maxOutputTokens:tokensSalida,
+        thinkingConfig:{thinkingBudget:0},
+        ...(formato || esBloque || esCompleto ? {
+          responseMimeType:'application/json',responseJsonSchema:esquemaGemini(esquema),
+        } : {}),
+      },
+    };
+    const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`,{
+      method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},
+      body:JSON.stringify(body),
+      signal:AbortSignal.timeout(formato || esBloque || esCompleto ? 50000 : 35000)
     });
     if (!response.ok) {
-      const body = await response.json().catch(() => ({}));
-      const knownErrors = new Set([
-        'invalid_request_error', 'authentication_error', 'permission_error',
-        'not_found_error', 'request_too_large', 'rate_limit_error',
-        'api_error', 'overloaded_error', 'billing_error'
-      ]);
-      const category = knownErrors.has(body?.error?.type) ? body.error.type : 'unknown_error';
+      const category = response.status === 429 ? 'CUOTA_O_LIMITE' :
+        response.status === 400 ? 'SOLICITUD_NO_ADMITIDA' :
+        response.status === 401 || response.status === 403 ? 'CONFIGURACION_O_PERMISOS' :
+        response.status >= 500 ? 'PROVEEDOR_NO_DISPONIBLE' : 'ERROR_PROVEEDOR';
       // Solo metadatos: nunca registrar mensajes, tokens, claves ni el cuerpo del error.
-      console.error('[Camila Claude] Anthropic HTTP:', response.status, 'Categoria:', category);
-      return res.status(502).json({error:'No se pudo completar la solicitud a Camila'});
+      console.error('[Camila Gemini] Gemini HTTP:', response.status, 'Categoria:', category);
+      return res.status(response.status === 429 ? 429 : 502).json({error:response.status === 429
+        ? 'Gemini alcanzó temporalmente su límite de solicitudes. Intente de nuevo en unos minutos.'
+        : 'No se pudo completar la solicitud a Camila'});
     }
     const data=await response.json();
-    const answer=(data.content||[]).filter(x=>x.type==='text').map(x=>x.text).join('');
+    const candidate=data.candidates?.[0];
+    const answer=(candidate?.content?.parts||[]).filter(x=>typeof x.text==='string').map(x=>x.text).join('');
+    const usage={
+      input_tokens:Number(data.usageMetadata?.promptTokenCount)||0,
+      output_tokens:(Number(data.usageMetadata?.candidatesTokenCount)||0)+(Number(data.usageMetadata?.thoughtsTokenCount)||0),
+    };
     // Registrar el uso antes de analizar JSON: incluso una respuesta inválida cuesta tokens.
-    await registrarUso(url,serviceKey,user.id,modelo,mode,data.usage);
+    await registrarUso(url,serviceKey,user.id,modelo,mode,usage);
+    if (!answer.trim() || candidate?.finishReason === 'MAX_TOKENS') {
+      console.error('[Camila Gemini] Respuesta vacía o incompleta:',candidate?.finishReason || 'SIN_CONTENIDO');
+      return res.status(502).json({error:'Camila no pudo completar la respuesta. Intente con una solicitud más breve.'});
+    }
     if (formato || esBloque || esCompleto) {
       let parsed;
       try { parsed=JSON.parse(answer); } catch { return res.status(502).json({error:'Camila no devolvió operaciones válidas'}); }
@@ -396,13 +463,13 @@ export default async function handler(req, res) {
         return res.status(502).json({error:'Camila no devolvió operaciones válidas'});
       }
     }
-    return res.status(200).json({text:answer,usage:data.usage});
+    return res.status(200).json({text:answer,usage});
   } catch (error) {
     const category = error instanceof Error && error.name === 'TimeoutError' ? 'TIMEOUT' : 'ERROR_DE_RED_O_PROCESAMIENTO';
-    console.error('[Camila Claude] Fallo de solicitud:', category);
+    console.error('[Camila Gemini] Fallo de solicitud:', category);
     return res.status(502).json({error:'Servicio temporalmente no disponible'});
   }
 }
 
-// Contrato compartido con las pruebas aisladas de Anthropic.
-export { PPA_COMPLETO_SCHEMA, SYSTEM_PPA_COMPLETO };
+// Contrato compartido con las pruebas aisladas de Gemini.
+export { PPA_COMPLETO_SCHEMA, SYSTEM_PPA_COMPLETO, esquemaGemini };
