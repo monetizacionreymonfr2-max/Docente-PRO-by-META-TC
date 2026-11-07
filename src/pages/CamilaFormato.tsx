@@ -44,6 +44,7 @@ import { FormatoService, fileToBase64 } from '../lib/formatoService';
 import { SupabaseService } from '../lib/supabaseService';
 import { supabase } from '../lib/supabase';
 import { SesionVozCamila } from '../lib/camila/vozEnVivo';
+import { prepararContextoLlamadaCamila, registrarTurnoVozCamila, type TurnoVozCamila } from '../lib/camila/contextoVoz';
 import { FormatoDocente } from '../types/formato';
 import { PlantillaDocx, DocxMapa } from '../lib/docxClone/types';
 import { cargarDocx, construirMapa, guardarDocx } from '../lib/docxClone/docxEditor';
@@ -151,6 +152,8 @@ export default function CamilaFormato() {
   const [avisoVoz, setAvisoVoz] = useState<string | null>(null);
   const reconocimientoRef = useRef<any>(null);
   const llamadaRef = useRef<SesionVozCamila | null>(null);
+  // Solo memoria volátil de la pantalla: no persiste audios ni transcripciones.
+  const historialVozRef = useRef<TurnoVozCamila[]>([]);
   const prepararDocumentoDesdeVozRef = useRef<(instruccion: string) => Promise<string>>(
     async () => 'El documento no está disponible todavía. Puede continuar conversando.',
   );
@@ -227,6 +230,11 @@ export default function CamilaFormato() {
     setAvisoLlamada(null);
     setUltimoTurnoLlamada(null);
     setEstadoLlamada('conectando');
+    const contextoAnterior = prepararContextoLlamadaCamila(historialVozRef.current, mensajes, {
+      formato: formatoActivo?.nombre || nombreBorradorLocal || undefined,
+      proyecto: proyectoActivo?.titulo || undefined,
+      hayPropuesta: Boolean(propuestaPendiente),
+    });
     const llamada = new SesionVozCamila({
       alConectar: () => {
         if (llamadaRef.current === llamada) setEstadoLlamada('conectada');
@@ -241,10 +249,11 @@ export default function CamilaFormato() {
       alError: (mensaje) => setAvisoLlamada(mensaje),
       alTurno: (usuario, camila) => {
         if (llamadaRef.current !== llamada) return;
+        historialVozRef.current = registrarTurnoVozCamila(historialVozRef.current, usuario, camila);
         setUltimoTurnoLlamada([usuario && `Docente: ${usuario}`, camila && `Camila: ${camila}`].filter(Boolean).join(' · ').slice(0, 220));
       },
       alPrepararDocumento: (instruccion) => prepararDocumentoDesdeVozRef.current(instruccion),
-    });
+    }, contextoAnterior);
     llamadaRef.current = llamada;
     void llamada.iniciar();
   };
@@ -447,6 +456,7 @@ export default function CamilaFormato() {
       if (conversacionId) await actualizarHistorialEnCola(conversacionId);
       const conversacion = await CamilaPersistence.obtenerConversacion(teacherId, id);
       cerrarDocumentoDeSesion();
+      historialVozRef.current = [];
       omitirPrimerAutoguardadoRef.current = conversacion.id;
       setConversacionId(conversacion.id);
       setMensajes(conversacion.mensajes.map((m) => ({
@@ -465,6 +475,7 @@ export default function CamilaFormato() {
     try {
       if (conversacionId) await actualizarHistorialEnCola(conversacionId);
       cerrarDocumentoDeSesion();
+      historialVozRef.current = [];
       setConversacionId(null);
       setMensajes([{ id: `inicio-${Date.now()}`, emisor: 'camila',
         texto: `${saludo}${nombre ? `, ${nombre}` : ''}. Soy Camila. ¿En qué puedo ayudarle hoy?`, fecha: new Date() }]);
