@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import JSZip from 'jszip';
+import { generarPpaSinPlantillaCompleto } from '../src/lib/camilaFormato/ppaSinPlantillaCompleto.ts';
 import {
   semanasDeCalendario, textoFecha, validarPpaCompleto, fechaDesdeDato,
+  resguardarHechosInstitucionalesPpa,
 } from '../src/lib/camilaFormato/ppaEstructurado.ts';
 
 const identidad = {
@@ -48,6 +51,43 @@ test('no inventa ni acepta fechas fuera de calendario',()=>{
 });
 test('valida un PPA completo antes de tocar el Word',()=>{
   assert.deepEqual(validarPpaCompleto(plan(),identidad),[]);
+});
+test('no convierte supuestos de Gemini sobre una institución en hechos del PPA',()=>{
+  const generada = plan();
+  generada.contexto='La escuela está en un barrio sin agua potable y los estudiantes no tienen libros.';
+  generada.necesidades='Aulas sin electricidad ni acceso a materiales.';
+  generada.potencialidades='Se observó gran interés familiar en visitas domiciliarias.';
+  generada.instrumentosDiagnostico='Ya se aplicaron encuestas a los padres.';
+  generada.vinculacionNacional='Resolución ministerial ficticia 1234 de 2026.';
+  const revisada=resguardarHechosInstitucionalesPpa(generada,identidad);
+  const campos=['contexto','necesidades','potencialidades','instrumentosDiagnostico','vinculacionNacional'];
+  for(const campo of campos){
+    assert.doesNotMatch(revisada[campo],/sin agua potable|sin electricidad|visitas domiciliarias|Ya se aplicaron|1234/);
+  }
+  assert.match(revisada.contexto,/Dificultad lectora, solo saben sumar/);
+  assert.match(revisada.potencialidades,/Pendiente de confirmar/);
+  assert.match(revisada.instrumentosDiagnostico,/no aplicada ni verificada/);
+  assert.match(revisada.vinculacionNacional,/lineamientos vigentes del MPPE/);
+  assert.equal(generada.contexto,'La escuela está en un barrio sin agua potable y los estudiantes no tienen libros.');
+  assert.deepEqual(validarPpaCompleto(revisada,identidad),[]);
+});
+test('el Word final tampoco contiene hechos escolares inventados por el modelo',async()=>{
+  const inventado=plan();
+  inventado.contexto='La escuela está ubicada en una zona sin agua potable.';
+  inventado.necesidades='La escuela carece de biblioteca y comedor.';
+  inventado.potencialidades='Las familias ya organizaron jornadas de limpieza.';
+  inventado.instrumentosDiagnostico='Ya se aplicaron encuestas domiciliarias.';
+  inventado.vinculacionNacional='Artículo ministerial ficticio 2026.';
+  const {blob}=await generarPpaSinPlantillaCompleto(identidad,async()=>inventado);
+  const zip=await JSZip.loadAsync(await blob.arrayBuffer());
+  const xml=await zip.file('word/document.xml').async('string');
+  assert.match(xml,/Diagnóstico informado por el docente/);
+  assert.match(xml,/Dificultad lectora, solo saben sumar/);
+  assert.doesNotMatch(xml,/zona sin agua potable|carece de biblioteca|jornadas de limpieza|encuestas domiciliarias|ministerial ficticio/);
+  await assert.rejects(
+    ()=>generarPpaSinPlantillaCompleto(identidad,async()=>({...inventado,contexto:''})),
+    /Campo incompleto: contexto/,
+  );
 });
 test('rechaza 5 semanas de las 6 solicitadas',()=>{
   const p=plan();p.semanas.pop();

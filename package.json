@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "test:claude": "node --test tests/camila-claude.test.mjs",
+    "test:gemini": "node --test tests/camila-gemini.test.mjs",
     "test:camila-voz": "node --test tests/camila-voz-segura.test.mjs",
     "test:ppa-contexto": "node --import tsx --test tests/ppa-contexto-ficticio.test.mjs",
     "test:ppa-libro": "node --import tsx --test tests/ppa-libro-hechos.test.mjs",

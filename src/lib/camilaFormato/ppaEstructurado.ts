@@ -1,5 +1,5 @@
 /**
- * Contrato único entre Claude y el renderizador DOCX. El modelo entrega datos,
+ * Contrato único entre Gemini y el renderizador DOCX. El modelo entrega datos,
  * NUNCA XML ni una colección arbitraria de cambios para un PPA completo.
  * Los documentos originales se usan SOLO como estructura y se conservan.
  */
@@ -43,6 +43,27 @@ export interface IdentidadPpa {
   fechaInicio?: string;
   fechaFin?: string;
   matricula?: string;
+}
+
+/**
+ * El modelo puede proponer actividades, pero no es una fuente de hechos sobre
+ * una escuela ni sobre observaciones que un docente aún no ha realizado.
+ * Resguardar estos campos ANTES de escribir el Word evita que un diagnóstico
+ * plausible pero inventado termine presentado como una constatación real.
+ */
+export function resguardarHechosInstitucionalesPpa(
+  plan: PpaCompleto, identidad: IdentidadPpa
+): PpaCompleto {
+  const diagnostico = identidad.diagnostico.trim();
+  const tema = identidad.tema.trim();
+  return {
+    ...plan,
+    contexto: `Diagnóstico informado por el docente: ${diagnostico}. Otros datos del contexto institucional requieren confirmación.`,
+    necesidades: `Necesidades expresadas en el diagnóstico aportado: ${diagnostico}`,
+    potencialidades: 'Pendiente de confirmar con el docente: fortalezas, intereses, apoyos y recursos observados en este grupo.',
+    instrumentosDiagnostico: 'Propuesta aún no aplicada ni verificada: observación pedagógica, registro descriptivo y lista de cotejo. El docente debe confirmar los instrumentos que realmente utilizó.',
+    vinculacionNacional: `Vinculación pedagógica propuesta para «${tema}». El docente debe contrastarla con los lineamientos vigentes del MPPE y los acuerdos de su institución antes de considerarla oficial.`,
+  };
 }
 const CAMPOS_FILA: Array<keyof FilaPpa> = [
   'area', 'componente', 'contenidos', 'tejidosTematicos',
@@ -99,14 +120,14 @@ export function semanasSolicitadas(duracion: string): number | null {
 }
 export function validarPpaCompleto(plan: PpaCompleto, identidad: IdentidadPpa, areasExcluidas: string[] = []): string[] {
   const errores: string[] = [];
-  if (!plan || typeof plan !== 'object') return ['Claude no devolvió el PPA estructurado.'];
+  if (!plan || typeof plan !== 'object') return ['Camila no devolvió el PPA estructurado.'];
   for (const campo of CAMPOS_TEXTO) {
     if (typeof plan[campo] !== 'string' || !plan[campo].trim()) errores.push(`Campo incompleto: ${campo}.`);
   }
   const total = semanasSolicitadas(identidad.duracion);
   if (!total) errores.push('La duración confirmada no indica semanas válidas.');
   if (!Array.isArray(plan.semanas) || plan.semanas.length !== total) {
-    errores.push(`Se pidieron ${total || '?'} semanas, pero Claude no generó exactamente esa cantidad.`);
+    errores.push(`Se pidieron ${total || '?'} semanas, pero Camila no generó exactamente esa cantidad.`);
     return errores;
   }
   const fechas = semanasDeCalendario(identidad.fechaInicio, identidad.fechaFin);

@@ -27,6 +27,8 @@ import {
   Trash2,
   Mic,
   MicOff,
+  PhoneCall,
+  PhoneOff,
   Volume2,
   VolumeX,
   History,
@@ -43,6 +45,7 @@ import DocxPreviewViewer from '../components/formato/DocxPreviewViewer';
 import { FormatoService, fileToBase64 } from '../lib/formatoService';
 import { SupabaseService } from '../lib/supabaseService';
 import { supabase } from '../lib/supabase';
+import { SesionVozCamila } from '../lib/camila/vozEnVivo';
 import { FormatoDocente } from '../types/formato';
 import { PlantillaDocx, DocxMapa } from '../lib/docxClone/types';
 import { cargarDocx, construirMapa, guardarDocx } from '../lib/docxClone/docxEditor';
@@ -107,8 +110,9 @@ export default function CamilaFormato() {
   const [procesandoOpcional, setProcesandoOpcional] = useState(false);
   const opcionesEntorno = (import.meta as ImportMeta & { env?: Record<string, string> }).env;
   const herramientasOpcionalesVisibles = isAdmin === true && opcionesEntorno?.VITE_CAMILA_OPTIONAL_TOOLS === 'true';
-  const skillWordVisible = isAdmin === true && (herramientasOpcionalesVisibles || opcionesEntorno?.VITE_CAMILA_SKILLS_TOOLS === 'true');
   const pdfLibreOfficeVisible = isAdmin === true && (herramientasOpcionalesVisibles || opcionesEntorno?.VITE_CAMILA_LIBREOFFICE_TOOLS === 'true');
+  const llamadaHabilitada = opcionesEntorno?.VITE_CAMILA_LIVE_CALL_ENABLED === 'true' &&
+    (isAdmin === true || opcionesEntorno?.VITE_CAMILA_LIVE_CALL_ROLLOUT === 'pro');
   useEffect(()=>{setVistaPdfUrl(null)},[blobDocx]);
   const [nombreBorradorLocal, setNombreBorradorLocal] = useState<string | null>(null);
   // La propuesta se genera sobre una copia aislada. El documento activo solo
@@ -154,6 +158,15 @@ export default function CamilaFormato() {
   const [hablandoId, setHablandoId] = useState<string | null>(null);
   const [avisoVoz, setAvisoVoz] = useState<string | null>(null);
   const reconocimientoRef = useRef<any>(null);
+  const llamadaRef = useRef<SesionVozCamila | null>(null);
+  const prepararDocumentoDesdeVozRef = useRef<(instruccion: string) => Promise<string>>(
+    async () => 'El documento no está disponible todavía. Puede continuar conversando.',
+  );
+  const trabajoVozOcupadoRef = useRef(false);
+  const [estadoLlamada, setEstadoLlamada] = useState<'inactiva' | 'conectando' | 'conectada'>('inactiva');
+  const [llamadaSilenciada, setLlamadaSilenciada] = useState(false);
+  const [avisoLlamada, setAvisoLlamada] = useState<string | null>(null);
+  const [ultimoTurnoLlamada, setUltimoTurnoLlamada] = useState<string | null>(null);
   const [conversacionId, setConversacionId] = useState<string | null>(null);
   const [historialGuardado, setHistorialGuardado] = useState<ResumenConversacion[]>([]);
   const [recuerdos, setRecuerdos] = useState<RecuerdoCamila[]>([]);
@@ -202,6 +215,57 @@ export default function CamilaFormato() {
     }
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   }, []);
+
+  // La llamada es voluntaria y se cierra al abandonar Mi Formato.
+  useEffect(() => () => {
+    const llamada = llamadaRef.current;
+    llamadaRef.current = null;
+    llamada?.detener();
+  }, []);
+
+  const finalizarLlamada = () => {
+    llamadaRef.current?.detener();
+    llamadaRef.current = null;
+    setEstadoLlamada('inactiva');
+    setLlamadaSilenciada(false);
+  };
+
+  const alternarLlamada = () => {
+    if (llamadaRef.current) { finalizarLlamada(); return; }
+    if (!llamadaHabilitada) return;
+    if (escuchando) reconocimientoRef.current?.stop();
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    setAvisoLlamada(null);
+    setUltimoTurnoLlamada(null);
+    setEstadoLlamada('conectando');
+    const llamada = new SesionVozCamila({
+      alConectar: () => {
+        if (llamadaRef.current === llamada) setEstadoLlamada('conectada');
+      },
+      alCerrar: () => {
+        if (llamadaRef.current === llamada) {
+          llamadaRef.current = null;
+          setEstadoLlamada('inactiva');
+          setLlamadaSilenciada(false);
+        }
+      },
+      alError: (mensaje) => setAvisoLlamada(mensaje),
+      alTurno: (usuario, camila) => {
+        if (llamadaRef.current !== llamada) return;
+        setUltimoTurnoLlamada([usuario && `Docente: ${usuario}`, camila && `Camila: ${camila}`].filter(Boolean).join(' · ').slice(0, 220));
+      },
+      alPrepararDocumento: (instruccion) => prepararDocumentoDesdeVozRef.current(instruccion),
+    });
+    llamadaRef.current = llamada;
+    void llamada.iniciar();
+  };
+
+  const alternarSilencioLlamada = () => {
+    const llamada = llamadaRef.current;
+    if (!llamada?.activa) return;
+    llamada.silenciarMicrofono(!llamadaSilenciada);
+    setLlamadaSilenciada(!llamadaSilenciada);
+  };
 
   const alternarDictado = () => {
     setAvisoVoz(null);
@@ -629,7 +693,7 @@ export default function CamilaFormato() {
       return;
     }
 
-    // PDF e imágenes son referencias temporales que Claude puede analizar
+    // PDF e imágenes son referencias temporales que Gemini puede analizar
     // incluso si todavía no se ha elegido ningún formato Word.
     if (nombreLow.endsWith('.pdf') || file.type.startsWith('image/')) {
       const mimeType = file.type || (nombreLow.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
@@ -949,6 +1013,26 @@ export default function CamilaFormato() {
     }
   };
 
+  // Gemini Live puede continuar conversando mientras el motor de documentos
+  // prepara un borrador independiente. La aprobación sigue siendo manual.
+  useEffect(() => {
+    prepararDocumentoDesdeVozRef.current = async (instruccion) => {
+      if (!llamadaHabilitada) return 'La preparación por voz no está habilitada.';
+      if (trabajoVozOcupadoRef.current || isProcessing || propuestaPendiente) {
+        return 'Camila ya está preparando un documento o esperando una aprobación. Pida al docente revisar el trabajo anterior.';
+      }
+      trabajoVozOcupadoRef.current = true;
+      try {
+        await handleEnviarMensaje(instruccion);
+        return 'La solicitud fue atendida. Indique al docente que revise el chat y la pestaña Documento. Ningún cambio se ha aplicado sin su aprobación.';
+      } catch {
+        return 'Hubo un problema al preparar la solicitud. Pida al docente revisar el chat y reintentar.';
+      } finally {
+        trabajoVozOcupadoRef.current = false;
+      }
+    };
+  });
+
   const handleAprobarPropuesta = async () => {
     if (!accionesDocumento.aprobar || !propuestaPendiente) return;
     setIsProcessing(true);
@@ -999,47 +1083,6 @@ export default function CamilaFormato() {
       id: `msg-${Date.now()}`, emisor: 'camila',
       texto: 'He descartado la propuesta. Su documento no ha sido modificado. ¿Qué desea hacer ahora?', fecha: new Date(),
     }]);
-  };
-
-  /** Dos opciones de Claude. El usuario conserva el Word hasta aprobar. */
-  const solicitarSkillWordFicticio = async () => {
-    if (!skillWordVisible || !blobDocx || procesandoOpcional || propuestaPendiente) return;
-    const instruccion = window.prompt('¿Qué cambios debe hacer la Skill de Word en su formato FICTICIO?');
-    if (!instruccion || instruccion.trim().length < 10) return;
-    if (!window.confirm('Esta prueba enviará el documento ficticio a Anthropic para ejecutar la Skill Word. No use datos de estudiantes reales: el contenedor puede retener datos hasta 30 días y puede haber cargos. ¿Confirma que el documento es ficticio y autoriza el envío?')) return;
-    setProcesandoOpcional(true);
-    try {
-      const { data:{session} } = await supabase.auth.getSession();
-      if (!session?.access_token) throw new Error('Debe iniciar sesión.');
-      const response=await fetch('/api/camila-docx-skills',{
-        method:'POST',
-        headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},
-        body:JSON.stringify({archivoBase64:await blobABase64(blobDocx),instruccion,
-          consentimiento:true,soloFicticio:true}),
-      });
-      const result=await response.json();
-      if (!response.ok || typeof result.archivoBase64!=='string')
-        throw new Error(result.error || 'No se pudo ejecutar la Skill.');
-      const bin=atob(result.archivoBase64);
-      const bytes=Uint8Array.from(bin,c=>c.charCodeAt(0));
-      const nuevoBlob=new Blob([bytes],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
-      const parsed=await cargarDocx(nuevoBlob);
-      const propuesta: ResultadoCamilaFormato={
-        respuestaCamila:'La Skill preparó un Word para su revisión. No se ha aplicado.',
-        operacionesEjecutadas:[{tipo:'vaciar_todo'}],operacionesOmitidas:[],
-        nuevoBlob,nuevoMapa:construirMapa(parsed.doc),
-        revision:{aprobado:true,resumen:'Borrador generado por Skill. Revisión manual obligatoria antes de aprobar.',
-          detalles:[],celdasSinCambio:0,celdasReemplazadas:0,coberturaTablas:[]},
-        seEjecutoVaciarTodo:true,
-      };
-      setPropuestaPendiente({solicitud:instruccion,resultado:propuesta});
-      setTabActiva('documento');
-    } catch (error) {
-      const mensaje=error instanceof Error?error.message:'Error de Skill';
-      setMensajes(prev=>[...prev,{id:`msg-${Date.now()}`,emisor:'camila',
-        texto:'No se aplicó nada: '+mensaje,fecha:new Date()}]);
-      setTabActiva('chat');
-    } finally { setProcesandoOpcional(false); }
   };
 
   const solicitarPdfLibreOffice = async () => {
@@ -1118,6 +1161,18 @@ export default function CamilaFormato() {
 
         {/* CONTROLES DERECHA */}
         <div className="flex items-center gap-2">
+          {llamadaHabilitada && (
+            <button type="button" onClick={alternarLlamada}
+              className={`px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-2 transition-colors ${
+                estadoLlamada !== 'inactiva'
+                  ? 'bg-rose-600/20 border-rose-400/60 text-rose-100'
+                  : 'bg-teal-500/20 border-teal-400/50 text-teal-100 hover:bg-teal-500/30'
+              }`}
+              aria-label={estadoLlamada === 'inactiva' ? 'Llamar a Camila' : 'Finalizar llamada con Camila'}>
+              {estadoLlamada === 'inactiva' ? <PhoneCall size={16} /> : <PhoneOff size={16} />}
+              <span>{estadoLlamada === 'inactiva' ? 'Llamar a Camila' : 'Colgar'}</span>
+            </button>
+          )}
           {/* Selector de modelo IA para Admin */}
           {isAdmin && (
             <button
@@ -1182,6 +1237,35 @@ export default function CamilaFormato() {
           </div>
         </div>
       </header>
+
+      {llamadaHabilitada && (estadoLlamada !== 'inactiva' || avisoLlamada) && (
+        <div role="status" aria-live="polite"
+          className="shrink-0 flex flex-wrap items-center gap-2 px-3 py-2 rounded-xl border border-teal-400/30 bg-slate-900/90 text-xs text-slate-200">
+          {estadoLlamada !== 'inactiva' && (
+            <>
+              <span className="font-bold text-teal-200">
+                {estadoLlamada === 'conectando' ? 'Conectando con Camila…' : 'En llamada con Camila · límite de prueba: 3 minutos'}
+              </span>
+              {estadoLlamada === 'conectada' && (
+                <button type="button" onClick={alternarSilencioLlamada}
+                  className="inline-flex items-center gap-1 rounded-lg border border-white/20 px-2 py-1 text-white"
+                  aria-pressed={llamadaSilenciada}
+                  aria-label={llamadaSilenciada ? 'Activar micrófono de llamada' : 'Silenciar micrófono de llamada'}>
+                  {llamadaSilenciada ? <MicOff size={13} /> : <Mic size={13} />}
+                  {llamadaSilenciada ? 'Activar micrófono' : 'Silenciar'}
+                </button>
+              )}
+              <span className="hidden sm:inline text-slate-400">Puede cambiar a Documento sin colgar.</span>
+              {ultimoTurnoLlamada && <span className="w-full text-slate-300 truncate" title={ultimoTurnoLlamada}>{ultimoTurnoLlamada}</span>}
+            </>
+          )}
+          {avisoLlamada && <span className="text-amber-200">{avisoLlamada}</span>}
+          {avisoLlamada && estadoLlamada === 'inactiva' && (
+            <button type="button" className="ml-auto text-slate-300" aria-label="Cerrar aviso de llamada"
+              onClick={() => setAvisoLlamada(null)}><X size={14} /></button>
+          )}
+        </div>
+      )}
 
       {/* BODY CONTENT: SPLIT EN DESKTOP, TABS EN MÓVIL */}
       <div className="flex-1 min-h-0 flex overflow-hidden gap-3">
@@ -1489,7 +1573,7 @@ export default function CamilaFormato() {
             <button
               type="button"
               onClick={alternarDictado}
-              disabled={isProcessing || Boolean(propuestaPendiente)}
+              disabled={isProcessing || Boolean(propuestaPendiente) || estadoLlamada !== 'inactiva'}
               className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl border transition-all shrink-0 flex items-center justify-center disabled:opacity-40 ${
                 escuchando
                   ? 'bg-rose-500/20 border-rose-400/60 text-rose-200 animate-pulse'
@@ -1557,13 +1641,6 @@ export default function CamilaFormato() {
             </div>
 
             <div className="flex items-center gap-2">
-              {skillWordVisible && (
-              <button type="button" onClick={solicitarSkillWordFicticio}
-                disabled={!blobDocx || !!propuestaPendiente || procesandoOpcional}
-                className="px-2 py-1.5 rounded-xl border border-violet-400/40 text-violet-200 text-xs disabled:opacity-30">
-                Skill Word · ficticio
-              </button>
-              )}
               {pdfLibreOfficeVisible && (
               <button type="button" onClick={solicitarPdfLibreOffice}
                 disabled={!blobDocx || procesandoOpcional}

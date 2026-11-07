@@ -10,8 +10,12 @@ const INSTRUCCION_VOZ = [
   'Conversa en español venezolano, con calidez, respeto y respuestas claras.',
   'Ayudas exclusivamente con PPA, planificaciones, evaluación y temas educativos.',
   'Haz una pregunta a la vez cuando falte información. No inventes datos de estudiantes.',
-  'No afirmes haber creado, editado ni guardado archivos en esta conversación de voz:',
-  'para producir documentos, invita al docente a continuar en Mi Formato por escrito.',
+  'Si el docente pide expresamente preparar, crear o modificar un documento,',
+  'utiliza la herramienta preparar_documento con su instrucción exacta y explícales',
+  'que podrán seguir conversando mientras se prepara una propuesta para revisar.',
+  'La herramienta nunca aplica ni guarda cambios definitivos sin aprobación del docente.',
+  'No afirmes que el documento quedó listo hasta recibir el resultado de la herramienta.',
+  'Si la herramienta indica que Camila está ocupada, pide esperar sin iniciar otra tarea.',
   'Si detectas posibles errores pedagógicos, explícalos respetuosamente.',
   'No pidas datos personales de menores ni grabes o guardes la conversación.',
 ].join(' ');
@@ -22,6 +26,20 @@ const CONFIG_VOZ = {
   outputAudioTranscription: {},
   speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
   systemInstruction: { parts: [{ text: INSTRUCCION_VOZ }] },
+  tools: [{
+    functionDeclarations: [{
+      name: 'preparar_documento',
+      description: 'Prepara una propuesta de documento o una edición del Word actual SOLO por solicitud explícita del docente. Nunca aprueba ni guarda los cambios.',
+      behavior: 'NON_BLOCKING',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          instruccion: { type: 'STRING', description: 'Solicitud concreta del docente, fiel a lo que pidió por voz.' },
+        },
+        required: ['instruccion'],
+      },
+    }],
+  }],
 };
 
 // Protección adicional de mejor esfuerzo por instancia. No sustituye una cuota
@@ -68,6 +86,11 @@ export default async function handler(req, res) {
       (expira !== null && (!Number.isFinite(expira) || expira <= Date.now())))) {
       return res.status(403).json({ error: 'La conversación por voz requiere una licencia PRO activa' });
     }
+    // Durante las pruebas, solo el administrador puede gastar minutos de voz.
+    // El despliegue a docentes requiere habilitar CAMILA_LIVE_ROLLOUT=pro en Vercel.
+    if (!esAdmin && process.env.CAMILA_LIVE_ROLLOUT !== 'pro') {
+      return res.status(403).json({ error: 'Las llamadas de Camila todavía están en pruebas.' });
+    }
 
     const anterior = ultimasSolicitudes.get(user.id) || 0;
     if (Date.now() - anterior < 8000) return res.status(429).json({ error: 'Espera unos segundos antes de iniciar otra llamada' });
@@ -82,8 +105,8 @@ export default async function handler(req, res) {
         uses: 1,
         expireTime: new Date(actual + DURACION_SEGUNDOS * 1000).toISOString(),
         newSessionExpireTime: new Date(actual + 60_000).toISOString(),
-        // El REST de auth_tokens recibe la configuración como
-        // bidiGenerateContentSetup, no como liveConnectConstraints (nombre SDK).
+        // El SDK de Google transforma liveConnectConstraints en
+        // bidiGenerateContentSetup antes de enviarlo por REST.
         // La clave permanente sigue en el servidor y el token queda restringido
         // a este modelo y configuración de conversación.
         bidiGenerateContentSetup: {
@@ -93,6 +116,7 @@ export default async function handler(req, res) {
             speechConfig: CONFIG_VOZ.speechConfig,
           },
           systemInstruction: CONFIG_VOZ.systemInstruction,
+          tools: CONFIG_VOZ.tools,
           inputAudioTranscription: CONFIG_VOZ.inputAudioTranscription,
           outputAudioTranscription: CONFIG_VOZ.outputAudioTranscription,
         },

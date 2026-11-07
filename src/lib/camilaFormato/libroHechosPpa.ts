@@ -24,6 +24,21 @@ const ORIGENES = new Set<OrigenHechoPpa>([
   'mensaje_docente', 'archivo_actual', 'memoria_autorizada', 'plantilla_referencia',
 ]);
 
+/** Gemini puede citar un mensaje completo como referencia. Limitamos solo
+ * referencias largas de orígenes conocidos: no cambiamos sus estados ni
+ * aceptamos orígenes inventados o fuentes ausentes. */
+export function acotarReferenciasLibroPpa(libro: LibroHechosPpa): LibroHechosPpa {
+  if (!libro || !Array.isArray(libro.hechos)) return libro;
+  return {
+    ...libro,
+    hechos: libro.hechos.map((h) => {
+      if (!h?.fuente || !ORIGENES.has(h.fuente.origen) ||
+          typeof h.fuente.referencia !== 'string' || h.fuente.referencia.length <= 500) return h;
+      return { ...h, fuente: { ...h.fuente, referencia: h.fuente.referencia.slice(0, 500) } };
+    }),
+  };
+}
+
 const CAMPOS_PROYECTO = [
   'gradoSeccion', 'tema', 'diagnostico', 'duracion', 'docente', 'institucion', 'matricula',
   'anioEscolar', 'fechaInicio', 'fechaFin',
@@ -34,7 +49,7 @@ export type DatosProyectoDesdeLibro = Partial<Record<typeof CAMPOS_PROYECTO[numb
 export const INSTRUCCION_LIBRO_HECHOS_PPA = `Extraiga datos para un PPA venezolano exclusivamente de mensajes y archivos adjuntos.
 Responda como objeto JSON: {version:1,hechos:[{campo,valor,estado,fuente:{origen,referencia},observacion}],pendientes:[]}.
 Los estados permitidos son dicho, supuesto, falta, contradiccion.
-Para 'dicho', cite el mensaje o archivo actual; no atribuya a la docente datos tomados de un Word anterior.
+Para 'dicho', cite el mensaje o archivo actual mediante fuente.origen='mensaje_docente' cuando provenga del mensaje. Use en fuente.referencia una cita BREVE (máximo 160 caracteres), nunca copie el mensaje completo; no atribuya a la docente datos tomados de un Word anterior.
 Extraiga también anioEscolar, fechaInicio y fechaFin (formato AAAA-MM-DD o DD-MM-AAAA), SOLO si fueron confirmados. Si una fecha, matrícula o grado aparece en dos versiones incompatibles, marque contradiccion.
 Los datos de una plantilla anterior sirven para entender la estructura, jamás para copiar identidad, escuela o estudiantes.
 No invente valores para campos faltantes. Muestre las suposiciones y pida confirmación de una en una.

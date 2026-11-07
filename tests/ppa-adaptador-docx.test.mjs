@@ -36,7 +36,7 @@ async function fixture(){
   const cuadrito=`<w:tbl>${oldHeader}${week('SEMANA 1 · 26-10-2026')}${viejo}${week('SEMANA 2')}${viejo}</w:tbl>`;
   const completo=`<w:document xmlns:w="${W}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>
     ${p('PROYECTO PEDAGÓGICO DE AULA (PPA)')}
-    ${p('Educación Primaria · Sexto grado')}
+    ${p('Educación Primaria · 6to grado, sección U')}
     ${table([
       ['Institución',colegioViejo,'Docente',vieja],
       ['Grado y sección','6to grado, sección U','Año escolar','2026-2027'],
@@ -100,7 +100,8 @@ test('DOCX integral: reconstruye 6 semanas, borra identidad antigua y conserva l
     const pie=await nuevo.file('word/footer1.xml').async('string');
     assert.equal((xmlDoc.match(/SEMANA \d+ ·/g)||[]).length,6);
     for(let i=1;i<=6;i++)assert.match(xmlDoc,new RegExp('SEMANA '+i+' ·'));
-    assert.doesNotMatch(xmlDoc,/Sexto Grado|26-10-26|TÍTULO ANTIGUO/);
+    assert.doesNotMatch(xmlDoc,/6to grado, sección U|26-10-26|TÍTULO ANTIGUO/i);
+    assert.match(xmlDoc,/Educación Primaria · 2do grado, sección E/);
     assert.doesNotMatch(xmlDoc,new RegExp(vieja));
     assert.doesNotMatch(pie,new RegExp(vieja));
     assert.match(pie,new RegExp(nueva));

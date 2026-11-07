@@ -125,7 +125,9 @@ export async function adaptarPpaCompletoAWord(
   ].entries()) celda(c[i], 1, valor);
   celda(d[0], 1, plan.propositoGeneral);
   celda(d[1], 1, plan.propositosEspecificos);
-  reemplazarParrafo(doc, /Educaci[oó]n Primaria\s*[·–-]\s*Sexto grado/i,
+  // El encabezado de la plantilla puede decir 1er, 2do, 6to, etc.; no
+  // dejar el grado anterior por reconocer únicamente «Sexto grado».
+  reemplazarParrafo(doc, /^\s*Educaci[oó]n Primaria\s*[·–-]\s*.+$/i,
     `Educación Primaria · ${identidad.gradoSeccion}`);
   reemplazarParrafo(doc, /PARRILLA DE PLANIFICACI[OÓ]N/i,
     `PARRILLA DE PLANIFICACIÓN — ${plan.semanas.length} SEMANAS`);

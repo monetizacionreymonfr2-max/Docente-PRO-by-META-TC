@@ -1,4 +1,4 @@
-import type { LiveConnectConfig, Session } from '@google/genai';
+import type { FunctionResponseScheduling, LiveConnectConfig, Session } from '@google/genai';
 import { supabase } from '../supabase';
 
 interface CredencialVoz {
@@ -13,6 +13,7 @@ export interface EventosVozCamila {
   alCerrar: () => void;
   alError: (mensaje: string) => void;
   alTurno: (usuario: string, camila: string) => void;
+  alPrepararDocumento?: (instruccion: string) => Promise<string>;
 }
 
 function codificarPCM(muestras: Float32Array): string {
@@ -52,11 +53,13 @@ export class SesionVozCamila {
   private salida: AudioContext | null = null;
   private origen: MediaStreamAudioSourceNode | null = null;
   private procesador: ScriptProcessorNode | null = null;
+  private silenciador: GainNode | null = null;
   private audioEnCola: AudioBufferSourceNode[] = [];
   private siguienteAudio = 0;
   private temporizador: number | null = null;
   private textoUsuario = '';
   private textoCamila = '';
+  private microfonoSilenciado = false;
 
   constructor(private readonly eventos: EventosVozCamila) {}
 
@@ -116,6 +119,9 @@ export class SesionVozCamila {
               this.textoUsuario = '';
               this.textoCamila = '';
             }
+            if (mensaje.toolCall?.functionCalls?.length) {
+              void this.atenderHerramientas(mensaje.toolCall.functionCalls);
+            }
           },
           onerror: () => {
             if (!this.cerrada) {
@@ -139,7 +145,12 @@ export class SesionVozCamila {
         this.sesion.sendRealtimeInput({ audio: { data: pcm, mimeType: 'audio/pcm;rate=16000' } });
       };
       this.origen.connect(this.procesador);
-      this.procesador.connect(this.entrada.destination);
+      // ScriptProcessor necesita estar conectado, pero no debe reproducir
+      // el micrófono por los altavoces del docente.
+      this.silenciador = this.entrada.createGain();
+      this.silenciador.gain.value = 0;
+      this.procesador.connect(this.silenciador);
+      this.silenciador.connect(this.entrada.destination);
       await this.entrada.resume();
       if (this.cerrada) return;
       this.conectada = true;
@@ -152,12 +163,50 @@ export class SesionVozCamila {
         const mensaje = codigo === 'MICROFONO_NO_DISPONIBLE' ? 'Este navegador no permite usar el micrófono.' :
           codigo === 'SESION_REQUERIDA' ? 'Inicia sesión para hablar con Camila.' :
           tipo === 'NotAllowedError' ? 'Debes permitir el acceso al micrófono.' :
-          /^(La conversación por voz requiere|No se pudo iniciar Camila por voz|No se pudo abrir la conversación por voz|Espera unos segundos)/.test(codigo)
+          /^(La conversación por voz requiere|Las llamadas de Camila todavía|No se pudo iniciar Camila por voz|No se pudo abrir la conversación por voz|Espera unos segundos)/.test(codigo)
             ? codigo : 'No se pudo iniciar la voz de Camila. Inténtalo nuevamente.';
         this.eventos.alError(mensaje);
         this.detener();
       }
     }
+  }
+
+  private async atenderHerramientas(
+    llamadas: Array<{ id?: string; name?: string; args?: Record<string, unknown> }>,
+  ) {
+    const respuestas = await Promise.all(llamadas.map(async (llamada) => {
+      const instruccion = typeof llamada.args?.instruccion === 'string'
+        ? llamada.args.instruccion.trim().slice(0, 2000) : '';
+      let resultado: string;
+      if (llamada.name !== 'preparar_documento' || instruccion.length < 8) {
+        resultado = 'No se reconoció una solicitud válida. Pide al docente que aclare qué documento necesita.';
+      } else if (!this.eventos.alPrepararDocumento) {
+        resultado = 'Para preparar documentos, pida al docente abrir Mi Formato y utilizar Llamar a Camila.';
+      } else {
+        try {
+          resultado = await this.eventos.alPrepararDocumento(instruccion);
+        } catch {
+          resultado = 'No se pudo preparar el documento. El docente puede reintentarlo desde Mi Formato.';
+        }
+      }
+      return {
+        id: llamada.id,
+        name: llamada.name || 'preparar_documento',
+        response: { resultado },
+        scheduling: 'WHEN_IDLE' as FunctionResponseScheduling,
+      };
+    }));
+    if (this.cerrada || !this.sesion) return;
+    try {
+      this.sesion.sendToolResponse({ functionResponses: respuestas });
+    } catch {
+      if (!this.cerrada) this.eventos.alError('No se pudo informar a Camila sobre el documento.');
+    }
+  }
+
+  silenciarMicrofono(silenciar: boolean) {
+    this.microfonoSilenciado = silenciar;
+    this.microfono?.getAudioTracks().forEach(pista => { pista.enabled = !silenciar; });
   }
 
   private reproducirAudio(base64: string) {
@@ -190,6 +239,7 @@ export class SesionVozCamila {
     this.procesador && (this.procesador.onaudioprocess = null);
     try { this.procesador?.disconnect(); } catch { /* ya cerrado */ }
     try { this.origen?.disconnect(); } catch { /* ya cerrado */ }
+    try { this.silenciador?.disconnect(); } catch { /* ya cerrado */ }
     this.detenerAudio();
     this.microfono?.getTracks().forEach(pista => pista.stop());
     try { this.sesion?.close(); } catch { /* ya cerrado */ }
@@ -201,4 +251,5 @@ export class SesionVozCamila {
   }
 
   get activa() { return this.conectada && !this.cerrada; }
+  get silenciada() { return this.microfonoSilenciado; }
 }

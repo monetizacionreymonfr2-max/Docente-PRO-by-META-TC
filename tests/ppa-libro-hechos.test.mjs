@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
-  validarLibroHechosPpa, datosConfirmadosDelLibro, datosProyectoDesdeLibro,
+  validarLibroHechosPpa, acotarReferenciasLibroPpa, datosConfirmadosDelLibro, datosProyectoDesdeLibro,
   preguntaPendienteLibroPpa,
 } from '../src/lib/camilaFormato/libroHechosPpa.ts';
 
@@ -73,4 +73,16 @@ test('rechaza dos valores supuestamente confirmados y fuentes desconocidas', () 
 
 test('un libro de hechos malformado devuelve una solicitud de aclaración sin fallar', () => {
   assert.match(preguntaPendienteLibroPpa({ version: 1, hechos: null, pendientes: [] }), /estructura esperada/i);
+});
+
+test('acota citas extensas sin inventar fuentes ni aprobar un origen desconocido', () => {
+  const libro = { version: 1, hechos: [
+    { ...hecho('gradoSeccion', '2.º grado B'), fuente: { origen: 'mensaje_docente', referencia: 'Mensaje actual: '.repeat(65) } },
+    { ...hecho('docente', 'Docente ficticia'), fuente: { origen: 'fuente_inventada', referencia: 'Texto'.repeat(120) } },
+  ], pendientes: [] };
+  const acotado = acotarReferenciasLibroPpa(libro);
+  assert.equal(acotado.hechos[0].fuente.referencia.length, 500);
+  assert.equal(acotado.hechos[1].fuente.referencia.length, 600);
+  assert.match(validarLibroHechosPpa(acotado).join(' '), /docente: la fuente del dato no es válida/);
+  assert.equal(libro.hechos[0].fuente.referencia.length > 500, true, 'No muta el dato recibido');
 });
