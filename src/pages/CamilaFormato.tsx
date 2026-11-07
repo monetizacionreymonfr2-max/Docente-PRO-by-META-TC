@@ -17,7 +17,6 @@ import {
   FileUp,
   FolderOpen,
   BookOpen,
-  Cpu,
   ChevronDown,
   X,
   Eye,
@@ -66,10 +65,6 @@ import { generarBorradorPpaSinPlantilla, prepararBorradorPpa, solicitaCrearWordP
 import { generarPpaSinPlantillaCompleto } from '../lib/camilaFormato/ppaSinPlantillaCompleto';
 import { VersionesPpa, type VersionDocumentoPpa } from '../lib/camilaFormato/versionesPpa';
 import { prepararDeshacerSeguro } from '../lib/camilaFormato/deshacerSeguro';
-import {
-  listarModelosDisponibles,
-  ModeloGeminiInfo,
-} from '../lib/camilaFormato/camilaFormatoConfig';
 
 async function blobABase64(blob: Blob): Promise<string> {
   const bytes=new Uint8Array(await blob.arrayBuffer());
@@ -181,7 +176,6 @@ export default function CamilaFormato() {
   const [modalProyectosOpen, setModalProyectosOpen] = useState(false);
   const [modalFormatosOpen, setModalFormatosOpen] = useState(false);
   const [modalRevisionOpen, setModalRevisionOpen] = useState(false);
-  const [modalModelosOpen, setModalModelosOpen] = useState(false);
   const [modalHistorialOpen, setModalHistorialOpen] = useState(false);
   const [modalVersionesOpen, setModalVersionesOpen] = useState(false);
   const [versionesPrivadas, setVersionesPrivadas] = useState<VersionDocumentoPpa[]>([]);
@@ -191,7 +185,6 @@ export default function CamilaFormato() {
   // Datos para modales
   const [proyectosGuardados, setProyectosGuardados] = useState<any[]>([]);
   const [formatosGuardados, setFormatosGuardados] = useState<FormatoDocente[]>([]);
-  const [modelosDisponibles, setModelosDisponibles] = useState<ModeloGeminiInfo[]>([]);
   const [revisionActual, setRevisionActual] = useState<RevisionCoberturaDocx | null>(null);
 
   // Referencias UI
@@ -1169,23 +1162,6 @@ export default function CamilaFormato() {
               <span>{estadoLlamada === 'inactiva' ? 'Llamar a Camila' : 'Colgar'}</span>
             </button>
           )}
-          {/* Selector de modelo IA para Admin */}
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={async () => {
-                const list = await listarModelosDisponibles();
-                setModelosDisponibles(list);
-                setModalModelosOpen(true);
-              }}
-              className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-mono text-cyan-300 flex items-center gap-1.5 transition-all"
-              title="Configuración técnica de Camila (administrador)"
-            >
-              <Cpu size={14} />
-              <span className="hidden sm:inline">Configurar Camila</span>
-            </button>
-          )}
-
           {/* Botón Revisar Documento */}
           {revisionVisible && (snapshots.length > 1 || Boolean(propuestaPendiente)) && (
             <button
@@ -2076,45 +2052,6 @@ export default function CamilaFormato() {
           </div>
         </div>
       )}
-
-      {/* MODAL: MODELOS POR FUNCIÓN (ADMIN) */}
-      {modalModelosOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/10 p-5 shadow-2xl flex flex-col max-h-[85vh]">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Cpu size={16} className="text-cyan-400" /> Configuración de Camila
-              </h3>
-              <button
-                type="button"
-                onClick={() => setModalModelosOpen(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-400 py-2">
-              Modelos asignados automáticamente por el servidor según la tarea. La llamada utiliza Gemini 3.8 Live.
-            </p>
-
-            <div className="flex-1 overflow-y-auto py-2 space-y-2">
-              {modelosDisponibles.map((m) => (
-                <div
-                  key={m.id}
-                  className="p-3 rounded-2xl border bg-white/5 border-white/10 text-slate-200"
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs">{m.displayName}</span>
-                  </div>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">{m.description}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }
