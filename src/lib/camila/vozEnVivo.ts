@@ -1,4 +1,4 @@
-import type { FunctionResponseScheduling, LiveConnectConfig, Session } from '@google/genai';
+import type { Content, FunctionResponseScheduling, LiveConnectConfig, Session } from '@google/genai';
 import { supabase } from '../supabase';
 import { describirErrorVoz } from './erroresVoz';
 
@@ -62,7 +62,11 @@ export class SesionVozCamila {
   private textoCamila = '';
   private microfonoSilenciado = false;
 
-  constructor(private readonly eventos: EventosVozCamila) {}
+  constructor(
+    private readonly eventos: EventosVozCamila,
+    // Historial temporal entre llamadas en una misma pantalla.
+    private readonly contextoInicial: Content[] = [],
+  ) {}
 
   async iniciar(): Promise<void> {
     if (this.cerrada || this.microfono || this.sesion) return;
@@ -137,6 +141,14 @@ export class SesionVozCamila {
       });
       if (this.cerrada) { nuevaSesion.close(); return; }
       this.sesion = nuevaSesion;
+      if (this.contextoInicial.length) {
+        try {
+          // Prefijar el historial al conectar, sin generar una respuesta automática.
+          nuevaSesion.sendClientContent({ turns: this.contextoInicial, turnComplete: false });
+        } catch {
+          this.eventos.alError('No se pudo recuperar toda la conversación anterior; puede indicar dónde continuar.');
+        }
+      }
       this.entrada = new AudioContext({ sampleRate: 16000 });
       this.origen = this.entrada.createMediaStreamSource(this.microfono);
       this.procesador = this.entrada.createScriptProcessor(2048, 1, 1);
@@ -228,6 +240,12 @@ export class SesionVozCamila {
 
   detener() {
     if (this.cerrada) return;
+    // El límite de 3 minutos puede cerrar durante un turno: recuperar el texto parcial.
+    const pendienteDocente = this.textoUsuario.trim();
+    const pendienteCamila = this.textoCamila.trim();
+    this.textoUsuario = '';
+    this.textoCamila = '';
+    if (pendienteDocente || pendienteCamila) this.eventos.alTurno(pendienteDocente, pendienteCamila);
     this.cerrada = true;
     if (this.temporizador !== null) window.clearTimeout(this.temporizador);
     this.procesador && (this.procesador.onaudioprocess = null);
