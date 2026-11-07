@@ -99,6 +99,69 @@ test('muestra cuota de Gemini como espera recuperable y no cambia de proveedor',
   assert.ok(requests.every(r=>!r.url.includes('anthropic.com')));
 });
 
+test('las cuotas activas fallan cerradas sin clave de servicio, antes de llamar a Gemini',async()=>{
+  process.env.CAMILA_CUOTAS_ACTIVAS='true';
+  const requests=stub();
+  const result=await run();
+  assert.equal(result.statusCode,503);
+  assert.match(result.body.error,/cuotas aún no están configuradas/i);
+  assert.equal(requests.length,2);
+  assert.equal(requests.some(r=>r.url.includes('generativelanguage.googleapis.com')),false);
+});
+
+test('cuotas activas bloquean cuenta sin cupo, límite diario y límite mensual ANTES de Gemini',async()=>{
+  process.env.CAMILA_CUOTAS_ACTIVAS='true';
+  process.env.SUPABASE_SERVICE_ROLE_KEY='clave-servidor-ficticia';
+  const escenarios=[
+    {cuota:[],consumo:[],mensaje:/no tiene una cuota/i},
+    {cuota:[{max_tokens_mes:90000,max_peticiones_dia:1}],
+      consumo:[{input_tokens:100,output_tokens:100,created_at:new Date().toISOString()}],mensaje:/límite de uso/i},
+    {cuota:[{max_tokens_mes:4500,max_peticiones_dia:5}],
+      consumo:[{input_tokens:300,output_tokens:200,created_at:new Date().toISOString()}],mensaje:/límite de uso/i},
+  ];
+  for(const escenario of escenarios){
+    const requests=[];
+    globalThis.fetch=async(url,init)=>{
+      requests.push({url:String(url),init});
+      if(String(url).includes('/auth/v1/user'))return json(admin);
+      if(String(url).includes('/rest/v1/profiles'))return json([{is_active:true,access_level:'pro'}]);
+      if(String(url).includes('/rest/v1/camila_cuotas'))return json(escenario.cuota);
+      if(String(url).includes('/rest/v1/camila_consumo_tokens'))return json(escenario.consumo);
+      throw new Error('No debe llamar a Gemini cuando se agotó la cuota');
+    };
+    const result=await run();
+    assert.equal(result.statusCode,429);
+    assert.match(result.body.error,escenario.mensaje);
+    assert.equal(requests.some(r=>r.url.includes('generativelanguage.googleapis.com')),false);
+    assert.equal(requests[2].init.headers.apikey,'clave-servidor-ficticia');
+  }
+});
+
+test('cuota suficiente permite Gemini y registra solo metadatos de consumo',async()=>{
+  process.env.CAMILA_CUOTAS_ACTIVAS='true';
+  process.env.SUPABASE_SERVICE_ROLE_KEY='clave-servidor-ficticia';
+  const requests=[];
+  globalThis.fetch=async(url,init)=>{
+    requests.push({url:String(url),init});
+    if(String(url).includes('/auth/v1/user'))return json(admin);
+    if(String(url).includes('/rest/v1/profiles'))return json([{is_active:true,access_level:'pro'}]);
+    if(String(url).includes('/rest/v1/camila_cuotas'))return json([{max_tokens_mes:80000,max_peticiones_dia:20}]);
+    if(String(url).includes('/rest/v1/camila_consumo_tokens') && init?.method==='POST')return json({},201);
+    if(String(url).includes('/rest/v1/camila_consumo_tokens'))return json([]);
+    if(String(url).includes('generativelanguage.googleapis.com'))return geminiRespuesta('Respuesta válida',{promptTokenCount:84,candidatesTokenCount:42});
+    throw Error('Ruta inesperada');
+  };
+  const result=await run();
+  assert.equal(result.statusCode,200);
+  const registro=requests.find(r=>r.url.includes('/rest/v1/camila_consumo_tokens')&&r.init.method==='POST');
+  assert.ok(registro);
+  assert.deepEqual(JSON.parse(registro.init.body),{
+    teacher_id:admin.id,modelo:'gemini-2.5-flash-lite',modo:'chat',
+    input_tokens:84,output_tokens:42,cache_read_tokens:0,cache_creation_tokens:0,
+  });
+  assert.doesNotMatch(registro.init.body,/Hola|session-ficticia|clave-ficticia-gemini/);
+});
+
 test('sin sesión no llama a Supabase ni Gemini',async()=>{
   globalThis.fetch=()=>{throw new Error('No debía llamar a una API')};
   assert.equal((await run(undefined,'')).statusCode,401);

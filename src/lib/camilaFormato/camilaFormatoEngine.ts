@@ -9,7 +9,7 @@ import {
   combinarDatosProyecto, prepararVaciadoPpa, type DatosProyectoPropuesto,
 } from './contextoProyectoPpa';
 import {
-  datosProyectoDesdeLibro, preguntaPendienteLibroPpa, validarLibroHechosPpa,
+  acotarReferenciasLibroPpa, datosProyectoDesdeLibro, preguntaPendienteLibroPpa, validarLibroHechosPpa,
   INSTRUCCION_LIBRO_HECHOS_PPA, type LibroHechosPpa,
 } from './libroHechosPpa';
 import {
@@ -660,7 +660,7 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
   // 4. Si la operación es "vaciar_todo" y tenemos el archivo original
   const tieneVaciarTodo = (parsed.operaciones || []).some((o) => o.tipo === 'vaciar_todo');
   let seEjecutoVaciarTodo = false;
-  const libroPropuesto = parsed.libroHechos;
+  const libroPropuesto = parsed.libroHechos ? acotarReferenciasLibroPpa(parsed.libroHechos) : undefined;
   const libroValido = libroPropuesto && validarLibroHechosPpa(libroPropuesto).length === 0
     ? libroPropuesto : undefined;
   const preguntaHechos = libroPropuesto ? preguntaPendienteLibroPpa(libroPropuesto) : null;
