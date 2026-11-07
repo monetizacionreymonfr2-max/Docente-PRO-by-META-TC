@@ -13,13 +13,30 @@ export async function generateContentWithRetry(params: GenerateContentParameters
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify(params),
       });
-      const payload = await response.json();
-      if (!response.ok) {
-        const error = new Error(payload.error || 'Error al generar contenido');
+      // Algunas fallas de infraestructura de Vercel devuelven texto plano
+      // (por ejemplo, "A server error has occurred") y no JSON.
+      // No incluir esa respuesta técnica ni datos internos en el chat docente.
+      let payload: { error?: string; text?: string };
+      try {
+        payload = await response.json();
+      } catch {
+        const error = new Error(response.ok
+          ? 'Camila recibió una respuesta inesperada. Inténtelo nuevamente.'
+          : 'No se pudo procesar el formato en este momento. Inténtelo nuevamente.');
         (error as any).status = response.status;
         throw error;
       }
-      return { text: payload.text || '' };
+      if (!response.ok) {
+        const error = new Error(typeof payload.error === 'string'
+          ? payload.error
+          : 'No se pudo generar el contenido. Inténtelo nuevamente.');
+        (error as any).status = response.status;
+        throw error;
+      }
+      if (typeof payload.text !== 'string') {
+        throw new Error('Camila recibió una respuesta incompleta. Inténtelo nuevamente.');
+      }
+      return { text: payload.text };
     } catch (error: any) {
       lastError = error;
       if (![429, 503].includes(error.status) || attempt === maxRetries - 1) break;
