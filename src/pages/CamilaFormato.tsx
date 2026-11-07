@@ -822,10 +822,11 @@ export default function CamilaFormato() {
     // Es una conversación temporal; no se almacena como memoria persistente.
     if (!docVivo || !mapaActual || !zipVivo) {
       const adjuntosEnviados = [...adjuntos];
+      const solicitudId = `solicitud-${Date.now()}`;
       setAdjuntos([]);
       setInputTexto('');
       setMensajes((prev) => [...prev, {
-        id: `msg-${Date.now()}`, emisor: 'docente', texto, fecha: new Date(),
+        id: solicitudId, emisor: 'docente', texto, fecha: new Date(),
         adjuntos: adjuntosEnviados.map(({ nombre, tipo }) => ({ nombre, tipo })),
       }]);
       setIsProcessing(true);
@@ -902,9 +903,13 @@ export default function CamilaFormato() {
           id: `msg-${Date.now()}`, emisor: 'camila', texto: respuesta, fecha: new Date(),
         }]);
       } catch (error) {
-        setMensajes((prev) => [...prev, {
-          id: `msg-${Date.now()}`, emisor: 'camila',
-          texto: error instanceof Error ? error.message : 'No pude completar su solicitud. Por favor, inténtelo nuevamente.',
+        // Dejar la solicitud intacta en el cuadro de texto para reintentar;
+        // no incluir intentos fallidos ni mensajes técnicos en el historial de IA.
+        setInputTexto(texto);
+        setAdjuntos(adjuntosEnviados);
+        setMensajes((prev) => [...prev.filter(m => m.id !== solicitudId), {
+          id: `aviso-${Date.now()}`, emisor: 'sistema',
+          texto: `${error instanceof Error ? error.message : 'No pude completar su solicitud.'} Su mensaje se conservó. Puede pulsar Enviar para intentarlo nuevamente.`,
           fecha: new Date(),
         }]);
       } finally {
@@ -915,6 +920,7 @@ export default function CamilaFormato() {
     }
 
     const adjuntosEnviados = [...adjuntos];
+    const solicitudId = `solicitud-${Date.now()}`;
     setAdjuntos([]);
     setInputTexto('');
 
@@ -922,7 +928,7 @@ export default function CamilaFormato() {
     setMensajes((prev) => [
       ...prev,
       {
-        id: `msg-${Date.now()}`,
+        id: solicitudId,
         emisor: 'docente',
         texto,
         adjuntos: adjuntosEnviados.map((a) => ({ nombre: a.nombre, tipo: a.tipo })),
@@ -986,13 +992,15 @@ export default function CamilaFormato() {
         }]);
       }
     } catch (err: any) {
-      console.error('[CamilaFormato] Error en turno:', err);
+      console.error('[CamilaFormato] No se pudo completar el turno.');
+      setInputTexto(texto);
+      setAdjuntos(adjuntosEnviados);
       setMensajes((prev) => [
-        ...prev,
+        ...prev.filter(m => m.id !== solicitudId),
         {
-          id: `msg-${Date.now()}`,
-          emisor: 'camila',
-          texto: err?.message || 'Ocurrió un error al procesar su solicitud. Por favor, inténtelo nuevamente.',
+          id: `aviso-${Date.now()}`,
+          emisor: 'sistema',
+          texto: `${err?.message || 'Ocurrió un error al procesar su solicitud.'} Su mensaje se conservó. Puede pulsar Enviar para intentarlo nuevamente.`,
           fecha: new Date(),
         },
       ]);
