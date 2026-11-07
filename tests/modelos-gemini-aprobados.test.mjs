@@ -21,3 +21,18 @@ test('las solicitudes de texto no pueden elegir un modelo más caro o de voz', (
     assert.equal(esModeloGeminiTextoPermitido(modelo), false);
   }
 });
+
+test('la función de generación en Vercel no importa módulos TypeScript del frontend sin extensión', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const codigo = await readFile(new URL('../api/generate.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(codigo, /from ['"]\\.\\.\\/src\\/lib\\/modelosGemini['"]/);
+  assert.match(codigo, /new Set\\(\\['gemini-3\\.5-flash', 'gemini-3\\.5-flash-lite'\\]\\)/);
+  assert.match(codigo, /esModeloGeminiTextoPermitido\\(model\\)/);
+});
+
+test('la lectura del formato protege contra respuestas del servidor que no sean JSON', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const codigo = await readFile(new URL('../src/lib/gemini.ts', import.meta.url), 'utf8');
+  assert.match(codigo, /try \\{\\s*payload = await response\\.json\\(\\)/);
+  assert.match(codigo, /No se pudo procesar el formato en este momento/);
+});
