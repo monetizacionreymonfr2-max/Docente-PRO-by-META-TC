@@ -4,6 +4,7 @@ on:
     branches:
       - implementacion-claude-flujo-completo-20261030
       - finalizacion-mi-formato-20261106
+      - feat/llamadas-camila-gemini-20261107
   workflow_dispatch:
 jobs:
   validar:
