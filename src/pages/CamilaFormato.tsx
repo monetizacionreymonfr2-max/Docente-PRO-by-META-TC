@@ -455,6 +455,7 @@ export default function CamilaFormato() {
     try {
       if (conversacionId) await actualizarHistorialEnCola(conversacionId);
       const conversacion = await CamilaPersistence.obtenerConversacion(teacherId, id);
+      finalizarLlamada();
       cerrarDocumentoDeSesion();
       historialVozRef.current = [];
       omitirPrimerAutoguardadoRef.current = conversacion.id;
@@ -474,6 +475,7 @@ export default function CamilaFormato() {
     setPersistenciaOcupada(true);
     try {
       if (conversacionId) await actualizarHistorialEnCola(conversacionId);
+      finalizarLlamada();
       cerrarDocumentoDeSesion();
       historialVozRef.current = [];
       setConversacionId(null);
@@ -557,6 +559,12 @@ export default function CamilaFormato() {
       setIsProcessing(true);
       setProgresoDetalle('Cargando documento y analizando estructura...');
 
+      // Evitar que una llamada antigua reciba contexto de un Word diferente.
+      // La primera carga dentro de una conversación mantiene su continuidad.
+      if (docVivo && formatoActivo?.id !== formato.id) {
+        finalizarLlamada();
+        historialVozRef.current = [];
+      }
       // Un Word diferente abre un trabajo nuevo. Conservar la conversación
       // guardada anterior sin reemplazar sus mensajes por los del otro Word.
       if (docVivo && conversacionId) {
