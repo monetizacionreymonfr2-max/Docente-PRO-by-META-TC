@@ -21,6 +21,8 @@ jobs:
       - run: npm run lint
       - run: npm run test:gemini
       - run: npm run test:gemini-modelos
+      - run: node --import tsx --test tests/camila-contexto-voz.test.mjs
+      - run: npm run test:camila-voz
       - run: npm run test:ppa-completo
         env:
           CAMILA_PPA_QA_OUTPUT: artifacts/camila-ppa-6-semanas-ficticio.docx
