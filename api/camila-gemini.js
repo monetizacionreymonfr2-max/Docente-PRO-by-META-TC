@@ -423,11 +423,35 @@ export default async function handler(req, res) {
         } : {}),
       },
     };
-    const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelo}:generateContent`,{
-      method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},
-      body:JSON.stringify(body),
-      signal:AbortSignal.timeout(formato || esBloque || esCompleto ? 50000 : 35000)
-    });
+    // Solo repetir errores temporales confirmados (502, 503, 504). No repetir
+    // timeouts ni errores de red ambiguos: la solicitud podría haberse procesado.
+    // Tampoco saltar cuotas (429), autenticación o errores de formato.
+    const temporal = (status) => status === 502 || status === 503 || status === 504;
+    const modelos = mode === 'chat' && modelo !== 'gemini-3.5-flash'
+      ? [modelo, 'gemini-3.5-flash'] : [modelo];
+    let response;
+    let modeloUsado = modelo;
+    for (let i = 0; i < modelos.length; i++) {
+      const candidato = modelos[i];
+      const intentos = i === 0 ? 2 : 1; // máximo 3 llamadas en chat; 2 en documentos
+      const cuerpo = candidato === modelo ? body : {
+        ...body, generationConfig: {
+          ...body.generationConfig, thinkingConfig: { thinkingLevel: 'low' },
+        },
+      };
+      for (let intento = 0; intento < intentos; intento++) {
+        response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${candidato}:generateContent`, {
+          method: 'POST', headers: {'content-type':'application/json','x-goog-api-key':key},
+          body: JSON.stringify(cuerpo),
+          signal: AbortSignal.timeout(formato || esBloque || esCompleto ? 50000 : 18000),
+        });
+        modeloUsado = candidato;
+        if (!temporal(response.status)) break;
+        if (intento + 1 < intentos) await new Promise(resolve => setTimeout(resolve, 300));
+      }
+      if (!response || !temporal(response.status)) break;
+    }
+    if (!response) throw new Error('Sin respuesta de Gemini');
     if (!response.ok) {
       const category = response.status === 429 ? 'CUOTA_O_LIMITE' :
         response.status === 400 ? 'SOLICITUD_NO_ADMITIDA' :
@@ -435,8 +459,14 @@ export default async function handler(req, res) {
         response.status >= 500 ? 'PROVEEDOR_NO_DISPONIBLE' : 'ERROR_PROVEEDOR';
       // Solo metadatos: nunca registrar mensajes, tokens, claves ni el cuerpo del error.
       console.error('[Camila Gemini] Gemini HTTP:', response.status, 'Categoria:', category);
+      if (temporal(response.status)) {
+        return res.status(503).json({
+          error:'Camila está ocupada temporalmente. Puede volver a intentarlo en unos segundos.',
+          reintentable:true,
+        });
+      }
       return res.status(response.status === 429 ? 429 : 502).json({error:response.status === 429
-        ? 'Gemini alcanzó temporalmente su límite de solicitudes. Intente de nuevo en unos minutos.'
+        ? 'Camila alcanzó temporalmente el límite de solicitudes. Intente de nuevo en unos minutos.'
         : 'No se pudo completar la solicitud a Camila'});
     }
     const data=await response.json();
@@ -447,7 +477,7 @@ export default async function handler(req, res) {
       output_tokens:(Number(data.usageMetadata?.candidatesTokenCount)||0)+(Number(data.usageMetadata?.thoughtsTokenCount)||0),
     };
     // Registrar el uso antes de analizar JSON: incluso una respuesta inválida cuesta tokens.
-    await registrarUso(url,serviceKey,user.id,modelo,mode,usage);
+    await registrarUso(url,serviceKey,user.id,modeloUsado,mode,usage);
     if (!answer.trim() || candidate?.finishReason === 'MAX_TOKENS') {
       console.error('[Camila Gemini] Respuesta vacía o incompleta:',candidate?.finishReason || 'SIN_CONTENIDO');
       return res.status(502).json({error:'Camila no pudo completar la respuesta. Intente con una solicitud más breve.'});
