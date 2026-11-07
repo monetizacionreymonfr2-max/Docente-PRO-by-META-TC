@@ -14,15 +14,15 @@ test('después de tres minutos, la siguiente llamada recibe los turnos de voz an
   assert.match(contexto[3].parts[0].text, /cuántas semanas/);
 });
 
-test('respetar documento y proyecto activo sin crear propuestas ni inventar datos', () => {
+test('respetar documento y proyecto activo con edición directa y sin inventar datos', () => {
   const contexto = prepararContextoLlamadaCamila([], [], {
     formato: 'Formato Institucional.docx', proyecto: 'Tradiciones de mi pueblo',
-    hayPropuesta: true,
   });
   assert.equal(contexto.length, 1);
   assert.match(contexto[0].parts[0].text, /Formato Institucional\.docx/);
   assert.match(contexto[0].parts[0].text, /Tradiciones de mi pueblo/);
-  assert.match(contexto[0].parts[0].text, /pendiente de revisión y aprobación/);
+  assert.match(contexto[0].parts[0].text, /vista previa/);
+  assert.match(contexto[0].parts[0].text, /Deshacer/);
   assert.match(contexto[0].parts[0].text, /NO una nueva petición/);
 });
 

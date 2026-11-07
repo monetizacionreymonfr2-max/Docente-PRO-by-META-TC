@@ -20,7 +20,6 @@ interface MensajeChatReferencia {
 interface EstadoTrabajoVoz {
   formato?: string;
   proyecto?: string;
-  hayPropuesta?: boolean;
 }
 
 function limpiarTexto(texto: string, limite: number): string {
@@ -67,12 +66,11 @@ export function prepararContextoLlamadaCamila(
   const notas = [
     estado.formato ? `Word abierto: ${limpiarTexto(estado.formato, 140)}` : '',
     estado.proyecto ? `Proyecto vinculado: ${limpiarTexto(estado.proyecto, 140)}` : '',
-    estado.hayPropuesta ? 'Existe una propuesta de cambios pendiente de revisión y aprobación del docente.' : '',
   ].filter(Boolean);
   if (notas.length) {
     turnos.push({
       role: 'user',
-      parts: [{ text: 'Contexto de la aplicación, NO una nueva petición ni hechos que debas inventar: ' + notas.join(' | ') + '. Continúa desde lo ya conversado y no apliques modificaciones sin aprobación.' }],
+      parts: [{ text: 'Contexto de la aplicación, NO una nueva petición ni hechos que debas inventar: ' + notas.join(' | ') + '. Continúa desde lo ya conversado. Cuando el docente pida editar el Word, los cambios se verán directamente en la vista previa, con opción de Deshacer; no se guardan en la nube sin permiso.' }],
     });
   }
 

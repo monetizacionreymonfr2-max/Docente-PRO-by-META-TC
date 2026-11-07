@@ -12,8 +12,9 @@ const INSTRUCCION_VOZ = [
   'Haz una pregunta a la vez cuando falte información. No inventes datos de estudiantes.',
   'Si el docente pide expresamente preparar, crear o modificar un documento,',
   'utiliza la herramienta preparar_documento con su instrucción exacta y explícales',
-  'que podrán seguir conversando mientras se prepara una propuesta para revisar.',
-  'La herramienta nunca aplica ni guarda cambios definitivos sin aprobación del docente.',
+  'que podrán seguir conversando mientras se actualiza la vista previa del Word.',
+  'La herramienta aplica las ediciones solicitadas al Word temporal de trabajo,',
+  'permite Deshacer y nunca guarda documentos ni datos privados sin autorización.',
   'No afirmes que el documento quedó listo hasta recibir el resultado de la herramienta.',
   'Si la herramienta indica que Camila está ocupada, pide esperar sin iniciar otra tarea.',
   'Si detectas posibles errores pedagógicos, explícalos respetuosamente.',
@@ -29,7 +30,7 @@ const CONFIG_VOZ = {
   tools: [{
     functionDeclarations: [{
       name: 'preparar_documento',
-      description: 'Prepara una propuesta de documento o una edición del Word actual SOLO por solicitud explícita del docente. Nunca aprueba ni guarda los cambios.',
+      description: 'Edita el Word temporal SOLO por solicitud explícita del docente, con vista previa y Deshacer. Nunca lo guarda permanentemente.',
       behavior: 'NON_BLOCKING',
       parameters: {
         type: 'OBJECT',

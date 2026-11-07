@@ -60,6 +60,7 @@ import {
   revisarDocumentoVivo,
 } from '../lib/camilaFormato/camilaFormatoEngine';
 import { obtenerAccionesDocumento } from '../lib/camilaFormato/accionesDocumento';
+import { prepararEdicionAutomatica } from '../lib/camilaFormato/edicionAutomatica';
 import { combinarDatosProyecto, type DatosProyectoPropuesto } from '../lib/camilaFormato/contextoProyectoPpa';
 import { datosProyectoDesdeLibro, preguntaPendienteLibroPpa, type LibroHechosPpa } from '../lib/camilaFormato/libroHechosPpa';
 import { generarBorradorPpaSinPlantilla, prepararBorradorPpa, solicitaCrearWordPpa } from '../lib/camilaFormato/borradorPpaSinPlantilla';
@@ -75,8 +76,6 @@ async function blobABase64(blob: Blob): Promise<string> {
   }
   return btoa(texto);
 }
-
-type ResultadoCamilaFormato = Awaited<ReturnType<typeof enviarMensajeACamilaFormato>>;
 
 export default function CamilaFormato() {
   const { teacherId, isAdmin, teacherName } = useOutletContext<{ teacherId: string; isAdmin?: boolean; teacherName?: string }>();
@@ -108,14 +107,6 @@ export default function CamilaFormato() {
     (isAdmin === true || opcionesEntorno?.VITE_CAMILA_LIVE_CALL_ROLLOUT === 'pro');
   useEffect(()=>{setVistaPdfUrl(null)},[blobDocx]);
   const [nombreBorradorLocal, setNombreBorradorLocal] = useState<string | null>(null);
-  // La propuesta se genera sobre una copia aislada. El documento activo solo
-  // cambia después de que el docente apruebe expresamente el resultado.
-  const [propuestaPendiente, setPropuestaPendiente] = useState<{
-    solicitud: string;
-    resultado: ResultadoCamilaFormato;
-    generadoSinPlantilla?: boolean;
-  } | null>(null);
-
   // Pila de snapshots para deshacer (máx 10)
   const [snapshots, setSnapshots] = useState<SnapshotDocx[]>([]);
 
@@ -143,7 +134,6 @@ export default function CamilaFormato() {
     hayDocumento: Boolean(blobDocx),
     hayZip: Boolean(zipVivo),
     cantidadSnapshots: snapshots.length,
-    hayPropuesta: Boolean(propuestaPendiente),
     procesando: isProcessing,
   });
   const [progresoDetalle, setProgresoDetalle] = useState<string | null>(null);
@@ -233,7 +223,6 @@ export default function CamilaFormato() {
     const contextoAnterior = prepararContextoLlamadaCamila(historialVozRef.current, mensajes, {
       formato: formatoActivo?.nombre || nombreBorradorLocal || undefined,
       proyecto: proyectoActivo?.titulo || undefined,
-      hayPropuesta: Boolean(propuestaPendiente),
     });
     const llamada = new SesionVozCamila({
       alConectar: () => {
@@ -400,7 +389,7 @@ export default function CamilaFormato() {
   };
 
   const guardarConversacion = async () => {
-    if (persistenciaOcupada || isProcessing || propuestaPendiente) return;
+    if (persistenciaOcupada || isProcessing) return;
     setPersistenciaOcupada(true);
     setAvisoPrivacidad(null);
     try {
@@ -417,8 +406,8 @@ export default function CamilaFormato() {
   };
 
   const confirmarCambioDeConversacion = () => {
-    if (propuestaPendiente || isProcessing) {
-      setAvisoPrivacidad('Primero apruebe o descarte la propuesta pendiente.');
+    if (isProcessing) {
+      setAvisoPrivacidad('Espere a que Camila termine de actualizar el documento.');
       return false;
     }
     if (hayConversacionSinGuardar(conversacionId, mensajes.length) &&
@@ -489,7 +478,7 @@ export default function CamilaFormato() {
   };
 
   const eliminarConversacion = async (id: string, titulo: string) => {
-    if (persistenciaOcupada || isProcessing || propuestaPendiente) return;
+    if (persistenciaOcupada || isProcessing) return;
     if (!window.confirm(`Se eliminará exclusivamente la conversación «${titulo}» de su historial. Esta acción no se puede deshacer. ¿Confirma?`)) return;
     setPersistenciaOcupada(true);
     try {
@@ -538,10 +527,10 @@ export default function CamilaFormato() {
 
   // Cargar formato activo en memoria
   const cargarFormatoEnSesion = async (formato: FormatoDocente, arrayBuffer?: ArrayBuffer) => {
-    if (isProcessing || propuestaPendiente) {
+    if (isProcessing) {
       setMensajes((prev) => [...prev, {
         id: `msg-${Date.now()}`, emisor: 'camila',
-        texto: 'Antes de abrir otro documento, espere a que termine el proceso actual y apruebe o descarte cualquier propuesta pendiente.', fecha: new Date(),
+        texto: 'Espere a que Camila termine de actualizar el documento antes de abrir otro.', fecha: new Date(),
       }]);
       return;
     }
@@ -665,10 +654,10 @@ export default function CamilaFormato() {
   // Manejador de subida de archivo desde el input
   const handleFileUpload = async (file: File) => {
     if (!file) return;
-    if (isProcessing || propuestaPendiente) {
+    if (isProcessing) {
       setMensajes((prev) => [...prev, {
         id: `msg-${Date.now()}`, emisor: 'camila',
-        texto: 'Espere a que termine el proceso actual y apruebe o descarte cualquier propuesta pendiente antes de adjuntar otro formato.', fecha: new Date(),
+        texto: 'Espere a que Camila termine de actualizar el documento antes de adjuntar otro formato.', fecha: new Date(),
       }]);
       return;
     }
@@ -794,7 +783,7 @@ export default function CamilaFormato() {
   };
 
   const guardarVersionAutorizada = async () => {
-    if (!blobDocx || isProcessing || propuestaPendiente || persistenciaOcupada) return;
+    if (!blobDocx || isProcessing || persistenciaOcupada) return;
     const nombre = formatoActivo?.nombre || nombreBorradorLocal || 'PPA';
     if (!window.confirm(`¿Autoriza guardar una copia de «${nombre}» en su biblioteca privada de DOCENTY PRO? Solo usted podrá acceder a esta versión.`)) return;
     setPersistenciaOcupada(true);
@@ -808,7 +797,7 @@ export default function CamilaFormato() {
   };
 
   const recuperarVersion = async (version: VersionDocumentoPpa) => {
-    if (isProcessing || propuestaPendiente || persistenciaOcupada) return;
+    if (isProcessing || persistenciaOcupada) return;
     if (docVivo && !window.confirm('Se abrirá la versión guardada y se cerrará el Word actual. Descargue antes cualquier cambio no guardado. ¿Continuar?')) return;
     setPersistenciaOcupada(true);
     try {
@@ -830,11 +819,31 @@ export default function CamilaFormato() {
     } finally { setPersistenciaOcupada(false); }
   };
 
+  // Cada instrucción explícita actualiza el Word de trabajo inmediatamente.
+  // Se valida la copia antes de reemplazar el estado, y cada edición queda
+  // disponible para Deshacer. No se guarda ningún archivo en la nube aquí.
+  const aplicarEnVistaPrevia = async (
+    solicitud: string,
+    resultado: Awaited<ReturnType<typeof enviarMensajeACamilaFormato>>,
+    generadoSinPlantilla = false,
+  ) => {
+    setProgresoDetalle('Actualizando la vista previa del Word...');
+    const edicion = await prepararEdicionAutomatica(resultado.nuevoBlob, solicitud);
+    setDocVivo(edicion.doc);
+    setZipVivo(edicion.zip);
+    setMapaActual(edicion.mapa);
+    setBlobDocx(resultado.nuevoBlob);
+    setRevisionActual(resultado.revision);
+    if (generadoSinPlantilla) setNombreBorradorLocal('PPA_Borrador_Docente');
+    setSnapshots((prev) => [...prev.slice(-9), edicion.snapshot]);
+    setTabActiva('documento');
+  };
+
   const handleEnviarMensaje = async (textoAEnviar?: string) => {
     const texto = (textoAEnviar || inputTexto).trim() || (adjuntos.length
       ? 'Analice los archivos adjuntos, indíqueme qué información contienen y pregúnteme qué documento desea preparar con ellos.'
       : '');
-    if ((!texto && adjuntos.length === 0) || isProcessing || propuestaPendiente) return;
+    if ((!texto && adjuntos.length === 0) || isProcessing) return;
     if (escuchando) reconocimientoRef.current?.stop();
 
     // El docente también puede conversar sobre educación antes de abrir un Word.
@@ -895,24 +904,23 @@ export default function CamilaFormato() {
             } else if (decision.listo === false) {
               respuesta = `Puedo preparar un borrador Word sin exigir un proyecto guardado. ${decision.pregunta}`;
             } else {
-              setProgresoDetalle('Camila está redactando el borrador Word para su aprobación...');
+              setProgresoDetalle('Camila está redactando el borrador Word...');
               const generado = decision.semanas
                 ? await generarPpaSinPlantillaCompleto(datosVerificados)
                 : await generarBorradorPpaSinPlantilla(datosVerificados);
               const archivoPropuesto = await cargarDocx(generado.blob);
               const revision = revisarDocumentoVivo(null, archivoPropuesto.doc, null);
-              const propuesta: ResultadoCamilaFormato = {
+              const resultadoWord: Awaited<ReturnType<typeof enviarMensajeACamilaFormato>> = {
                 respuestaCamila: 'Borrador preparado para revisión.',
                 operacionesEjecutadas: [], operacionesOmitidas: [],
                 nuevoBlob: generado.blob,
                 nuevoMapa: construirMapa(archivoPropuesto.doc),
                 revision,
               };
-              setPropuestaPendiente({ solicitud: texto, resultado: propuesta, generadoSinPlantilla: true });
-              setTabActiva('documento');
-              respuesta = `Preparé un **borrador Word del PPA** a partir de los datos de esta conversación. No he copiado la identidad de ningún formato anterior. ${
+              await aplicarEnVistaPrevia(texto, resultadoWord, true);
+              respuesta = `Preparé el **borrador Word del PPA** a partir de esta conversación y ya está en la pestaña Documento. No he copiado la identidad de ningún formato anterior. ${
                 generado.pendientes.length ? `Queda por confirmar: ${generado.pendientes.join(', ')}.` : 'Los datos principales están completos.'
-              } Revíselo y elija **Aprobar y aplicar** o **Descartar propuesta**. Si su escuela usa un formato propio, puede adjuntarlo después.`;
+              } Puede pedirme ajustes directamente, descargarlo o adjuntar después el formato de su escuela.`;
             }
           }
         } else {
@@ -968,8 +976,8 @@ export default function CamilaFormato() {
           texto: m.texto,
         }));
 
-      // La inteligencia artificial prepara el borrador sobre una copia real del
-      // DOCX. Nunca modificamos docVivo ni zipVivo antes de la autorización.
+      // La inteligencia artificial edita una copia real del DOCX; solamente
+      // después de validar el resultado actualizamos el Word visible.
       if (!blobDocx) throw new Error('No hay un documento Word disponible.');
       const borrador = await cargarDocx(blobDocx);
       const resultado = await enviarMensajeACamilaFormato({
@@ -995,12 +1003,13 @@ export default function CamilaFormato() {
       if (resultado.libroHechosExtraidos) setLibroHechosTemporal(resultado.libroHechosExtraidos);
 
       if (resultado.operacionesEjecutadas.length > 0) {
-        setPropuestaPendiente({ solicitud: texto, resultado });
-        setTabActiva('documento');
+        await aplicarEnVistaPrevia(texto, resultado);
         setMensajes((prev) => [...prev, {
           id: `msg-${Date.now()}`, emisor: 'camila',
-          texto: `He preparado una propuesta con ${resultado.operacionesEjecutadas.length} cambio(s). Su documento original sigue intacto. Revise la vista previa y elija **Aprobar y aplicar** o **Descartar propuesta**.`,
-          fecha: new Date(),
+          texto: `${resultado.respuestaCamila}\n\n**Ya apliqué ${resultado.operacionesEjecutadas.length} cambio(s) en la vista previa.** Puede pedirme otro ajuste, pulsar Deshacer o descargar el Word. El archivo original se conserva.`,
+          operacionesEjecutadas: resultado.operacionesEjecutadas,
+          operacionesOmitidas: resultado.operacionesOmitidas,
+          fecha: new Date(), revision: resultado.revision,
         }]);
       } else {
         setMensajes((prev) => [...prev, {
@@ -1029,18 +1038,18 @@ export default function CamilaFormato() {
     }
   };
 
-  // Gemini Live puede continuar conversando mientras el motor de documentos
-  // prepara un borrador independiente. La aprobación sigue siendo manual.
+  // Gemini Live puede seguir conversando mientras el motor actualiza en
+  // segundo plano el Word de trabajo, sin un paso de aprobación por edición.
   useEffect(() => {
     prepararDocumentoDesdeVozRef.current = async (instruccion) => {
       if (!llamadaHabilitada) return 'La preparación por voz no está habilitada.';
-      if (trabajoVozOcupadoRef.current || isProcessing || propuestaPendiente) {
-        return 'Camila ya está preparando un documento o esperando una aprobación. Pida al docente revisar el trabajo anterior.';
+      if (trabajoVozOcupadoRef.current || isProcessing) {
+        return 'Camila ya está actualizando un documento. Pida al docente esperar a que termine.';
       }
       trabajoVozOcupadoRef.current = true;
       try {
         await handleEnviarMensaje(instruccion);
-        return 'La solicitud fue atendida. Indique al docente que revise el chat y la pestaña Documento. Ningún cambio se ha aplicado sin su aprobación.';
+        return 'El procesamiento ha terminado. Pida al docente revisar los cambios o avisos en el chat y la pestaña Documento.';
       } catch {
         return 'Hubo un problema al preparar la solicitud. Pida al docente revisar el chat y reintentar.';
       } finally {
@@ -1049,60 +1058,8 @@ export default function CamilaFormato() {
     };
   });
 
-  const handleAprobarPropuesta = async () => {
-    if (!accionesDocumento.aprobar || !propuestaPendiente) return;
-    setIsProcessing(true);
-    setProgresoDetalle('Aplicando únicamente los cambios autorizados...');
-    try {
-      const { solicitud, resultado, generadoSinPlantilla } = propuestaPendiente;
-      const aprobado = await cargarDocx(resultado.nuevoBlob);
-      const mapaAprobado = construirMapa(aprobado.doc);
-      setDocVivo(aprobado.doc);
-      setZipVivo(aprobado.zip);
-      setMapaActual(mapaAprobado);
-      setBlobDocx(resultado.nuevoBlob);
-      setRevisionActual(resultado.revision);
-      if (generadoSinPlantilla) setNombreBorradorLocal('PPA_Borrador_Docente');
-      const xmlAprobado = new XMLSerializer().serializeToString(aprobado.doc);
-      setSnapshots((prev) => [...prev.slice(-9), {
-        id: `snap-${Date.now()}`, xml: xmlAprobado, mapa: mapaAprobado,
-        descripcion: solicitud.slice(0, 40) || 'Modificación autorizada', timestamp: Date.now(),
-      }]);
-      setPropuestaPendiente(null);
-      setTabActiva('chat');
-      setMensajes((prev) => [...prev, {
-        id: `msg-${Date.now()}`, emisor: 'camila',
-        texto: generadoSinPlantilla
-          ? 'Borrador Word aprobado. Ya puede descargarlo o pedirme cambios. Para respetar el formato de su escuela, adjunte el Word institucional cuando lo tenga.'
-          : `Cambios aplicados con su autorización: ${resultado.operacionesEjecutadas.length} modificación(es) en el documento Word. Puede revisar el resultado, utilizar Deshacer durante esta sesión o descargar la nueva versión cuando esté conforme.`,
-        operacionesEjecutadas: resultado.operacionesEjecutadas,
-        operacionesOmitidas: resultado.operacionesOmitidas,
-        fecha: new Date(), revision: resultado.revision,
-      }]);
-    } catch (error) {
-      setMensajes((prev) => [...prev, {
-        id: `msg-${Date.now()}`, emisor: 'camila',
-        texto: 'No se pudieron aplicar los cambios. Su documento original sigue intacto; puede volver a intentar o descartar la propuesta.',
-        fecha: new Date(),
-      }]);
-    } finally {
-      setIsProcessing(false);
-      setProgresoDetalle(null);
-    }
-  };
-
-  const handleDescartarPropuesta = () => {
-    if (!accionesDocumento.descartar || !propuestaPendiente) return;
-    setPropuestaPendiente(null);
-    setTabActiva('chat');
-    setMensajes((prev) => [...prev, {
-      id: `msg-${Date.now()}`, emisor: 'camila',
-      texto: 'He descartado la propuesta. Su documento no ha sido modificado. ¿Qué desea hacer ahora?', fecha: new Date(),
-    }]);
-  };
-
   const solicitarPdfLibreOffice = async () => {
-    const word=propuestaPendiente?.resultado.nuevoBlob || blobDocx;
+    const word=blobDocx;
     if(!pdfLibreOfficeVisible || !word || procesandoOpcional)return;
     if(!window.confirm('Se enviará temporalmente este documento ficticio al worker privado de LibreOffice para producir un PDF de vista previa. ¿Autoriza?'))return;
     setProcesandoOpcional(true);
@@ -1145,7 +1102,7 @@ export default function CamilaFormato() {
     window.print();
   };
 
-  const revisionVisible = propuestaPendiente?.resultado.revision || revisionActual;
+  const revisionVisible = revisionActual;
 
   return (
     <div className="flex flex-col h-[calc(100dvh-5.2rem)] md:h-[calc(100vh-2rem)] max-w-7xl mx-auto p-1 sm:p-3 gap-2 sm:gap-3">
@@ -1190,7 +1147,7 @@ export default function CamilaFormato() {
             </button>
           )}
           {/* Botón Revisar Documento */}
-          {revisionVisible && (snapshots.length > 1 || Boolean(propuestaPendiente)) && (
+          {revisionVisible && snapshots.length > 1 && (
             <button
               type="button"
               onClick={() => setModalRevisionOpen(true)}
@@ -1206,11 +1163,6 @@ export default function CamilaFormato() {
                 {revisionVisible.celdasSinCambio === 0 ? '100%' : `${revisionVisible.celdasSinCambio} pend.`}
               </span>
             </button>
-          )}
-          {propuestaPendiente && (
-            <span className="px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-amber-200 bg-amber-500/15 border border-amber-400/40">
-              Pendiente de su autorización
-            </span>
           )}
 
           {/* Selector de pestañas móvil */}
@@ -1280,7 +1232,7 @@ export default function CamilaFormato() {
               <button
                 type="button"
                 onClick={() => setModalFormatosOpen(true)}
-                disabled={isProcessing || Boolean(propuestaPendiente)}
+                disabled={isProcessing}
                 className="px-3 py-1.5 rounded-xl bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/30 text-cyan-300 text-xs font-bold flex items-center gap-1.5 transition-all"
               >
                 <FolderOpen size={14} />
@@ -1290,7 +1242,7 @@ export default function CamilaFormato() {
               <button
                 type="button"
                 onClick={() => setModalProyectosOpen(true)}
-                disabled={isProcessing || Boolean(propuestaPendiente)}
+                disabled={isProcessing}
                 className="px-3 py-1.5 rounded-xl bg-teal-500/10 hover:bg-teal-500/20 border border-teal-400/30 text-teal-300 text-xs font-bold flex items-center gap-1.5 transition-all"
               >
                 <BookOpen size={14} />
@@ -1301,7 +1253,7 @@ export default function CamilaFormato() {
                 <History size={14} /> Historial
               </button>
               <button type="button" onClick={guardarConversacion}
-                disabled={persistenciaOcupada || isProcessing || Boolean(propuestaPendiente)}
+                disabled={persistenciaOcupada || isProcessing}
                 className="px-3 py-1.5 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 text-xs font-bold flex items-center gap-1.5 disabled:opacity-40"
                 title={conversacionId ? 'Actualizar conversación guardada' : 'Guardar esta conversación por primera vez'}>
                 <Save size={14} /> {conversacionId ? 'Guardar cambios' : 'Guardar chat'}
@@ -1454,7 +1406,7 @@ export default function CamilaFormato() {
             <button
               type="button"
               onClick={() => handleEnviarMensaje(docVivo ? 'Vacíelo con mi proyecto de aprendizaje' : 'Camila, ayúdeme a preparar un proyecto de aprendizaje.')}
-              disabled={isProcessing || Boolean(propuestaPendiente)}
+              disabled={isProcessing}
               className="px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-400/20 text-cyan-300 text-[11px] whitespace-nowrap transition-all disabled:opacity-40"
             >
               {docVivo ? '⚡ Vaciar con mi proyecto' : '✏️ Preparar un proyecto'}
@@ -1470,7 +1422,7 @@ export default function CamilaFormato() {
             <button
               type="button"
               onClick={() => handleEnviarMensaje('Quita el área de matemáticas')}
-              disabled={isProcessing || Boolean(propuestaPendiente) || !docVivo}
+              disabled={isProcessing || !docVivo}
               className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-[11px] whitespace-nowrap transition-all disabled:opacity-40"
             >
               Quitar matemáticas
@@ -1478,7 +1430,7 @@ export default function CamilaFormato() {
             <button
               type="button"
               onClick={() => handleEnviarMensaje('Agrega una semana más al cronograma')}
-              disabled={isProcessing || Boolean(propuestaPendiente) || !docVivo}
+              disabled={isProcessing || !docVivo}
               className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-[11px] whitespace-nowrap transition-all disabled:opacity-40"
             >
               +1 semana al cronograma
@@ -1486,7 +1438,7 @@ export default function CamilaFormato() {
             <button
               type="button"
               onClick={() => handleEnviarMensaje('Haz el diagnóstico más corto y preciso')}
-              disabled={isProcessing || Boolean(propuestaPendiente) || !docVivo}
+              disabled={isProcessing || !docVivo}
               className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-slate-300 text-[11px] whitespace-nowrap transition-all disabled:opacity-40"
             >
               Diagnóstico más corto
@@ -1527,7 +1479,7 @@ export default function CamilaFormato() {
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              disabled={isProcessing || Boolean(propuestaPendiente)}
+              disabled={isProcessing}
               className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all shrink-0 disabled:opacity-50 flex items-center justify-center cursor-pointer active:scale-95"
               title="Adjuntar Word, PDF o imagen"
             >
@@ -1549,7 +1501,7 @@ export default function CamilaFormato() {
             <button
               type="button"
               onClick={() => cameraInputRef.current?.click()}
-              disabled={isProcessing || Boolean(propuestaPendiente)}
+              disabled={isProcessing}
               className="w-10 h-10 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 hover:text-white border border-white/10 transition-all shrink-0 disabled:opacity-50 sm:hidden flex items-center justify-center cursor-pointer active:scale-95"
               title="Tomar foto con cámara"
             >
@@ -1572,7 +1524,7 @@ export default function CamilaFormato() {
             <button
               type="button"
               onClick={alternarDictado}
-              disabled={isProcessing || Boolean(propuestaPendiente) || estadoLlamada !== 'inactiva'}
+              disabled={isProcessing || estadoLlamada !== 'inactiva'}
               className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl border transition-all shrink-0 flex items-center justify-center disabled:opacity-40 ${
                 escuchando
                   ? 'bg-rose-500/20 border-rose-400/60 text-rose-200 animate-pulse'
@@ -1588,7 +1540,7 @@ export default function CamilaFormato() {
             {/* Input de texto */}
             <textarea
               value={inputTexto}
-              disabled={isProcessing || Boolean(propuestaPendiente)}
+              disabled={isProcessing}
               onChange={(e) => setInputTexto(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -1609,7 +1561,7 @@ export default function CamilaFormato() {
             <button
               type="button"
               onClick={() => handleEnviarMensaje()}
-              disabled={isProcessing || Boolean(propuestaPendiente) || (!inputTexto.trim() && adjuntos.length === 0)}
+              disabled={isProcessing || (!inputTexto.trim() && adjuntos.length === 0)}
               className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white shadow-lg shadow-cyan-500/30 disabled:opacity-40 transition-all shrink-0 flex items-center justify-center cursor-pointer active:scale-95 z-30"
               title="Enviar mensaje"
             >
@@ -1682,39 +1634,9 @@ export default function CamilaFormato() {
             </div>
           </div>
 
-          {/* La propuesta es un borrador aislado, no un cambio ya guardado. */}
-          {propuestaPendiente && (
-            <div className="shrink-0 px-3 py-3 border-b border-amber-400/30 bg-amber-500/10 space-y-2" role="status">
-              <div className="flex items-start gap-2">
-                <ShieldCheck size={17} className="text-amber-300 mt-0.5 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-sm text-white font-bold">{propuestaPendiente.generadoSinPlantilla ? 'Nuevo borrador PPA para su revisión' : 'Vista previa de cambios propuestos'}</p>
-                  <p className="text-xs text-slate-300 mt-0.5">
-                    {propuestaPendiente.generadoSinPlantilla
-                      ? 'Word creado sin plantilla institucional. No se guardará hasta que usted lo apruebe.'
-                      : `${propuestaPendiente.resultado.operacionesEjecutadas.length} cambio(s) preparados. El documento actual aún no se ha modificado.`}
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-1 line-clamp-2">
-                    Solicitud: {propuestaPendiente.solicitud}
-                  </p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={handleDescartarPropuesta} disabled={!accionesDocumento.descartar}
-                  className="px-2.5 py-2 rounded-xl text-xs font-bold text-slate-200 bg-white/10 border border-white/20 hover:bg-white/20 disabled:opacity-50">
-                  Descartar propuesta
-                </button>
-                <button type="button" onClick={handleAprobarPropuesta} disabled={!accionesDocumento.aprobar}
-                  className="px-2.5 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-50">
-                  {isProcessing ? 'Aplicando...' : 'Aprobar y aplicar'}
-                </button>
-              </div>
-            </div>
-          )}
-
           {/* ÁREA DE VISUALIZACIÓN DEL WORD */}
           <div className="flex-1 overflow-auto p-3 flex flex-col items-center justify-center">
-            {blobDocx || propuestaPendiente ? (
+            {blobDocx ? (
               <div className="w-full h-full flex flex-col">
                 {vistaPdfUrl ? (
                   <div className="flex-1 flex flex-col gap-2">
@@ -1726,7 +1648,7 @@ export default function CamilaFormato() {
                       className="flex-1 min-h-[320px] w-full bg-white rounded-lg" />
                   </div>
                 ) : (
-                  <DocxPreviewViewer blob={(propuestaPendiente?.resultado.nuevoBlob || blobDocx)!} className="flex-1 w-full" />
+                  <DocxPreviewViewer blob={blobDocx} className="flex-1 w-full" />
                 )}
               </div>
             ) : (
@@ -1781,9 +1703,9 @@ export default function CamilaFormato() {
             <p className="text-xs text-slate-300">Las conversaciones se guardan solo cuando usted lo autoriza con «Guardar chat». Después se actualizan mientras continúa conversando. Los archivos Word no se guardan aquí.</p>
             {avisoPrivacidad && <p role="status" className="text-xs text-amber-200 bg-amber-500/10 p-2 rounded-xl">{avisoPrivacidad}</p>}
             <div className="grid grid-cols-2 gap-2">
-              <button type="button" onClick={guardarConversacion} disabled={persistenciaOcupada || isProcessing || Boolean(propuestaPendiente)}
+              <button type="button" onClick={guardarConversacion} disabled={persistenciaOcupada || isProcessing}
                 className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-bold"><Save size={13} className="inline mr-1" /> Guardar actual</button>
-              <button type="button" onClick={nuevaConversacion} disabled={persistenciaOcupada || isProcessing || Boolean(propuestaPendiente)}
+              <button type="button" onClick={nuevaConversacion} disabled={persistenciaOcupada || isProcessing}
                 className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 disabled:opacity-40 text-white text-xs font-bold"><Plus size={13} className="inline mr-1" /> Nueva conversación</button>
             </div>
             <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
@@ -1795,7 +1717,7 @@ export default function CamilaFormato() {
                     <span className="text-[10px] text-slate-400">{new Date(c.updated_at).toLocaleString('es-VE')}</span>
                   </button>
                   <button type="button" onClick={() => eliminarConversacion(c.id, c.titulo)}
-                    disabled={persistenciaOcupada || isProcessing || Boolean(propuestaPendiente)}
+                    disabled={persistenciaOcupada || isProcessing}
                     className="p-2 rounded-lg hover:bg-red-500/20 text-red-300 disabled:opacity-40" aria-label={`Eliminar únicamente ${c.titulo}`} title="Eliminar esta conversación"><Trash2 size={15} /></button>
                 </div>
               ))}
@@ -2019,7 +1941,7 @@ export default function CamilaFormato() {
                     : 'bg-amber-500/10 border-amber-500/30 text-amber-200'
                 }`}
               >
-                <span className="font-bold block text-sm">{revisionVisible.aprobado ? '¡Aprobado al 100%!' : 'Atención pendiente'}</span>
+                <span className="font-bold block text-sm">{revisionVisible.aprobado ? 'Revisión completa' : 'Aspectos por revisar'}</span>
                 <p className="mt-1 leading-relaxed">{revisionVisible.resumen}</p>
               </div>
 

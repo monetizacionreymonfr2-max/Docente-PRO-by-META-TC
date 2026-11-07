@@ -8,6 +8,7 @@ import {
 } from '../src/lib/docxClone/docxEditor.ts';
 import { prepararDeshacerSeguro } from '../src/lib/camilaFormato/deshacerSeguro.ts';
 import { obtenerAccionesDocumento } from '../src/lib/camilaFormato/accionesDocumento.ts';
+import { prepararEdicionAutomatica } from '../src/lib/camilaFormato/edicionAutomatica.ts';
 
 const NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -106,30 +107,30 @@ async function prepararPropuesta(blobOriginal, contenido = 'Lectura guiada con p
   return guardarDocx(borrador.zip, borrador.doc);
 }
 
-test('proponer y descartar deja intacto el Word activo, encabezado y logo', async () => conDomDePrueba(async () => {
+test('editar automáticamente el Word de trabajo conserva el original, encabezado y logo', async () => conDomDePrueba(async () => {
   const original = await crearWordFicticio();
   const activo = await cargarDocx(original);
   const xmlActivoAntes = await activo.zip.file('word/document.xml').async('string');
   const propuesta = await prepararPropuesta(original);
-  const borrador = await cargarDocx(propuesta);
+  const borrador = await prepararEdicionAutomatica(propuesta, 'Editar actividad');
 
-  assert.match(borrador.xmlString, /Lectura guiada con palabras ficticias/);
+  assert.match(borrador.snapshot.xml, /Lectura guiada con palabras ficticias/);
+  assert.equal(borrador.snapshot.descripcion, 'Editar actividad');
   assert.equal(await activo.zip.file('word/document.xml').async('string'), xmlActivoAntes);
   assert.equal((await cargarDocx(original)).xmlString, ORIGINAL);
-  // Descartar equivale a conservar la referencia activa; no se aplica el borrador.
   assert.match(activo.xmlString, /Actividad original/);
   const zipPropuesta = await JSZip.loadAsync(await propuesta.arrayBuffer());
   assert.equal(await zipPropuesta.file('word/header1.xml').async('string'), ENCABEZADO);
   assert.deepEqual(await zipPropuesta.file('word/media/logo.png').async('uint8array'), LOGO);
 }));
 
-test('aprobar y deshacer conserva la estructura institucional sin mutar el borrador', async () => conDomDePrueba(async () => {
+test('aplicar y deshacer conserva la estructura institucional sin mutar el original', async () => conDomDePrueba(async () => {
   const original = await crearWordFicticio();
   const zipOriginal = await JSZip.loadAsync(await original.arrayBuffer());
   const propuesta = await prepararPropuesta(original);
-  const aprobado = await cargarDocx(propuesta);
+  const aprobado = await prepararEdicionAutomatica(propuesta, 'Primera edición');
   assert.equal(construirMapa(aprobado.doc).tablas[0].filas.length, 2);
-  assert.match(aprobado.xmlString, /Lectura guiada/);
+  assert.match(aprobado.snapshot.xml, /Lectura guiada/);
   const validacion = await validarDocxClonado(zipOriginal, propuesta, { conteoEsperadoFilas: { t0: 2 } });
   assert.equal(validacion.valido, true, validacion.errores.join('; '));
 
@@ -181,62 +182,62 @@ test('el flujo conserva todas las relaciones, estilos, encabezado, pie y medios 
   assert.equal(validacion.valido, true, validacion.errores.join('; '));
 }));
 
-test('dos aprobaciones, un deshacer y una propuesta descartada conservan el último estado autorizado', async () => conDomDePrueba(async () => {
+test('dos ediciones automáticas y Deshacer recuperan el último estado visible', async () => conDomDePrueba(async () => {
   const original = await crearWordFicticio();
   const primera = await prepararPropuesta(original, 'Lectura ficticia A');
-  const xmlPrimera = (await cargarDocx(primera)).xmlString;
+  const edicionPrimera = await prepararEdicionAutomatica(primera, 'Lectura A');
+  const xmlPrimera = edicionPrimera.snapshot.xml;
   const segunda = await prepararPropuesta(primera, 'Lectura ficticia B');
   assert.match((await cargarDocx(segunda)).xmlString, /Lectura ficticia B/);
 
+  const edicionSegunda = await prepararEdicionAutomatica(segunda, 'Lectura B');
+  assert.match(edicionSegunda.snapshot.xml, /Lectura ficticia B/);
   const deshecho = await prepararDeshacerSeguro(segunda, xmlPrimera);
   assert.match((await cargarDocx(deshecho.blob)).xmlString, /Lectura ficticia A/);
   assert.doesNotMatch((await cargarDocx(deshecho.blob)).xmlString, /Lectura ficticia B/);
   assert.match((await cargarDocx(segunda)).xmlString, /Lectura ficticia B/);
 
-  // El tercer borrador se descarta: el estado visible sigue siendo el aprobado A.
-  const descartada = await prepararPropuesta(deshecho.blob, 'Borrador ficticio descartado');
-  assert.match((await cargarDocx(descartada)).xmlString, /Borrador ficticio descartado/);
-  assert.match((await cargarDocx(deshecho.blob)).xmlString, /Lectura ficticia A/);
-
-  const terceraAprobada = await prepararPropuesta(deshecho.blob, 'Lectura ficticia C');
-  assert.match((await cargarDocx(terceraAprobada)).xmlString, /Lectura ficticia C/);
+  const tercera = await prepararPropuesta(deshecho.blob, 'Lectura ficticia C');
+  assert.match((await prepararEdicionAutomatica(tercera, 'Lectura C')).snapshot.xml, /Lectura ficticia C/);
   assert.match((await cargarDocx(original)).xmlString, /Actividad original/);
 }));
 
-test('los botones de Mi Formato respetan el estado simulado de revisión y aprobación', () => {
+test('un Word inválido no llega a reemplazar el documento visible', async () => conDomDePrueba(async () => {
+  await assert.rejects(prepararEdicionAutomatica(new Blob(['No es Word']), 'Editar'));
+}));
+
+test('los botones de Mi Formato no dependen de una aprobación pendiente', () => {
   const abierto = {
     hayDocumento: true, hayZip: true, cantidadSnapshots: 1,
-    hayPropuesta: false, procesando: false,
+    procesando: false,
   };
   assert.deepEqual(obtenerAccionesDocumento(abierto), {
-    aprobar: false, descartar: false, deshacer: false, descargar: true,
+    deshacer: false, descargar: true,
   });
-  assert.deepEqual(obtenerAccionesDocumento({ ...abierto, hayPropuesta: true }), {
-    aprobar: true, descartar: true, deshacer: false, descargar: false,
-  });
-  assert.deepEqual(obtenerAccionesDocumento({ ...abierto, hayPropuesta: true, procesando: true }), {
-    aprobar: false, descartar: false, deshacer: false, descargar: false,
+  assert.deepEqual(obtenerAccionesDocumento({ ...abierto, procesando: true }), {
+    deshacer: false, descargar: false,
   });
   assert.deepEqual(obtenerAccionesDocumento({ ...abierto, cantidadSnapshots: 2 }), {
-    aprobar: false, descartar: false, deshacer: true, descargar: true,
+    deshacer: true, descargar: true,
   });
   assert.deepEqual(obtenerAccionesDocumento({ ...abierto, hayDocumento: false, cantidadSnapshots: 2 }), {
-    aprobar: false, descartar: false, deshacer: false, descargar: false,
+    deshacer: false, descargar: false,
   });
   assert.deepEqual(obtenerAccionesDocumento({ ...abierto, cantidadSnapshots: 2, hayZip: false }), {
-    aprobar: false, descartar: false, deshacer: false, descargar: true,
+    deshacer: false, descargar: true,
   });
 });
 
-test('la interfaz conserva la revisión y aprobación explícitas de propuestas', () => {
+test('la interfaz aplica cambios en la vista previa sin pedir aprobar cada propuesta', () => {
   const pantalla = readFileSync(new URL('../src/pages/CamilaFormato.tsx', import.meta.url), 'utf8');
   assert.match(pantalla, /obtenerAccionesDocumento\(/);
-  assert.match(pantalla, /disabled=\{!accionesDocumento\.aprobar\}/);
-  assert.match(pantalla, /disabled=\{!accionesDocumento\.descartar\}/);
+  assert.match(pantalla, /await aplicarEnVistaPrevia\(texto, resultado\)/);
+  assert.match(pantalla, /await aplicarEnVistaPrevia\(texto, resultadoWord, true\)/);
+  assert.match(pantalla, /setTabActiva\('documento'\)/);
+  assert.match(pantalla, /<DocxPreviewViewer blob=\{blobDocx\}/);
   assert.match(pantalla, /disabled=\{!accionesDocumento\.deshacer\}/);
   assert.match(pantalla, /disabled=\{!accionesDocumento\.descargar\}/);
   assert.match(pantalla, /prepararDeshacerSeguro\(blobDocx, anterior\.xml\)/);
   assert.match(pantalla, /No pude deshacer el último cambio\. Su documento permanece como estaba/);
-  assert.match(pantalla, /Descartar propuesta/);
-  assert.match(pantalla, /Aprobar y aplicar/);
+  assert.doesNotMatch(pantalla, /propuestaPendiente|Aprobar y aplicar|Descartar propuesta/);
 });

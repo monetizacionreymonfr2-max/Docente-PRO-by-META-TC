@@ -718,7 +718,7 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
     const nuevoDocumento = await cargarDocx(nuevoBlob);
     const nuevoMapa = construirMapa(nuevoDocumento.doc);
     return {
-      respuestaCamila: `Preparé ${plan.semanas.length} semanas completas en el Word y reconstruí las tablas y el pie de página. Revise la vista previa; no aplicaré nada sin su aprobación.`,
+      respuestaCamila: `Preparé ${plan.semanas.length} semanas completas en el Word y reconstruí las tablas y el pie de página. Los cambios aparecerán en la vista previa y podrá deshacerlos.`,
       operacionesEjecutadas: [{tipo:'vaciar_todo'}], operacionesOmitidas: [],
       nuevoBlob, nuevoMapa,
       revision: { aprobado:true, resumen:'Validación integral del PPA superada: datos, semanas y plantilla verificados.', detalles:[],
