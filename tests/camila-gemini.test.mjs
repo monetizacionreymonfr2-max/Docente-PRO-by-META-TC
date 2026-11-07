@@ -99,6 +99,75 @@ test('muestra cuota de Gemini como espera recuperable y no cambia de proveedor',
   assert.ok(requests.every(r=>!r.url.includes('anthropic.com')));
 });
 
+test('reintenta una respuesta temporal 503 y entrega el resultado sin cambiar de modelo',async()=>{
+  const urls=[];
+  globalThis.fetch=async(url)=>{
+    const u=String(url);
+    if(u.includes('/auth/v1/user'))return json(admin);
+    if(u.includes('/rest/v1/profiles'))return json([{is_active:true,access_level:'pro'}]);
+    urls.push(u);
+    return urls.length===1 ? json({error:{message:'temporal'}},503) : geminiRespuesta('Respuesta recuperada.');
+  };
+  const result=await run();
+  assert.equal(result.statusCode,200);
+  assert.equal(result.body.text,'Respuesta recuperada.');
+  assert.equal(urls.length,2);
+  assert.ok(urls.every(u=>u.endsWith('/models/gemini-3.5-flash-lite:generateContent')));
+});
+
+test('tras dos fallos temporales en chat usa Flash y registra el modelo realmente utilizado',async()=>{
+  process.env.SUPABASE_SERVICE_ROLE_KEY='clave-servidor-ficticia';
+  const modelos=[];let registro;
+  globalThis.fetch=async(url,init)=>{
+    const u=String(url);
+    if(u.includes('/auth/v1/user'))return json(admin);
+    if(u.includes('/rest/v1/profiles'))return json([{is_active:true,access_level:'pro'}]);
+    if(u.includes('/rest/v1/camila_consumo_tokens')){
+      registro=JSON.parse(init.body);return json({},201);
+    }
+    modelos.push({url:u,body:JSON.parse(init.body)});
+    return modelos.length<=2 ? json({},503) : geminiRespuesta('Respuesta de respaldo.');
+  };
+  const result=await run();
+  assert.equal(result.statusCode,200);
+  assert.equal(result.body.text,'Respuesta de respaldo.');
+  assert.equal(modelos.length,3);
+  assert.match(modelos[0].url,/gemini-3\.5-flash-lite/);
+  assert.match(modelos[1].url,/gemini-3\.5-flash-lite/);
+  assert.match(modelos[2].url,/gemini-3\.5-flash:generateContent$/);
+  assert.equal(modelos[2].body.generationConfig.thinkingConfig.thinkingLevel,'low');
+  assert.equal(registro.modelo,'gemini-3.5-flash');
+});
+
+test('agotados los intentos temporales de documentos responde recuperable sin cambiar de modelo',async()=>{
+  const modelos=[];
+  globalThis.fetch=async(url)=>{
+    const u=String(url);
+    if(u.includes('/auth/v1/user'))return json(admin);
+    if(u.includes('/rest/v1/profiles'))return json([{is_active:true,access_level:'pro'}]);
+    modelos.push(u);return json({},503);
+  };
+  const result=await run(undefined,undefined,'formato');
+  assert.equal(result.statusCode,503);
+  assert.equal(result.body.reintentable,true);
+  assert.match(result.body.error,/Camila está ocupada/);
+  assert.equal(modelos.length,2);
+  assert.ok(modelos.every(u=>u.endsWith('/models/gemini-3.5-flash:generateContent')));
+});
+
+test('no reintenta errores ambiguos de red que podrían haber consumido tokens',async()=>{
+  let llamadas=0;console.error=()=>{};
+  globalThis.fetch=async(url)=>{
+    const u=String(url);
+    if(u.includes('/auth/v1/user'))return json(admin);
+    if(u.includes('/rest/v1/profiles'))return json([{is_active:true,access_level:'pro'}]);
+    llamadas++;throw new TypeError('fallo ambiguo de red');
+  };
+  const result=await run();
+  assert.equal(result.statusCode,502);
+  assert.equal(llamadas,1);
+});
+
 test('las cuotas activas fallan cerradas sin clave de servicio, antes de llamar a Gemini',async()=>{
   process.env.CAMILA_CUOTAS_ACTIVAS='true';
   const requests=stub();
