@@ -1,5 +1,5 @@
 /**
- * Contrato único entre Claude y el renderizador DOCX. El modelo entrega datos,
+ * Contrato único entre Gemini y el renderizador DOCX. El modelo entrega datos,
  * NUNCA XML ni una colección arbitraria de cambios para un PPA completo.
  * Los documentos originales se usan SOLO como estructura y se conservan.
  */
@@ -99,14 +99,14 @@ export function semanasSolicitadas(duracion: string): number | null {
 }
 export function validarPpaCompleto(plan: PpaCompleto, identidad: IdentidadPpa, areasExcluidas: string[] = []): string[] {
   const errores: string[] = [];
-  if (!plan || typeof plan !== 'object') return ['Claude no devolvió el PPA estructurado.'];
+  if (!plan || typeof plan !== 'object') return ['Camila no devolvió el PPA estructurado.'];
   for (const campo of CAMPOS_TEXTO) {
     if (typeof plan[campo] !== 'string' || !plan[campo].trim()) errores.push(`Campo incompleto: ${campo}.`);
   }
   const total = semanasSolicitadas(identidad.duracion);
   if (!total) errores.push('La duración confirmada no indica semanas válidas.');
   if (!Array.isArray(plan.semanas) || plan.semanas.length !== total) {
-    errores.push(`Se pidieron ${total || '?'} semanas, pero Claude no generó exactamente esa cantidad.`);
+    errores.push(`Se pidieron ${total || '?'} semanas, pero Camila no generó exactamente esa cantidad.`);
     return errores;
   }
   const fechas = semanasDeCalendario(identidad.fechaInicio, identidad.fechaFin);

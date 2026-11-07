@@ -623,7 +623,7 @@ ${proyectoActivo.diagnostico ? `• Diagnóstico: ${proyectoActivo.diagnostico.s
 ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revisionPrevia.detalles.slice(0, 3).join(' | ')}` : '• Estado: Formato limpio sin errores.'}`;
 
   const promptFinal = `${contextoDoc}\n\n--- REGLAS DEL LIBRO DE HECHOS ---\n${INSTRUCCION_LIBRO_HECHOS_PPA}\n\n--- MENSAJE Y PETICIÓN DEL DOCENTE ---\n"${mensajeDocente}"`;
-  // 2. Claude interpreta texto, imágenes y PDF, y propone operaciones estructuradas.
+  // 2. Gemini interpreta texto, imágenes y PDF, y propone operaciones estructuradas.
   // Los binarios solo viajan durante este turno; nunca pasan a memorias ni historial.
   let responseText = '';
   try {
@@ -672,7 +672,7 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
        libroPropuesto ? {} : parsed.datosProyecto));
 
   // Un pedido de crear/adaptar/completar TODO un PPA nunca puede resolverse
-  // mediante 20 set_celda parciales. Primero Claude redacta TODO el JSON y
+  // mediante 20 set_celda parciales. Primero Gemini redacta TODO el JSON y
   // solo después el editor aplica los cambios a una copia del DOCX.
   const ordenIntegral = solicitaPpaIntegral(mensajeDocente);
   if (ordenIntegral && archivoOriginalData) {
@@ -707,10 +707,10 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
       identidad, areasExcluidas: excluidas, solicitudActual: mensajeDocente,
       reglas: 'Datos de la plantilla antigua prohibidos. Crear todas las semanas con 4 áreas pedagógicas (Lenguaje, Matemática, Ciencia Tecnología y Sociedad, Ciencias Sociales), salvo exclusiones expresas. No incluir datos ajenos. No inventar fechas.',
     };
-    onProgresoVaciarTodo?.('Claude está redactando el PPA COMPLETO como JSON estructurado...');
+    onProgresoVaciarTodo?.('Camila está redactando el PPA completo...');
     const plan = await generarPpaCompletoClaude(JSON.stringify(contexto)) as PpaCompleto;
     const errores = validarPpaCompleto(plan, identidad, excluidas);
-    if (errores.length) throw new Error(`Claude no completó el PPA: ${errores[0]} Original preservado.`);
+    if (errores.length) throw new Error(`Camila no completó el PPA: ${errores[0]} Original preservado.`);
     onProgresoVaciarTodo?.('Validando y adaptando TODAS las semanas en el Word institucional...');
     const nuevoBlob = await adaptarPpaCompletoAWord(archivoOriginalData, plan, identidad, excluidas);
     const nuevoDocumento = await cargarDocx(nuevoBlob);

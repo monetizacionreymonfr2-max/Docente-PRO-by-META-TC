@@ -1,4 +1,4 @@
-name: Camila - opciones Skills y PDF
+name: Camila - LibreOffice PDF y Gemini
 on:
   push:
     branches:
@@ -18,7 +18,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - run: node --test tests/camila-opcionales.test.mjs
-      - run: npm run test:claude
+      - run: npm run test:gemini
       - run: npm run build
   libreoffice:
     runs-on: ubuntu-latest

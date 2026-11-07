@@ -37,7 +37,7 @@ async function sendCamilaClaude(
 ): Promise<string> {
   const { data: { session }, error } = await supabase.auth.getSession();
   if (error || !session?.access_token) throw new Error('Inicie sesión para conversar con Camila.');
-  const response = await fetch('/api/camila-claude', {
+  const response = await fetch('/api/camila-gemini', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
     body: JSON.stringify({ mode, ...(blockType ? { blockType } : {}),
@@ -50,7 +50,7 @@ async function sendCamilaClaude(
   return payload.text;
 }
 
-/** Claude genera únicamente JSON; el backend local determina dónde y cómo se escribe el Word. */
+/** Gemini genera únicamente JSON; el editor local determina dónde y cómo se escribe el Word. */
 export async function generarBloquePpaClaude(
   tipo: TipoBloquePpaClaude, instruccion: string
 ): Promise<unknown> {
@@ -59,7 +59,7 @@ export async function generarBloquePpaClaude(
   catch { throw new Error('Camila no devolvió un bloque PPA estructurado.'); }
 }
 
-/** Obtiene operaciones estructuradas de Claude; la ejecución queda en el editor de Word. */
+/** Obtiene operaciones estructuradas de Gemini; la ejecución queda en el editor de Word. */
 export async function askCamilaFormatoClaude(
   instruccionConContexto: string,
   historial: Array<{ rol: 'user' | 'model'; texto: string }>,
@@ -77,5 +77,5 @@ export async function askCamilaFormatoClaude(
 export async function generarPpaCompletoClaude(instruccion: string): Promise<unknown> {
   const texto = await sendCamilaClaude([{ role: 'user', content: instruccion }], 'ppa_completo');
   try { return JSON.parse(texto); }
-  catch { throw new Error('Claude no devolvió un PPA estructurado válido.'); }
+  catch { throw new Error('Gemini no devolvió un PPA estructurado válido.'); }
 }
