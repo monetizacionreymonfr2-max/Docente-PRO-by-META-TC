@@ -306,8 +306,8 @@ function contenidoGemini(messages) {
 
 function modeloGemini(modo) {
   const solicitado = modo === 'chat'
-    ? process.env.CAMILA_GEMINI_CHAT_MODEL || 'gemini-2.5-flash-lite'
-    : process.env.CAMILA_GEMINI_DOC_MODEL || 'gemini-2.5-flash';
+    ? process.env.CAMILA_GEMINI_CHAT_MODEL || 'gemini-3.5-flash-lite'
+    : process.env.CAMILA_GEMINI_DOC_MODEL || 'gemini-3.5-flash';
   // El modelo solo se elige desde variables privadas del servidor.
   if (!/^gemini-[a-z0-9][a-z0-9.-]{0,70}$/.test(solicitado)) return null;
   return solicitado;
@@ -415,7 +415,9 @@ export default async function handler(req, res) {
       contents:contenidoGemini(messages),
       generationConfig:{
         maxOutputTokens:tokensSalida,
-        thinkingConfig:{thinkingBudget:0},
+        // Gemini 3.5 usa niveles de razonamiento; la consulta rápida es mínima
+        // y los documentos emplean nivel bajo para contener el consumo.
+        thinkingConfig:{thinkingLevel:mode==='chat' ? 'minimal' : 'low'},
         ...(formato || esBloque || esCompleto ? {
           responseMimeType:'application/json',responseJsonSchema:esquemaGemini(esquema),
         } : {}),

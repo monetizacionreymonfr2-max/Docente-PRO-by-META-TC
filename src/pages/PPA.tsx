@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import { SupabaseService } from '../lib/supabaseService';
 import { generateContentWithRetry } from '../lib/gemini';
+import { GEMINI_MODELO_DOCUMENTOS } from '../lib/modelosGemini';
 import { 
   Sparkles, Loader2, FileText, Copy, Printer, X, History, Trash2, 
   Edit3, Save, GraduationCap, CheckSquare, Square, ChevronDown, 
@@ -454,7 +455,7 @@ REQUISITOS DEL FORMATO OFICIAL:
       console.log("Generando PPA con prompt:", prompt);
 
       const response = await generateContentWithRetry({
-        model: 'gemini-3.1-flash-lite',
+        model: GEMINI_MODELO_DOCUMENTOS,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
           systemInstruction,

@@ -22,7 +22,6 @@ import {
   X,
   Eye,
   ShieldCheck,
-  Check,
   Plus,
   Trash2,
   Mic,
@@ -68,8 +67,6 @@ import { generarPpaSinPlantillaCompleto } from '../lib/camilaFormato/ppaSinPlant
 import { VersionesPpa, type VersionDocumentoPpa } from '../lib/camilaFormato/versionesPpa';
 import { prepararDeshacerSeguro } from '../lib/camilaFormato/deshacerSeguro';
 import {
-  getCamilaFormatoModel,
-  setCamilaFormatoModel,
   listarModelosDisponibles,
   ModeloGeminiInfo,
 } from '../lib/camilaFormato/camilaFormatoConfig';
@@ -195,7 +192,6 @@ export default function CamilaFormato() {
   const [proyectosGuardados, setProyectosGuardados] = useState<any[]>([]);
   const [formatosGuardados, setFormatosGuardados] = useState<FormatoDocente[]>([]);
   const [modelosDisponibles, setModelosDisponibles] = useState<ModeloGeminiInfo[]>([]);
-  const [modeloSeleccionado, setModeloSeleccionado] = useState(getCamilaFormatoModel());
   const [revisionActual, setRevisionActual] = useState<RevisionCoberturaDocx | null>(null);
 
   // Referencias UI
@@ -2081,7 +2077,7 @@ export default function CamilaFormato() {
         </div>
       )}
 
-      {/* MODAL: SELECCIONAR MODELO IA (ADMIN) */}
+      {/* MODAL: MODELOS POR FUNCIÓN (ADMIN) */}
       {modalModelosOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/10 p-5 shadow-2xl flex flex-col max-h-[85vh]">
@@ -2099,29 +2095,19 @@ export default function CamilaFormato() {
             </div>
 
             <p className="text-xs text-slate-400 py-2">
-              Opciones de procesamiento disponibles para el administrador:
+              Modelos asignados automáticamente por el servidor según la tarea. La llamada utiliza Gemini 3.8 Live.
             </p>
 
             <div className="flex-1 overflow-y-auto py-2 space-y-2">
-              {modelosDisponibles.map((m, indice) => (
+              {modelosDisponibles.map((m) => (
                 <div
                   key={m.id}
-                  onClick={() => {
-                    setModeloSeleccionado(m.id);
-                    setCamilaFormatoModel(m.id);
-                    setModalModelosOpen(false);
-                  }}
-                  className={`p-3 rounded-2xl border cursor-pointer transition-all ${
-                    modeloSeleccionado === m.id
-                      ? 'bg-cyan-500/20 border-cyan-400 text-white'
-                      : 'bg-white/5 border-white/10 hover:bg-white/10 text-slate-300'
-                  }`}
+                  className="p-3 rounded-2xl border bg-white/5 border-white/10 text-slate-200"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs">Opción {indice + 1} · {m.description || 'Procesamiento de documentos'}</span>
-                    {modeloSeleccionado === m.id && <Check size={14} className="text-cyan-400" />}
+                    <span className="font-bold text-xs">{m.displayName}</span>
                   </div>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">Configuración interna de DOCENTY PRO</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5">{m.description}</span>
                 </div>
               ))}
             </div>

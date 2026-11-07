@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import { generateContentWithRetry } from '../lib/gemini';
+import { GEMINI_MODELO_CHAT } from '../lib/modelosGemini';
 import { SupabaseService } from '../lib/supabaseService';
 import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio, X, Sparkles, MessageCircle, FileUp } from 'lucide-react';
 import Markdown from 'react-markdown';
@@ -323,7 +324,7 @@ Directrices:
       historyContents.push({ role: 'user', parts: [{ text: userMsg }] });
 
       const response = await generateContentWithRetry({
-        model: 'gemini-3.1-flash-lite',
+        model: GEMINI_MODELO_CHAT,
         contents: historyContents,
         config: {
           systemInstruction,

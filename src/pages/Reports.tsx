@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { SupabaseService } from '../lib/supabaseService';
 import { generateContentWithRetry } from '../lib/gemini';
+import { GEMINI_MODELO_DOCUMENTOS } from '../lib/modelosGemini';
 import { FileBadge, Loader2, Sparkles, Printer, History, X, Save, Trash2, GraduationCap } from 'lucide-react';
 import LimitReachedModal from '../components/LimitReachedModal';
 
@@ -156,7 +157,7 @@ Palabras clave: ${palabrasClave}`;
       }
 
       const response = await generateContentWithRetry({
-        model: 'gemini-3.1-flash-lite',
+        model: GEMINI_MODELO_DOCUMENTOS,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
           systemInstruction,

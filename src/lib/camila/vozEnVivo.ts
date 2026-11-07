@@ -1,5 +1,6 @@
 import type { FunctionResponseScheduling, LiveConnectConfig, Session } from '@google/genai';
 import { supabase } from '../supabase';
+import { describirErrorVoz } from './erroresVoz';
 
 interface CredencialVoz {
   token: string;
@@ -158,14 +159,7 @@ export class SesionVozCamila {
       this.eventos.alConectar();
     } catch (error) {
       if (!this.cerrada) {
-        const codigo = error instanceof Error ? error.message : '';
-        const tipo = error instanceof Error ? error.name : '';
-        const mensaje = codigo === 'MICROFONO_NO_DISPONIBLE' ? 'Este navegador no permite usar el micrófono.' :
-          codigo === 'SESION_REQUERIDA' ? 'Inicia sesión para hablar con Camila.' :
-          tipo === 'NotAllowedError' ? 'Debes permitir el acceso al micrófono.' :
-          /^(La conversación por voz requiere|Las llamadas de Camila todavía|No se pudo iniciar Camila por voz|No se pudo abrir la conversación por voz|Espera unos segundos)/.test(codigo)
-            ? codigo : 'No se pudo iniciar la voz de Camila. Inténtalo nuevamente.';
-        this.eventos.alError(mensaje);
+        this.eventos.alError(describirErrorVoz(error));
         this.detener();
       }
     }

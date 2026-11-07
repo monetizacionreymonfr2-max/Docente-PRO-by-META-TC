@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import { SupabaseService } from '../lib/supabaseService';
 import { generateContentWithRetry } from '../lib/gemini';
+import { GEMINI_MODELO_DOCUMENTOS } from '../lib/modelosGemini';
 import Markdown from 'react-markdown';
 import LimitReachedModal from '../components/LimitReachedModal';
 import { 
@@ -372,7 +373,7 @@ Desarrolla en detalle para cada día (Lunes a Viernes):
 
     try {
       const response = await generateContentWithRetry({
-        model: 'gemini-3.1-flash-lite',
+        model: GEMINI_MODELO_DOCUMENTOS,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
           systemInstruction,

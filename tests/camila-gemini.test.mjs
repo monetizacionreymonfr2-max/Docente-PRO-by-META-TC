@@ -60,11 +60,11 @@ test('chat usa solo Gemini Flash-Lite, con autenticación y clave privada',async
   assert.equal(requests.length,3);
   assert.equal(requests[0].init.headers.Authorization,'Bearer session-ficticia');
   const {request,headers,url}=providerRequest(requests);
-  assert.match(url,/models\/gemini-2\.5-flash-lite:generateContent$/);
+  assert.match(url,/models\/gemini-3\.5-flash-lite:generateContent$/);
   assert.equal(headers['x-goog-api-key'],'clave-ficticia-gemini');
   assert.equal(request.contents[0].role,'user');
   assert.deepEqual(request.contents[0].parts,[{text:'Hola'}]);
-  assert.equal(request.generationConfig.thinkingConfig.thinkingBudget,0);
+  assert.equal(request.generationConfig.thinkingConfig.thinkingLevel,'minimal');
   assert.equal(request.generationConfig.maxOutputTokens,4096);
   assert.match(request.systemInstruction.parts[0].text,/educación venezolana/i);
   assert.doesNotMatch(JSON.stringify(request),/clave-ficticia-gemini|anthropic/i);
@@ -158,7 +158,7 @@ test('cuota suficiente permite Gemini y registra solo metadatos de consumo',asyn
   const registro=requests.find(r=>r.url.includes('/rest/v1/camila_consumo_tokens')&&r.init.method==='POST');
   assert.ok(registro);
   assert.deepEqual(JSON.parse(registro.init.body),{
-    teacher_id:admin.id,modelo:'gemini-2.5-flash-lite',modo:'chat',
+    teacher_id:admin.id,modelo:'gemini-3.5-flash-lite',modo:'chat',
     input_tokens:84,output_tokens:42,cache_read_tokens:0,cache_creation_tokens:0,
   });
   assert.doesNotMatch(registro.init.body,/Hola|session-ficticia|clave-ficticia-gemini/);
@@ -201,7 +201,8 @@ test('Mi Formato pide JSON estricto con 10 operaciones discriminadas, libro de h
   assert.equal(result.statusCode,200);
   assert.deepEqual(JSON.parse(result.body.text).operaciones[0].lineas,['Contenido ficticio']);
   const {request,url}=providerRequest(requests);
-  assert.match(url,/gemini-2\.5-flash:generateContent/);
+  assert.match(url,/gemini-3\.5-flash:generateContent/);
+  assert.equal(request.generationConfig.thinkingConfig.thinkingLevel,'low');
   assert.equal(request.generationConfig.responseMimeType,'application/json');
   const schema=request.generationConfig.responseJsonSchema;
   assert.equal(schema.additionalProperties,false);

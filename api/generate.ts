@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { createClient } from '@supabase/supabase-js';
+import { esModeloGeminiTextoPermitido } from '../src/lib/modelosGemini';
 
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Método no permitido' });
@@ -14,6 +15,7 @@ export default async function handler(req: any, res: any) {
   if (error || !user) return res.status(401).json({ error: 'Sesión inválida' });
   const { model, contents, config } = req.body || {};
   if (typeof model !== 'string' || !contents) return res.status(400).json({ error: 'Solicitud inválida' });
+  if (!esModeloGeminiTextoPermitido(model)) return res.status(400).json({ error: 'Modelo de IA no autorizado' });
   try {
     const ai = new GoogleGenAI({ apiKey: key });
     const result = await ai.models.generateContent({ model, contents, config });

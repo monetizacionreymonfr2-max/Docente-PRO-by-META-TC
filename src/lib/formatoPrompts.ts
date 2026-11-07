@@ -1,9 +1,10 @@
 import { Type } from '@google/genai';
+import { GEMINI_MODELO_DOCUMENTOS } from './modelosGemini';
 
 /**
  * Modelo de Gemini utilizado para Mi Formato (mismo que usa el resto de la app)
  */
-export const GEMINI_FORMATO_MODEL = 'gemini-3.1-flash-lite';
+export const GEMINI_FORMATO_MODEL = GEMINI_MODELO_DOCUMENTOS;
 
 /**
  * Schema estricto para la lectura y análisis del formato escolar subido por el docente.
