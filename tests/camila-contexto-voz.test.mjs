@@ -5,7 +5,7 @@ import {
   prepararContextoLlamadaCamila, registrarTurnoVozCamila,
 } from '../src/lib/camila/contextoVoz.ts';
 
-test('después de tres minutos, la siguiente llamada recibe los turnos de voz anteriores', () => {
+test('después de nueve minutos, la siguiente llamada recibe los turnos de voz anteriores', () => {
   let historial = registrarTurnoVozCamila([], 'Necesito un PPA sobre tradiciones.', '¿Para qué grado?');
   historial = registrarTurnoVozCamila(historial, 'Tercer grado, sección A.', 'Perfecto, ¿cuántas semanas?');
   const contexto = prepararContextoLlamadaCamila(historial, [], {});
@@ -37,10 +37,10 @@ test('no transmite avisos técnicos, y sólo guarda historia en memoria limitada
   assert.equal(contexto[1].role, 'model');
   assert.doesNotMatch(JSON.stringify(contexto), /Token expirado/);
   let historial = [];
-  for (let i = 0; i < 40; i++) historial = registrarTurnoVozCamila(historial, 'Docente '+i, 'Camila '+i);
-  assert.equal(historial.length, 16);
-  assert.equal(historial[0].docente, 'Docente 24');
-  assert.equal(historial[15].camila, 'Camila 39');
+  for (let i = 0; i < 80; i++) historial = registrarTurnoVozCamila(historial, 'Docente '+i, 'Camila '+i);
+  assert.equal(historial.length, 60);
+  assert.equal(historial[0].docente, 'Docente 20');
+  assert.equal(historial[59].camila, 'Camila 79');
 });
 
 test('ignora turnos vacíos y limita longitud para no saturar Gemini', () => {
@@ -61,4 +61,18 @@ test('la reconexión precarga el contexto sin hablar automáticamente y limpia a
   assert.ok(pagina.includes('}, contextoAnterior);'));
   assert.ok(pagina.includes('historialVozRef.current = []'));
   assert.equal(vivo.includes('localStorage'), false);
+  assert.match(vivo, /Math\.min\(540/);
+  assert.match(pagina, /transcripciones como turnos de chat/);
+});
+
+
+test('una conversación guardada y una llamada no repiten transcripciones ni pierden recuerdos autorizados', () => {
+  const ctx = prepararContextoLlamadaCamila(
+    [{ docente: 'Mi grado es tercero.', camila: 'Trabajaremos tercer grado.' }],
+    [{ emisor: 'docente', texto: 'Mi grado es tercero.' }, { emisor: 'camila', texto: 'Trabajaremos tercer grado.' }],
+    { recuerdosAutorizados: [{ titulo: 'Institución', contenido: 'Escuela pública del municipio' }] },
+  );
+  assert.equal(ctx.filter(c => c.parts[0].text === 'Mi grado es tercero.').length, 1);
+  assert.equal(ctx.filter(c => c.parts[0].text === 'Trabajaremos tercer grado.').length, 1);
+  assert.match(ctx.at(-1).parts[0].text, /Escuela pública del municipio/);
 });
