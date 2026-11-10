@@ -7,7 +7,7 @@ import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio, X, Spar
 import Markdown from 'react-markdown';
 import { puedeVerMiFormato } from '../config/features';
 import { SesionVozCamila } from '../lib/camila/vozEnVivo';
-import { GUIA_PLATAFORMA_RESUMIDA } from '../lib/camila/guiaPlataforma';
+import { GUIA_PLATAFORMA_DETALLADA } from '../lib/camila/guiaPlataforma';
 
 interface Message {
   id: string;
@@ -331,7 +331,7 @@ Directrices:
         model: GEMINI_MODELO_CHAT,
         contents: historyContents,
         config: {
-          systemInstruction: systemInstruction + '\n\nORIENTACIÓN VERIFICADA SOBRE DOCENTY PRO: ' + GUIA_PLATAFORMA_RESUMIDA + '\nGuía paso a paso según el menú; no inventes botones ni afirmes haber navegado. Pregunta una cosa a la vez.',
+          systemInstruction: systemInstruction + '\n\nORIENTACIÓN VERIFICADA SOBRE DOCENTY PRO: ' + GUIA_PLATAFORMA_DETALLADA + '\nGuía paso a paso según el menú; no inventes botones ni afirmes haber navegado. Pregunta una cosa a la vez.',
           temperature: 0.7,
         }
       });
