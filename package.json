@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm run verify:camila && vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
@@ -17,7 +17,8 @@
     "test:ppa-sin-plantilla": "node --import tsx --test tests/ppa-sin-plantilla-ficticio.test.mjs",
     "test:camila-privacidad": "node --test tests/camila-privacidad.test.mjs && node --import tsx --test tests/camila-persistencia-simulada.test.mjs",
     "test:mi-formato": "node --import tsx tests/mi-formato-encabezados.test.mjs && node --import tsx tests/mi-formato-integridad-docx.test.mjs && node --import tsx tests/mi-formato-flujo-propuestas.test.mjs && node --import tsx tests/mi-formato-responsive.test.mjs",
-    "test:ppa-completo": "node --import tsx --test tests/ppa-completo-estructurado.test.mjs tests/ppa-adaptador-docx.test.mjs tests/ppa-intencion-integral.test.mjs"
+    "test:ppa-completo": "node --import tsx --test tests/ppa-completo-estructurado.test.mjs tests/ppa-adaptador-docx.test.mjs tests/ppa-intencion-integral.test.mjs",
+    "verify:camila": "npm run lint && npm run test:camila-voz && npm run test:camila-privacidad && npm run test:gemini"
   },
   "dependencies": {
     "@google/genai": "^1.50.1",
