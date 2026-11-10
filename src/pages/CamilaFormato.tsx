@@ -223,6 +223,7 @@ export default function CamilaFormato() {
     const contextoAnterior = prepararContextoLlamadaCamila(historialVozRef.current, mensajes, {
       formato: formatoActivo?.nombre || nombreBorradorLocal || undefined,
       proyecto: proyectoActivo?.titulo || undefined,
+      recuerdosAutorizados: usarRecuerdos ? recuerdos.map(({ titulo, contenido }) => ({ titulo, contenido })) : [],
     });
     const llamada = new SesionVozCamila({
       alConectar: () => {
@@ -239,6 +240,13 @@ export default function CamilaFormato() {
       alTurno: (usuario, camila) => {
         if (llamadaRef.current !== llamada) return;
         historialVozRef.current = registrarTurnoVozCamila(historialVozRef.current, usuario, camila);
+        // Conservar las transcripciones como turnos de chat: se sincronizan con Supabase
+        // solo si el docente ya autorizó «Guardar chat». Jamás almacenar audio.
+        setMensajes(prev => [
+          ...prev,
+          ...(usuario.trim() ? [{ id: crypto.randomUUID(), emisor: 'docente' as const, texto: usuario, fecha: new Date() }] : []),
+          ...(camila.trim() ? [{ id: crypto.randomUUID(), emisor: 'camila' as const, texto: camila, fecha: new Date() }] : []),
+        ]);
         setUltimoTurnoLlamada([usuario && `Docente: ${usuario}`, camila && `Camila: ${camila}`].filter(Boolean).join(' · ').slice(0, 220));
       },
       alPrepararDocumento: (instruccion) => prepararDocumentoDesdeVozRef.current(instruccion),
@@ -1195,7 +1203,7 @@ export default function CamilaFormato() {
           {estadoLlamada !== 'inactiva' && (
             <>
               <span className="font-bold text-teal-200">
-                {estadoLlamada === 'conectando' ? 'Conectando con Camila…' : 'En llamada con Camila · límite de prueba: 3 minutos'}
+                {estadoLlamada === 'conectando' ? 'Conectando con Camila…' : 'En llamada con Camila · hasta 9 minutos · puede retomar el contexto'}
               </span>
               {estadoLlamada === 'conectada' && (
                 <button type="button" onClick={alternarSilencioLlamada}
