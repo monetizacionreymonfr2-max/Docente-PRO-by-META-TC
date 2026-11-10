@@ -1,6 +1,7 @@
 import type { Content, FunctionResponseScheduling, LiveConnectConfig, Session } from '@google/genai';
 import { supabase } from '../supabase';
 import { describirErrorVoz } from './erroresVoz';
+import { consultarGuiaPlataforma } from './guiaPlataforma';
 
 interface CredencialVoz {
   token: string;
@@ -151,7 +152,8 @@ export class SesionVozCamila {
       }
       this.entrada = new AudioContext({ sampleRate: 16000 });
       this.origen = this.entrada.createMediaStreamSource(this.microfono);
-      this.procesador = this.entrada.createScriptProcessor(2048, 1, 1);
+      // Fragmentos de ~32 ms a 16 kHz para reducir latencia y responder mejor a interrupciones.
+      this.procesador = this.entrada.createScriptProcessor(512, 1, 1);
       this.procesador.onaudioprocess = (evento) => {
         if (this.cerrada || !this.sesion) return;
         const pcm = codificarPCM(evento.inputBuffer.getChannelData(0));
@@ -167,7 +169,8 @@ export class SesionVozCamila {
       await this.entrada.resume();
       if (this.cerrada) return;
       this.conectada = true;
-      this.temporizador = window.setTimeout(() => this.detener(), Math.min(180, credencial.duracionSegundos) * 1000);
+      // Límite local controlado por el servidor; nunca más de nueve minutos.
+      this.temporizador = window.setTimeout(() => this.detener(), Math.min(540, Math.max(60, credencial.duracionSegundos)) * 1000);
       this.eventos.alConectar();
     } catch (error) {
       if (!this.cerrada) {
@@ -184,8 +187,11 @@ export class SesionVozCamila {
       const instruccion = typeof llamada.args?.instruccion === 'string'
         ? llamada.args.instruccion.trim().slice(0, 2000) : '';
       let resultado: string;
-      if (llamada.name !== 'preparar_documento' || instruccion.length < 8) {
-        resultado = 'No se reconoció una solicitud válida. Pide al docente que aclare qué documento necesita.';
+      if (llamada.name === 'consultar_plataforma') {
+        const consulta = typeof llamada.args?.consulta === 'string' ? llamada.args.consulta.trim().slice(0, 180) : '';
+        resultado = consultarGuiaPlataforma(consulta);
+      } else if (llamada.name !== 'preparar_documento' || instruccion.length < 8) {
+        resultado = 'No se reconoció una solicitud válida. Pide al docente que aclare qué necesita.';
       } else if (!this.eventos.alPrepararDocumento) {
         resultado = 'Para preparar documentos, pida al docente abrir Mi Formato y utilizar Llamar a Camila.';
       } else {
@@ -197,7 +203,7 @@ export class SesionVozCamila {
       }
       return {
         id: llamada.id,
-        name: llamada.name || 'preparar_documento',
+        name: llamada.name === 'consultar_plataforma' ? 'consultar_plataforma' : 'preparar_documento',
         response: { resultado },
         scheduling: 'WHEN_IDLE' as FunctionResponseScheduling,
       };
@@ -240,7 +246,7 @@ export class SesionVozCamila {
 
   detener() {
     if (this.cerrada) return;
-    // El límite de 3 minutos puede cerrar durante un turno: recuperar el texto parcial.
+    // Al llegar a nueve minutos o producirse una interrupción, recuperar el texto parcial.
     const pendienteDocente = this.textoUsuario.trim();
     const pendienteCamila = this.textoCamila.trim();
     this.textoUsuario = '';
