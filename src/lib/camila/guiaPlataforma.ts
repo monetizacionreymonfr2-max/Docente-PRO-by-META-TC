@@ -27,6 +27,7 @@ export const APARTADOS_DOCENTY: ApartadoDocenty[] = [
 ];
 const normalizar = (valor: string) => valor.toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
 export const GUIA_PLATAFORMA_RESUMIDA = APARTADOS_DOCENTY.map(a => `${a.nombre} → ${a.ruta}: ${a.proposito}`).join('\n');
+export const GUIA_PLATAFORMA_DETALLADA = APARTADOS_DOCENTY.map(a => `${a.nombre} (${a.ruta}): ${a.pasos.join(' → ')}`).join('\n');
 export function consultarGuiaPlataforma(consulta: string): string {
   const q = normalizar(consulta).slice(0, 180);
   if (!q || /^(menu|secciones|apartados|opciones|plataforma|que (puedes|haces))$/.test(q)) {
