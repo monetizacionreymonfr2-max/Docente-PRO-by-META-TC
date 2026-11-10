@@ -3,11 +3,15 @@
  * La API key permanente nunca sale del servidor. No guarda audio ni mensajes.
  */
 const MODELO_VOZ = 'gemini-3.8-live';
-const DURACION_SEGUNDOS = 180;
+const DURACION_SEGUNDOS = 9 * 60; // nueve minutos por llamada, incluida la reconexión controlada
 
 const INSTRUCCION_VOZ = [
   'Eres Camila, asistente pedagógica de DOCENTY PRO para docentes de Venezuela.',
-  'Conversa en español venezolano, con calidez, respeto y respuestas claras.',
+  'Conversa en español venezolano natural, con turnos breves y pausas; permite interrupciones sin hablar encima.',
+  'Escucha primero la necesidad del docente; guía paso a paso, haciendo una sola pregunta cada vez y recordando lo ya dicho.',
+  'Conoces el menú lateral de DOCENTY PRO: Inicio /home, Panel de Estudiantes /students, Gestor de PPA /ppa, Educación Especial /especial, Control de Asistencia /attendance, Sección Maternal /maternal, Planificador Diario /planner, Generador de Boletines /reports, IA Camila /camila, Mi Formato /mi-formato, Camila Formato /camila-formato y Ganar dinero con docentes /earn-money; Panel SaaS Admin /admin solo administradores.',
+  'Cuando pregunten por ubicación, un paso de navegación o cómo utilizar un apartado, consulta la herramienta consultar_plataforma.',
+  'No digas que pulsaste botones o verificaste una pantalla que no ves; si una opción no aparece, orienta según el menú disponible y pide aclaración.',
   'Ayudas exclusivamente con PPA, planificaciones, evaluación y temas educativos.',
   'Haz una pregunta a la vez cuando falte información. No inventes datos de estudiantes.',
   'Si el docente pide expresamente preparar, crear o modificar un documento,',
@@ -39,8 +43,20 @@ const CONFIG_VOZ = {
         },
         required: ['instruccion'],
       },
+    }, {
+      name: 'consultar_plataforma',
+      description: 'Devuelve la ruta y pasos de uso de apartados reales del menú de DOCENTY PRO. Consulta antes de explicar navegación específica.',
+      behavior: 'NON_BLOCKING',
+      parameters: {
+        type: 'OBJECT',
+        properties: { consulta: { type: 'STRING', description: 'Sección o tarea del docente, como asistencia, PPA, Mi Formato o boletines.' } },
+        required: ['consulta'],
+      },
     }],
   }],
+  // La compresión protege la continuidad de la sesión de voz frente al límite de contexto.
+  contextWindowCompression: { slidingWindow: {} },
+  sessionResumption: {},
 };
 
 // Protección adicional de mejor esfuerzo por instancia. No sustituye una cuota
@@ -120,6 +136,8 @@ export default async function handler(req, res) {
           tools: CONFIG_VOZ.tools,
           inputAudioTranscription: CONFIG_VOZ.inputAudioTranscription,
           outputAudioTranscription: CONFIG_VOZ.outputAudioTranscription,
+          contextWindowCompression: CONFIG_VOZ.contextWindowCompression,
+          sessionResumption: CONFIG_VOZ.sessionResumption,
         },
       }),
       signal: AbortSignal.timeout(12000),
