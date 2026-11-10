@@ -117,8 +117,8 @@ test('el servidor emite solo un token efímero limitado y jamás la clave real',
     assert.deepEqual(setup.sessionResumption, {});
     assert.match(setup.systemInstruction.parts[0].text, /Camila/);
     assert.ok(!('liveConnectConstraints' in configuracionGoogle));
-    assert.ok(Date.parse(configuracionGoogle.expireTime) - Date.now() <= 541000);
-    assert.ok(Date.parse(configuracionGoogle.expireTime) - Date.now() > 530000);
+    assert.ok(Date.parse(configuracionGoogle.expireTime) - Date.now() <= 601000);
+    assert.ok(Date.parse(configuracionGoogle.expireTime) - Date.now() > 590000);
     assert.ok(Date.parse(configuracionGoogle.newSessionExpireTime) - Date.now() <= 61000);
     assert.ok(!JSON.stringify(respuesta.payload).includes('clave-ficticia-no-real'));
     assert.match(respuesta.headers['cache-control'], /no-store/);
