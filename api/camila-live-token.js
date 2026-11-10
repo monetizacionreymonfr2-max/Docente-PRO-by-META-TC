@@ -120,7 +120,8 @@ export default async function handler(req, res) {
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify({
         uses: 1,
-        expireTime: new Date(actual + DURACION_SEGUNDOS * 1000).toISOString(),
+        // Un minuto de margen para abrir el WebSocket: nueve minutos completos desde conectar.
+        expireTime: new Date(actual + (DURACION_SEGUNDOS + 60) * 1000).toISOString(),
         newSessionExpireTime: new Date(actual + 60_000).toISOString(),
         // El SDK de Google transforma liveConnectConstraints en
         // bidiGenerateContentSetup antes de enviarlo por REST.
