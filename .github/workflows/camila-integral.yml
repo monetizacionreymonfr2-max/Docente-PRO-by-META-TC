@@ -1,8 +1,10 @@
-name: Camila - PPA completo (desarrollo)
+name: Camila - Gemini y PPA completo (desarrollo)
 on:
   push:
     branches:
       - implementacion-claude-flujo-completo-20261030
+      - finalizacion-mi-formato-20261106
+      - feat/llamadas-camila-gemini-20261107
   workflow_dispatch:
 jobs:
   validar:
@@ -17,7 +19,10 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
-      - run: npm run test:claude
+      - run: npm run test:gemini
+      - run: npm run test:gemini-modelos
+      - run: node --import tsx --test tests/camila-contexto-voz.test.mjs
+      - run: npm run test:camila-voz
       - run: npm run test:ppa-completo
         env:
           CAMILA_PPA_QA_OUTPUT: artifacts/camila-ppa-6-semanas-ficticio.docx

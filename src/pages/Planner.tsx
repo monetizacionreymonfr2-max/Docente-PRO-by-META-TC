@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { SupabaseService } from '../lib/supabaseService';
 import { generateContentWithRetry } from '../lib/gemini';
+import { GEMINI_MODELO_DOCUMENTOS } from '../lib/modelosGemini';
 import { BookOpen, Loader2, FileText, Copy, Printer, X, History, Calendar, Trash2, Edit3, Save, GraduationCap } from 'lucide-react';
 import Markdown from 'react-markdown';
 import LimitReachedModal from '../components/LimitReachedModal';
@@ -190,7 +191,7 @@ ESTRUCTURA OBLIGATORIA:
       }
 
       const response = await generateContentWithRetry({
-        model: 'gemini-3.1-flash-lite',
+        model: GEMINI_MODELO_DOCUMENTOS,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
           systemInstruction,

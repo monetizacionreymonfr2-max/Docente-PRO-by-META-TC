@@ -3,15 +3,24 @@
  * La API key permanente nunca sale del servidor. No guarda audio ni mensajes.
  */
 const MODELO_VOZ = 'gemini-3.8-live';
-const DURACION_SEGUNDOS = 180;
+const DURACION_SEGUNDOS = 9 * 60; // nueve minutos por llamada, incluida la reconexión controlada
 
 const INSTRUCCION_VOZ = [
   'Eres Camila, asistente pedagógica de DOCENTY PRO para docentes de Venezuela.',
-  'Conversa en español venezolano, con calidez, respeto y respuestas claras.',
+  'Conversa en español venezolano natural, con turnos breves y pausas; permite interrupciones sin hablar encima.',
+  'Escucha primero la necesidad del docente; guía paso a paso, haciendo una sola pregunta cada vez y recordando lo ya dicho.',
+  'Conoces el menú lateral de DOCENTY PRO: Inicio /home, Panel de Estudiantes /students, Gestor de PPA /ppa, Educación Especial /especial, Control de Asistencia /attendance, Sección Maternal /maternal, Planificador Diario /planner, Generador de Boletines /reports, IA Camila /camila, Mi Formato /mi-formato, Camila Formato /camila-formato y Ganar dinero con docentes /earn-money; Panel SaaS Admin /admin solo administradores.',
+  'Cuando pregunten por ubicación, un paso de navegación o cómo utilizar un apartado, consulta la herramienta consultar_plataforma.',
+  'No digas que pulsaste botones o verificaste una pantalla que no ves; si una opción no aparece, orienta según el menú disponible y pide aclaración.',
   'Ayudas exclusivamente con PPA, planificaciones, evaluación y temas educativos.',
   'Haz una pregunta a la vez cuando falte información. No inventes datos de estudiantes.',
-  'No afirmes haber creado, editado ni guardado archivos en esta conversación de voz:',
-  'para producir documentos, invita al docente a continuar en Mi Formato por escrito.',
+  'Si el docente pide expresamente preparar, crear o modificar un documento,',
+  'utiliza la herramienta preparar_documento con su instrucción exacta y explícales',
+  'que podrán seguir conversando mientras se actualiza la vista previa del Word.',
+  'La herramienta aplica las ediciones solicitadas al Word temporal de trabajo,',
+  'permite Deshacer y nunca guarda documentos ni datos privados sin autorización.',
+  'No afirmes que el documento quedó listo hasta recibir el resultado de la herramienta.',
+  'Si la herramienta indica que Camila está ocupada, pide esperar sin iniciar otra tarea.',
   'Si detectas posibles errores pedagógicos, explícalos respetuosamente.',
   'No pidas datos personales de menores ni grabes o guardes la conversación.',
 ].join(' ');
@@ -22,6 +31,32 @@ const CONFIG_VOZ = {
   outputAudioTranscription: {},
   speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } } },
   systemInstruction: { parts: [{ text: INSTRUCCION_VOZ }] },
+  tools: [{
+    functionDeclarations: [{
+      name: 'preparar_documento',
+      description: 'Edita el Word temporal SOLO por solicitud explícita del docente, con vista previa y Deshacer. Nunca lo guarda permanentemente.',
+      behavior: 'NON_BLOCKING',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          instruccion: { type: 'STRING', description: 'Solicitud concreta del docente, fiel a lo que pidió por voz.' },
+        },
+        required: ['instruccion'],
+      },
+    }, {
+      name: 'consultar_plataforma',
+      description: 'Devuelve la ruta y pasos de uso de apartados reales del menú de DOCENTY PRO. Consulta antes de explicar navegación específica.',
+      behavior: 'NON_BLOCKING',
+      parameters: {
+        type: 'OBJECT',
+        properties: { consulta: { type: 'STRING', description: 'Sección o tarea del docente, como asistencia, PPA, Mi Formato o boletines.' } },
+        required: ['consulta'],
+      },
+    }],
+  }],
+  // La compresión protege la continuidad de la sesión de voz frente al límite de contexto.
+  contextWindowCompression: { slidingWindow: {} },
+  sessionResumption: {},
 };
 
 // Protección adicional de mejor esfuerzo por instancia. No sustituye una cuota
@@ -68,6 +103,11 @@ export default async function handler(req, res) {
       (expira !== null && (!Number.isFinite(expira) || expira <= Date.now())))) {
       return res.status(403).json({ error: 'La conversación por voz requiere una licencia PRO activa' });
     }
+    // Durante las pruebas, solo el administrador puede gastar minutos de voz.
+    // El despliegue a docentes requiere habilitar CAMILA_LIVE_ROLLOUT=pro en Vercel.
+    if (!esAdmin && process.env.CAMILA_LIVE_ROLLOUT !== 'pro') {
+      return res.status(403).json({ error: 'Las llamadas de Camila todavía están en pruebas.' });
+    }
 
     const anterior = ultimasSolicitudes.get(user.id) || 0;
     if (Date.now() - anterior < 8000) return res.status(429).json({ error: 'Espera unos segundos antes de iniciar otra llamada' });
@@ -80,10 +120,11 @@ export default async function handler(req, res) {
       headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
       body: JSON.stringify({
         uses: 1,
-        expireTime: new Date(actual + DURACION_SEGUNDOS * 1000).toISOString(),
+        // Un minuto de margen para abrir el WebSocket: nueve minutos completos desde conectar.
+        expireTime: new Date(actual + (DURACION_SEGUNDOS + 60) * 1000).toISOString(),
         newSessionExpireTime: new Date(actual + 60_000).toISOString(),
-        // El REST de auth_tokens recibe la configuración como
-        // bidiGenerateContentSetup, no como liveConnectConstraints (nombre SDK).
+        // El SDK de Google transforma liveConnectConstraints en
+        // bidiGenerateContentSetup antes de enviarlo por REST.
         // La clave permanente sigue en el servidor y el token queda restringido
         // a este modelo y configuración de conversación.
         bidiGenerateContentSetup: {
@@ -93,8 +134,11 @@ export default async function handler(req, res) {
             speechConfig: CONFIG_VOZ.speechConfig,
           },
           systemInstruction: CONFIG_VOZ.systemInstruction,
+          tools: CONFIG_VOZ.tools,
           inputAudioTranscription: CONFIG_VOZ.inputAudioTranscription,
           outputAudioTranscription: CONFIG_VOZ.outputAudioTranscription,
+          contextWindowCompression: CONFIG_VOZ.contextWindowCompression,
+          sessionResumption: CONFIG_VOZ.sessionResumption,
         },
       }),
       signal: AbortSignal.timeout(12000),

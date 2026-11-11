@@ -1,5 +1,7 @@
-import type { LiveConnectConfig, Session } from '@google/genai';
+import type { Content, FunctionResponseScheduling, LiveConnectConfig, Session } from '@google/genai';
 import { supabase } from '../supabase';
+import { describirErrorVoz } from './erroresVoz';
+import { consultarGuiaPlataforma } from './guiaPlataforma';
 
 interface CredencialVoz {
   token: string;
@@ -13,6 +15,7 @@ export interface EventosVozCamila {
   alCerrar: () => void;
   alError: (mensaje: string) => void;
   alTurno: (usuario: string, camila: string) => void;
+  alPrepararDocumento?: (instruccion: string) => Promise<string>;
 }
 
 function codificarPCM(muestras: Float32Array): string {
@@ -52,13 +55,19 @@ export class SesionVozCamila {
   private salida: AudioContext | null = null;
   private origen: MediaStreamAudioSourceNode | null = null;
   private procesador: ScriptProcessorNode | null = null;
+  private silenciador: GainNode | null = null;
   private audioEnCola: AudioBufferSourceNode[] = [];
   private siguienteAudio = 0;
   private temporizador: number | null = null;
   private textoUsuario = '';
   private textoCamila = '';
+  private microfonoSilenciado = false;
 
-  constructor(private readonly eventos: EventosVozCamila) {}
+  constructor(
+    private readonly eventos: EventosVozCamila,
+    // Historial temporal entre llamadas en una misma pantalla.
+    private readonly contextoInicial: Content[] = [],
+  ) {}
 
   async iniciar(): Promise<void> {
     if (this.cerrada || this.microfono || this.sesion) return;
@@ -116,6 +125,9 @@ export class SesionVozCamila {
               this.textoUsuario = '';
               this.textoCamila = '';
             }
+            if (mensaje.toolCall?.functionCalls?.length) {
+              void this.atenderHerramientas(mensaje.toolCall.functionCalls);
+            }
           },
           onerror: () => {
             if (!this.cerrada) {
@@ -130,34 +142,83 @@ export class SesionVozCamila {
       });
       if (this.cerrada) { nuevaSesion.close(); return; }
       this.sesion = nuevaSesion;
+      if (this.contextoInicial.length) {
+        try {
+          // Prefijar el historial al conectar, sin generar una respuesta automática.
+          nuevaSesion.sendClientContent({ turns: this.contextoInicial, turnComplete: false });
+        } catch {
+          this.eventos.alError('No se pudo recuperar toda la conversación anterior; puede indicar dónde continuar.');
+        }
+      }
       this.entrada = new AudioContext({ sampleRate: 16000 });
       this.origen = this.entrada.createMediaStreamSource(this.microfono);
-      this.procesador = this.entrada.createScriptProcessor(2048, 1, 1);
+      // Fragmentos de ~32 ms a 16 kHz para reducir latencia y responder mejor a interrupciones.
+      this.procesador = this.entrada.createScriptProcessor(512, 1, 1);
       this.procesador.onaudioprocess = (evento) => {
         if (this.cerrada || !this.sesion) return;
         const pcm = codificarPCM(evento.inputBuffer.getChannelData(0));
         this.sesion.sendRealtimeInput({ audio: { data: pcm, mimeType: 'audio/pcm;rate=16000' } });
       };
       this.origen.connect(this.procesador);
-      this.procesador.connect(this.entrada.destination);
+      // ScriptProcessor necesita estar conectado, pero no debe reproducir
+      // el micrófono por los altavoces del docente.
+      this.silenciador = this.entrada.createGain();
+      this.silenciador.gain.value = 0;
+      this.procesador.connect(this.silenciador);
+      this.silenciador.connect(this.entrada.destination);
       await this.entrada.resume();
       if (this.cerrada) return;
       this.conectada = true;
-      this.temporizador = window.setTimeout(() => this.detener(), Math.min(180, credencial.duracionSegundos) * 1000);
+      // Límite local controlado por el servidor; nunca más de nueve minutos.
+      this.temporizador = window.setTimeout(() => this.detener(), Math.min(540, Math.max(60, credencial.duracionSegundos)) * 1000);
       this.eventos.alConectar();
     } catch (error) {
       if (!this.cerrada) {
-        const codigo = error instanceof Error ? error.message : '';
-        const tipo = error instanceof Error ? error.name : '';
-        const mensaje = codigo === 'MICROFONO_NO_DISPONIBLE' ? 'Este navegador no permite usar el micrófono.' :
-          codigo === 'SESION_REQUERIDA' ? 'Inicia sesión para hablar con Camila.' :
-          tipo === 'NotAllowedError' ? 'Debes permitir el acceso al micrófono.' :
-          /^(La conversación por voz requiere|No se pudo iniciar Camila por voz|No se pudo abrir la conversación por voz|Espera unos segundos)/.test(codigo)
-            ? codigo : 'No se pudo iniciar la voz de Camila. Inténtalo nuevamente.';
-        this.eventos.alError(mensaje);
+        this.eventos.alError(describirErrorVoz(error));
         this.detener();
       }
     }
+  }
+
+  private async atenderHerramientas(
+    llamadas: Array<{ id?: string; name?: string; args?: Record<string, unknown> }>,
+  ) {
+    const respuestas = await Promise.all(llamadas.map(async (llamada) => {
+      const instruccion = typeof llamada.args?.instruccion === 'string'
+        ? llamada.args.instruccion.trim().slice(0, 2000) : '';
+      let resultado: string;
+      if (llamada.name === 'consultar_plataforma') {
+        const consulta = typeof llamada.args?.consulta === 'string' ? llamada.args.consulta.trim().slice(0, 180) : '';
+        resultado = consultarGuiaPlataforma(consulta);
+      } else if (llamada.name !== 'preparar_documento' || instruccion.length < 8) {
+        resultado = 'No se reconoció una solicitud válida. Pide al docente que aclare qué necesita.';
+      } else if (!this.eventos.alPrepararDocumento) {
+        resultado = 'Para preparar documentos, pida al docente abrir Mi Formato y utilizar Llamar a Camila.';
+      } else {
+        try {
+          resultado = await this.eventos.alPrepararDocumento(instruccion);
+        } catch {
+          resultado = 'No se pudo preparar el documento. El docente puede reintentarlo desde Mi Formato.';
+        }
+      }
+      return {
+        id: llamada.id,
+        name: llamada.name === 'consultar_plataforma' ? 'consultar_plataforma' : 'preparar_documento',
+        response: { resultado },
+        scheduling: 'WHEN_IDLE' as FunctionResponseScheduling,
+      };
+    }));
+    if (this.cerrada || !this.sesion) return;
+    try {
+      this.sesion.sendToolResponse({ functionResponses: respuestas });
+    } catch {
+      if (!this.cerrada) this.eventos.alError('No se pudo informar a Camila sobre el documento.');
+    }
+  }
+
+  silenciarMicrofono(silenciar: boolean) {
+    this.microfonoSilenciado = silenciar;
+    this.microfono?.getAudioTracks().forEach(pista => { pista.enabled = !silenciar; });
   }
 
   private reproducirAudio(base64: string) {
@@ -185,11 +246,18 @@ export class SesionVozCamila {
 
   detener() {
     if (this.cerrada) return;
+    // Al llegar a nueve minutos o producirse una interrupción, recuperar el texto parcial.
+    const pendienteDocente = this.textoUsuario.trim();
+    const pendienteCamila = this.textoCamila.trim();
+    this.textoUsuario = '';
+    this.textoCamila = '';
+    if (pendienteDocente || pendienteCamila) this.eventos.alTurno(pendienteDocente, pendienteCamila);
     this.cerrada = true;
     if (this.temporizador !== null) window.clearTimeout(this.temporizador);
     this.procesador && (this.procesador.onaudioprocess = null);
     try { this.procesador?.disconnect(); } catch { /* ya cerrado */ }
     try { this.origen?.disconnect(); } catch { /* ya cerrado */ }
+    try { this.silenciador?.disconnect(); } catch { /* ya cerrado */ }
     this.detenerAudio();
     this.microfono?.getTracks().forEach(pista => pista.stop());
     try { this.sesion?.close(); } catch { /* ya cerrado */ }
@@ -201,4 +269,5 @@ export class SesionVozCamila {
   }
 
   get activa() { return this.conectada && !this.cerrada; }
+  get silenciada() { return this.microfonoSilenciado; }
 }

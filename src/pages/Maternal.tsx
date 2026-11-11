@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { SupabaseService } from '../lib/supabaseService';
 import { generateContentWithRetry } from '../lib/gemini';
+import { GEMINI_MODELO_DOCUMENTOS } from '../lib/modelosGemini';
 import Markdown from 'react-markdown';
 import LimitReachedModal from '../components/LimitReachedModal';
 import { 
@@ -277,7 +278,7 @@ Usa un tono técnico, lúdico y tierno, respetando siempre el desarrollo fisiol�
       }
 
       const response = await generateContentWithRetry({
-        model: 'gemini-3.1-flash',
+        model: GEMINI_MODELO_DOCUMENTOS,
         contents: [{ role: 'user', parts: [{ text: prompt }] }],
         config: {
           systemInstruction,

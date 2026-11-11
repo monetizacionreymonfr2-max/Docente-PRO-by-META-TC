@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { useOutletContext, Link } from 'react-router-dom';
 import { generateContentWithRetry } from '../lib/gemini';
+import { GEMINI_MODELO_CHAT } from '../lib/modelosGemini';
 import { SupabaseService } from '../lib/supabaseService';
 import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio, X, Sparkles, MessageCircle, FileUp } from 'lucide-react';
 import Markdown from 'react-markdown';
 import { puedeVerMiFormato } from '../config/features';
 import { SesionVozCamila } from '../lib/camila/vozEnVivo';
+import { GUIA_PLATAFORMA_DETALLADA } from '../lib/camila/guiaPlataforma';
 
 interface Message {
   id: string;
@@ -200,7 +202,10 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat', isA
           ...(camila ? [{ id: crypto.randomUUID(), role: 'model' as const, text: camila }] : []),
         ]);
       },
-    });
+    }, messages.filter(m => m.id !== 'welcome').slice(-40).map(m => ({
+      role: m.role,
+      parts: [{ text: m.text.slice(0, 1400) }],
+    })));
     sesionVozRef.current = controlador;
     await controlador.iniciar();
   };
@@ -323,10 +328,10 @@ Directrices:
       historyContents.push({ role: 'user', parts: [{ text: userMsg }] });
 
       const response = await generateContentWithRetry({
-        model: 'gemini-3.1-flash-lite',
+        model: GEMINI_MODELO_CHAT,
         contents: historyContents,
         config: {
-          systemInstruction,
+          systemInstruction: systemInstruction + '\n\nORIENTACIÓN VERIFICADA SOBRE DOCENTY PRO: ' + GUIA_PLATAFORMA_DETALLADA + '\nGuía paso a paso según el menú; no inventes botones ni afirmes haber navegado. Pregunta una cosa a la vez.',
           temperature: 0.7,
         }
       });

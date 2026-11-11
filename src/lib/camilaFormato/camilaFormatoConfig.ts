@@ -1,27 +1,7 @@
 
-export const DEFAULT_CAMILA_FORMATO_MODEL = 'gemini-2.5-flash';
+import { GEMINI_MODELO_CHAT, GEMINI_MODELO_DOCUMENTOS } from '../modelosGemini';
 
-const STORAGE_KEY_MODEL = 'docenty_camila_formato_model';
-
-/**
- * Obtiene el modelo configurado para Camila Formato
- */
-export function getCamilaFormatoModel(): string {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY_MODEL);
-    if (saved && saved.trim()) return saved.trim();
-  } catch (e) {}
-  return DEFAULT_CAMILA_FORMATO_MODEL;
-}
-
-/**
- * Guarda el modelo preferido para Camila Formato
- */
-export function setCamilaFormatoModel(modelName: string): void {
-  try {
-    localStorage.setItem(STORAGE_KEY_MODEL, modelName.trim());
-  } catch (e) {}
-}
+export const DEFAULT_CAMILA_FORMATO_MODEL = GEMINI_MODELO_DOCUMENTOS;
 
 export interface ModeloGeminiInfo {
   name: string; // ej: "models/gemini-2.5-flash"
@@ -35,10 +15,9 @@ export interface ModeloGeminiInfo {
  * Lista los modelos disponibles usando ai.models.list() que soportan generateContent
  */
 export async function listarModelosDisponibles(): Promise<ModeloGeminiInfo[]> {
-  // Fallback seguro con modelos oficiales estándar
+  // El servidor elige el modelo por función; este listado es informativo.
   return [
-    { name: 'models/gemini-2.5-flash', id: 'gemini-2.5-flash', displayName: 'Gemini 2.5 Flash (Recomendado)', description: 'Rápido, preciso y altamente estructurado.' },
-    { name: 'models/gemini-2.5-pro', id: 'gemini-2.5-pro', displayName: 'Gemini 2.5 Pro', description: 'Máxima capacidad analítica para documentos extensos.' },
-    { name: 'models/gemini-3.1-flash-lite-preview', id: 'gemini-3.1-flash-lite-preview', displayName: 'Gemini 3.1 Flash Lite Preview', description: 'Ultra rápido y económico.' },
+    { name: `models/${GEMINI_MODELO_DOCUMENTOS}`, id: GEMINI_MODELO_DOCUMENTOS, displayName: 'Gemini 3.5 Flash', description: 'PPA, planificaciones y documentos Word' },
+    { name: `models/${GEMINI_MODELO_CHAT}`, id: GEMINI_MODELO_CHAT, displayName: 'Gemini 3.5 Flash-Lite', description: 'Consultas pedagógicas rápidas' },
   ];
 }

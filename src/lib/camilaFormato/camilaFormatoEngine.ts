@@ -1,7 +1,8 @@
 import { solicitaPpaIntegral } from './solicitudIntegral';
 import { generarPpaCompletoClaude } from '../camila/claudeClient';
 import { adaptarPpaCompletoAWord } from './adaptarPpaDocx';
-import { validarPpaCompleto, type PpaCompleto, type IdentidadPpa } from './ppaEstructurado';
+import { resguardarHechosInstitucionalesPpa, validarPpaCompleto,
+  type PpaCompleto, type IdentidadPpa } from './ppaEstructurado';
 import { detectarAreasExcluidas } from '../docxClone/clonerPipeline';
 import JSZip from 'jszip';
 import { askCamilaFormatoClaude } from '../camila/claudeClient';
@@ -9,7 +10,7 @@ import {
   combinarDatosProyecto, prepararVaciadoPpa, type DatosProyectoPropuesto,
 } from './contextoProyectoPpa';
 import {
-  datosProyectoDesdeLibro, preguntaPendienteLibroPpa, validarLibroHechosPpa,
+  acotarReferenciasLibroPpa, datosProyectoDesdeLibro, preguntaPendienteLibroPpa, validarLibroHechosPpa,
   INSTRUCCION_LIBRO_HECHOS_PPA, type LibroHechosPpa,
 } from './libroHechosPpa';
 import {
@@ -623,7 +624,7 @@ ${proyectoActivo.diagnostico ? `• Diagnóstico: ${proyectoActivo.diagnostico.s
 ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revisionPrevia.detalles.slice(0, 3).join(' | ')}` : '• Estado: Formato limpio sin errores.'}`;
 
   const promptFinal = `${contextoDoc}\n\n--- REGLAS DEL LIBRO DE HECHOS ---\n${INSTRUCCION_LIBRO_HECHOS_PPA}\n\n--- MENSAJE Y PETICIÓN DEL DOCENTE ---\n"${mensajeDocente}"`;
-  // 2. Claude interpreta texto, imágenes y PDF, y propone operaciones estructuradas.
+  // 2. Gemini interpreta texto, imágenes y PDF, y propone operaciones estructuradas.
   // Los binarios solo viajan durante este turno; nunca pasan a memorias ni historial.
   let responseText = '';
   try {
@@ -660,7 +661,7 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
   // 4. Si la operación es "vaciar_todo" y tenemos el archivo original
   const tieneVaciarTodo = (parsed.operaciones || []).some((o) => o.tipo === 'vaciar_todo');
   let seEjecutoVaciarTodo = false;
-  const libroPropuesto = parsed.libroHechos;
+  const libroPropuesto = parsed.libroHechos ? acotarReferenciasLibroPpa(parsed.libroHechos) : undefined;
   const libroValido = libroPropuesto && validarLibroHechosPpa(libroPropuesto).length === 0
     ? libroPropuesto : undefined;
   const preguntaHechos = libroPropuesto ? preguntaPendienteLibroPpa(libroPropuesto) : null;
@@ -672,7 +673,7 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
        libroPropuesto ? {} : parsed.datosProyecto));
 
   // Un pedido de crear/adaptar/completar TODO un PPA nunca puede resolverse
-  // mediante 20 set_celda parciales. Primero Claude redacta TODO el JSON y
+  // mediante 20 set_celda parciales. Primero Gemini redacta TODO el JSON y
   // solo después el editor aplica los cambios a una copia del DOCX.
   const ordenIntegral = solicitaPpaIntegral(mensajeDocente);
   if (ordenIntegral && archivoOriginalData) {
@@ -707,16 +708,17 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
       identidad, areasExcluidas: excluidas, solicitudActual: mensajeDocente,
       reglas: 'Datos de la plantilla antigua prohibidos. Crear todas las semanas con 4 áreas pedagógicas (Lenguaje, Matemática, Ciencia Tecnología y Sociedad, Ciencias Sociales), salvo exclusiones expresas. No incluir datos ajenos. No inventar fechas.',
     };
-    onProgresoVaciarTodo?.('Claude está redactando el PPA COMPLETO como JSON estructurado...');
-    const plan = await generarPpaCompletoClaude(JSON.stringify(contexto)) as PpaCompleto;
-    const errores = validarPpaCompleto(plan, identidad, excluidas);
-    if (errores.length) throw new Error(`Claude no completó el PPA: ${errores[0]} Original preservado.`);
+    onProgresoVaciarTodo?.('Camila está redactando el PPA completo...');
+    const propuesta = await generarPpaCompletoClaude(JSON.stringify(contexto)) as PpaCompleto;
+    const errores = validarPpaCompleto(propuesta, identidad, excluidas);
+    if (errores.length) throw new Error(`Camila no completó el PPA: ${errores[0]} Original preservado.`);
+    const plan = resguardarHechosInstitucionalesPpa(propuesta, identidad);
     onProgresoVaciarTodo?.('Validando y adaptando TODAS las semanas en el Word institucional...');
     const nuevoBlob = await adaptarPpaCompletoAWord(archivoOriginalData, plan, identidad, excluidas);
     const nuevoDocumento = await cargarDocx(nuevoBlob);
     const nuevoMapa = construirMapa(nuevoDocumento.doc);
     return {
-      respuestaCamila: `Preparé ${plan.semanas.length} semanas completas en el Word y reconstruí las tablas y el pie de página. Revise la vista previa; no aplicaré nada sin su aprobación.`,
+      respuestaCamila: `Preparé ${plan.semanas.length} semanas completas en el Word y reconstruí las tablas y el pie de página. Los cambios aparecerán en la vista previa y podrá deshacerlos.`,
       operacionesEjecutadas: [{tipo:'vaciar_todo'}], operacionesOmitidas: [],
       nuevoBlob, nuevoMapa,
       revision: { aprobado:true, resumen:'Validación integral del PPA superada: datos, semanas y plantilla verificados.', detalles:[],
