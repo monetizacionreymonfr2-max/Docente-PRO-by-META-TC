@@ -202,7 +202,7 @@ export async function adaptarPpaCompletoAWord(
     getTextoCompleto(verificado.doc.documentElement), original.grado, identidad.gradoSeccion,
   ));
   const encabezadosYPies = Object.keys(verificado.zip.files)
-    .filter(path => /^word\\/(?:header|footer)\\d*\\.xml$/.test(path));
+    .filter(path => /^word\/(?:header|footer)\d*\.xml$/.test(path));
   for (const path of encabezadosYPies) {
     const xml = await verificado.zip.file(path)?.async('string');
     if (!xml) continue;
