@@ -11,13 +11,13 @@
     "lint": "tsc --noEmit",
     "test:gemini": "node --test tests/camila-gemini.test.mjs",
     "test:gemini-modelos": "node --import tsx --test tests/modelos-gemini-aprobados.test.mjs",
-    "test:camila-voz": "node --test tests/camila-voz-segura.test.mjs && node --import tsx --test tests/camila-errores-voz.test.mjs tests/camila-contexto-voz.test.mjs tests/camila-guia-plataforma.test.mjs",
+    "test:camila-voz": "node --test tests/camila-voz-segura.test.mjs && node --import tsx --test tests/camila-errores-voz.test.mjs tests/camila-contexto-voz.test.mjs tests/camila-guia-plataforma.test.mjs tests/camila-reconexion-voz.test.mjs",
     "test:ppa-contexto": "node --import tsx --test tests/ppa-contexto-ficticio.test.mjs",
     "test:ppa-libro": "node --import tsx --test tests/ppa-libro-hechos.test.mjs",
     "test:ppa-sin-plantilla": "node --import tsx --test tests/ppa-sin-plantilla-ficticio.test.mjs",
     "test:camila-privacidad": "node --test tests/camila-privacidad.test.mjs && node --import tsx --test tests/camila-persistencia-simulada.test.mjs tests/camila-continuidad-chat.test.mjs",
     "test:mi-formato": "node --import tsx tests/mi-formato-encabezados.test.mjs && node --import tsx tests/mi-formato-integridad-docx.test.mjs && node --import tsx tests/mi-formato-flujo-propuestas.test.mjs && node --import tsx tests/mi-formato-responsive.test.mjs",
-    "test:ppa-completo": "node --import tsx --test tests/ppa-completo-estructurado.test.mjs tests/ppa-adaptador-docx.test.mjs tests/ppa-intencion-integral.test.mjs tests/ppa-auditoria-grado.test.mjs",
+    "test:ppa-completo": "node --import tsx --test tests/ppa-completo-estructurado.test.mjs tests/ppa-adaptador-docx.test.mjs tests/ppa-intencion-integral.test.mjs tests/ppa-auditoria-grado.test.mjs tests/ppa-adaptador-flexible.test.mjs",
     "verify:camila": "npm run lint && npm run test:camila-voz && npm run test:camila-privacidad && npm run test:ppa-completo && npm run test:gemini"
   },
   "dependencies": {
