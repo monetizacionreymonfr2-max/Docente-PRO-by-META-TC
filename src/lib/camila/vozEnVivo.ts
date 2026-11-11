@@ -10,9 +10,11 @@ interface CredencialVoz {
   duracionSegundos: number;
 }
 
+export type MotivoCierreVoz = 'manual' | 'limite' | 'interrupcion' | 'fallo';
+
 export interface EventosVozCamila {
   alConectar: () => void;
-  alCerrar: () => void;
+  alCerrar: (motivo: MotivoCierreVoz) => void;
   alError: (mensaje: string) => void;
   alTurno: (usuario: string, camila: string) => void;
   alPrepararDocumento?: (instruccion: string) => Promise<string>;
@@ -67,6 +69,7 @@ export class SesionVozCamila {
     private readonly eventos: EventosVozCamila,
     // Historial temporal entre llamadas en una misma pantalla.
     private readonly contextoInicial: Content[] = [],
+    private readonly duracionMaximaSegundos = 540,
   ) {}
 
   async iniciar(): Promise<void> {
@@ -131,12 +134,12 @@ export class SesionVozCamila {
           },
           onerror: () => {
             if (!this.cerrada) {
-              this.eventos.alError('La conexión de voz se interrumpió. Puedes volver a intentarlo.');
-              this.detener();
+              this.eventos.alError('La conexión de voz se interrumpió.');
+              this.detener('interrupcion');
             }
           },
           onclose: () => {
-            if (!this.cerrada) this.detener();
+            if (!this.cerrada) this.detener('interrupcion');
           },
         },
       });
@@ -170,12 +173,13 @@ export class SesionVozCamila {
       if (this.cerrada) return;
       this.conectada = true;
       // Límite local controlado por el servidor; nunca más de nueve minutos.
-      this.temporizador = window.setTimeout(() => this.detener(), Math.min(540, Math.max(60, credencial.duracionSegundos)) * 1000);
+      this.temporizador = window.setTimeout(() => this.detener('limite'),
+        Math.min(540, Math.max(1, credencial.duracionSegundos), Math.max(1, this.duracionMaximaSegundos)) * 1000);
       this.eventos.alConectar();
     } catch (error) {
       if (!this.cerrada) {
         this.eventos.alError(describirErrorVoz(error));
-        this.detener();
+        this.detener('fallo');
       }
     }
   }
@@ -244,7 +248,7 @@ export class SesionVozCamila {
     this.siguienteAudio = 0;
   }
 
-  detener() {
+  detener(motivo: MotivoCierreVoz = 'manual') {
     if (this.cerrada) return;
     // Al llegar a nueve minutos o producirse una interrupción, recuperar el texto parcial.
     const pendienteDocente = this.textoUsuario.trim();
@@ -265,7 +269,7 @@ export class SesionVozCamila {
     void this.salida?.close().catch(() => undefined);
     this.microfono = null;
     this.sesion = null;
-    this.eventos.alCerrar();
+    this.eventos.alCerrar(motivo);
   }
 
   get activa() { return this.conectada && !this.cerrada; }
