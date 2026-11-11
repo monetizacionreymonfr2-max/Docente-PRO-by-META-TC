@@ -279,6 +279,7 @@ export default function CamilaFormato() {
       alTurno: (usuario, camila) => {
         if (llamadaRef.current !== llamada) return;
         historialVozRef.current = registrarTurnoVozCamila(historialVozRef.current, usuario, camila);
+        // Guardar las transcripciones como turnos de chat en memoria temporal.
         // Solo se sincroniza con Supabase después de que el docente autorice Guardar chat.
         // Nunca almacenamos la grabación de voz.
         setMensajes(prev => [
