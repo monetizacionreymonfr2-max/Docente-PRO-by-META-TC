@@ -38,6 +38,9 @@ import {
   CamilaPersistence, type ResumenConversacion, type RecuerdoCamila,
 } from '../lib/camila/camilaPersistence';
 import { hayConversacionSinGuardar } from '../lib/camila/camilaConversationGuard';
+import {
+  leerUltimoChatAutorizado, recordarUltimoChatAutorizado, olvidarUltimoChatAutorizado,
+} from '../lib/camila/continuidadChat';
 import { ColaHistorialPrivado } from '../lib/camila/colaHistorialPrivado';
 import DocxPreviewViewer from '../components/formato/DocxPreviewViewer';
 import { FormatoService, fileToBase64 } from '../lib/formatoService';
@@ -160,6 +163,8 @@ export default function CamilaFormato() {
   const [avisoPrivacidad, setAvisoPrivacidad] = useState<string | null>(null);
   const colaGuardadoRef = useRef(new ColaHistorialPrivado());
   const omitirPrimerAutoguardadoRef = useRef<string | null>(null);
+  const estadoChatRef = useRef({ conversacionId, mensajes });
+  useEffect(() => { estadoChatRef.current = { conversacionId, mensajes }; }, [conversacionId, mensajes]);
   const [tituloRecuerdo, setTituloRecuerdo] = useState('');
   const [contenidoRecuerdo, setContenidoRecuerdo] = useState('');
   const [recuerdoEditandoId, setRecuerdoEditandoId] = useState<string | null>(null);
@@ -365,6 +370,29 @@ export default function CamilaFormato() {
     return () => { activo = false; };
   }, [teacherId]);
 
+  // Retomar automáticamente solo conversaciones que el docente decidió guardar.
+  // localStorage conserva únicamente el UUID, nunca conversaciones, audios o Word.
+  useEffect(() => {
+    if (!teacherId) return;
+    let activo = true;
+    const ultimoId = leerUltimoChatAutorizado(window.localStorage, teacherId);
+    if (ultimoId) {
+      void CamilaPersistence.obtenerConversacion(teacherId, ultimoId).then((conversacion) => {
+        if (!activo) return;
+        const actual = estadoChatRef.current;
+        // No reemplazar una conversación que el docente ya empezó a escribir.
+        if (actual.conversacionId || actual.mensajes.length !== 1) return;
+        omitirPrimerAutoguardadoRef.current = conversacion.id;
+        setConversacionId(conversacion.id);
+        setMensajes(conversacion.mensajes.map((m) => ({
+          id: m.id, emisor: m.emisor, texto: m.texto, fecha: new Date(m.fecha),
+        })));
+        setAvisoPrivacidad('Retomé su conversación guardada. Si trabajaba con un Word, vuelva a abrirlo para seguir editando.');
+      }).catch(() => { /* No cargar datos fuera de una sesión válida. */ });
+    }
+    return () => { activo = false; };
+  }, [teacherId]);
+
   // Al guardar una conversación una vez, el docente autoriza la sincronización
   // de sus siguientes turnos. Se encadenan escrituras para evitar sobrescrituras.
   const actualizarHistorialEnCola = (id: string, contenido = mensajes) => {
@@ -401,12 +429,14 @@ export default function CamilaFormato() {
     setPersistenciaOcupada(true);
     setAvisoPrivacidad(null);
     try {
-      if (conversacionId) await actualizarHistorialEnCola(conversacionId);
+      let idGuardado = conversacionId;
+      if (idGuardado) await actualizarHistorialEnCola(idGuardado);
       else {
-        const id = await CamilaPersistence.crearConversacion(teacherId, mensajes);
-        omitirPrimerAutoguardadoRef.current = id;
-        setConversacionId(id);
+        idGuardado = await CamilaPersistence.crearConversacion(teacherId, mensajes);
+        omitirPrimerAutoguardadoRef.current = idGuardado;
+        setConversacionId(idGuardado);
       }
+      recordarUltimoChatAutorizado(window.localStorage, teacherId, idGuardado);
       setAvisoPrivacidad('Conversación guardada en su historial privado. Los siguientes mensajes se sincronizarán automáticamente.');
       setHistorialGuardado(await CamilaPersistence.listarConversaciones(teacherId));
     } catch (error) { setAvisoPrivacidad(error instanceof Error ? error.message : 'No se pudo guardar su conversación.'); }
@@ -457,6 +487,7 @@ export default function CamilaFormato() {
       historialVozRef.current = [];
       omitirPrimerAutoguardadoRef.current = conversacion.id;
       setConversacionId(conversacion.id);
+      recordarUltimoChatAutorizado(window.localStorage, teacherId, conversacion.id);
       setMensajes(conversacion.mensajes.map((m) => ({
         id: m.id, emisor: m.emisor, texto: m.texto, fecha: new Date(m.fecha),
       })));
@@ -475,6 +506,7 @@ export default function CamilaFormato() {
       finalizarLlamada();
       cerrarDocumentoDeSesion();
       historialVozRef.current = [];
+      olvidarUltimoChatAutorizado(window.localStorage, teacherId);
       setConversacionId(null);
       setMensajes([{ id: `inicio-${Date.now()}`, emisor: 'camila',
         texto: `${saludo}${nombre ? `, ${nombre}` : ''}. Soy Camila. ¿En qué puedo ayudarle hoy?`, fecha: new Date() }]);
@@ -493,7 +525,10 @@ export default function CamilaFormato() {
       await colaGuardadoRef.current.prepararEliminacion(id);
       await CamilaPersistence.eliminarConversacion(teacherId, id);
       setHistorialGuardado((prev) => prev.filter((c) => c.id !== id));
-      if (conversacionId === id) setConversacionId(null);
+      if (conversacionId === id) {
+        olvidarUltimoChatAutorizado(window.localStorage, teacherId);
+        setConversacionId(null);
+      }
       setAvisoPrivacidad('Se eliminó únicamente la conversación que usted confirmó.');
     } catch (error) { setAvisoPrivacidad(error instanceof Error ? error.message : 'No se pudo eliminar la conversación.'); }
     finally {
