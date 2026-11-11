@@ -4,7 +4,7 @@ import {
   leerUltimoChatAutorizado,
   recordarUltimoChatAutorizado,
   olvidarUltimoChatAutorizado,
-} from './continuidadChat.ts';
+} from '../src/lib/camila/continuidadChat.ts';
 
 const docenteA = '10000000-0000-4000-8000-000000000001';
 const docenteB = '10000000-0000-4000-8000-000000000002';
