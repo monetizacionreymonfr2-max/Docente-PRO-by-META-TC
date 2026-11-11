@@ -1,6 +1,7 @@
 import { solicitaPpaIntegral } from './solicitudIntegral';
 import { generarPpaCompletoClaude } from '../camila/claudeClient';
 import { adaptarPpaCompletoAWord } from './adaptarPpaDocx';
+import { esIncompatibilidadEstructuralPpa, erroresAuditoriaPpaGenerico } from './seleccionAdaptadorPpa';
 import { resguardarHechosInstitucionalesPpa, validarPpaCompleto,
   type PpaCompleto, type IdentidadPpa } from './ppaEstructurado';
 import { detectarAreasExcluidas } from '../docxClone/clonerPipeline';
@@ -714,15 +715,62 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
     if (errores.length) throw new Error(`Camila no completó el PPA: ${errores[0]} Original preservado.`);
     const plan = resguardarHechosInstitucionalesPpa(propuesta, identidad);
     onProgresoVaciarTodo?.('Validando y adaptando TODAS las semanas en el Word institucional...');
-    const nuevoBlob = await adaptarPpaCompletoAWord(archivoOriginalData, plan, identidad, excluidas);
+    let nuevoBlob: Blob;
+    let metodo: 'estructura_conocida' | 'estructura_flexible' = 'estructura_conocida';
+    let coberturaFlexible: CoberturaTabla[] = [];
+    try {
+      nuevoBlob = await adaptarPpaCompletoAWord(archivoOriginalData, plan, identidad, excluidas);
+    } catch (error) {
+      if (!esIncompatibilidadEstructuralPpa(error)) throw error;
+      // Las plantillas distintas pasan a un motor capaz de clasificar sus propias tablas.
+      // Si no hay análisis fiable o no se valida el resultado, no se entrega ningún Word.
+      if (!plantilla) throw new Error('Necesito analizar la estructura de este Word antes de adaptarlo. No se modificó el documento original.');
+      const datosClonacion: DatosDocenteProyecto = {
+        institucion: identidad.institucion,
+        docente: identidad.docente,
+        gradoSeccion: identidad.gradoSeccion,
+        nivel: 'Educación Primaria',
+        tema: plan.titulo,
+        nombrePa: plan.titulo,
+        duracion: identidad.duracion,
+        diagnostico: identidad.diagnostico,
+        matricula: identidad.matricula,
+        lapsoEjecucion: [identidad.fechaInicio, identidad.fechaFin].filter(Boolean).join(' al '),
+        instruccionesExtra: [mensajeDocente, excluidas.length ? `Áreas excluidas: ${excluidas.join(', ')}` : ''].filter(Boolean).join('\n'),
+      };
+      onProgresoVaciarTodo?.('Reconociendo las tablas propias de este Word y comprobando la adaptación...');
+      const alternativa = await ejecutarClonacionDocx(archivoOriginalData, plantilla, datosClonacion, onProgresoVaciarTodo);
+      if (!alternativa.exito || !alternativa.blobDocx) {
+        const detalle = alternativa.detallesValidacion?.[0];
+        throw new Error(`Este Word tiene una estructura distinta y la comprobación de su adaptación no terminó correctamente.${detalle ? ` ${detalle.slice(0, 180)}` : ''} El archivo original permanece intacto.`);
+      }
+      const zipAuditoria = await JSZip.loadAsync(alternativa.blobDocx);
+      const partesAuditoria = Object.keys(zipAuditoria.files).filter(nombre =>
+        /^word\/(?:document|header\d+|footer\d+)\.xml$/.test(nombre));
+      const textosAuditoria = await Promise.all(partesAuditoria.map(async nombre => {
+        const xml = await zipAuditoria.file(nombre)?.async('string');
+        if (!xml) return '';
+        return new DOMParser().parseFromString(xml, 'application/xml').documentElement.textContent || '';
+      }));
+      const hallazgos = erroresAuditoriaPpaGenerico(textosAuditoria.join(' '), identidad.gradoSeccion, plan.titulo);
+      if (hallazgos.length) throw new Error(`No se entregó el Word: ${hallazgos.join(' ')} El original permanece intacto.`);
+      nuevoBlob = alternativa.blobDocx;
+      coberturaFlexible = alternativa.coberturaTablas || [];
+      metodo = 'estructura_flexible';
+    }
     const nuevoDocumento = await cargarDocx(nuevoBlob);
     const nuevoMapa = construirMapa(nuevoDocumento.doc);
     return {
-      respuestaCamila: `Preparé ${plan.semanas.length} semanas completas en el Word y reconstruí las tablas y el pie de página. Los cambios aparecerán en la vista previa y podrá deshacerlos.`,
+      respuestaCamila: metodo === 'estructura_flexible'
+        ? `Adapté el PPA al diseño particular de este Word, comprobé el nuevo grado y el título, y conservé el archivo original. Revise las semanas en la vista previa antes de descargar; puede deshacer los cambios.`
+        : `Preparé ${plan.semanas.length} semanas completas en el Word y reconstruí las tablas y el pie de página. Los cambios aparecerán en la vista previa y podrá deshacerlos.`,
       operacionesEjecutadas: [{tipo:'vaciar_todo'}], operacionesOmitidas: [],
       nuevoBlob, nuevoMapa,
-      revision: { aprobado:true, resumen:'Validación integral del PPA superada: datos, semanas y plantilla verificados.', detalles:[],
-        celdasSinCambio:0, celdasReemplazadas:plan.semanas.reduce((n,w)=>n+w.filas.length*9,0), coberturaTablas:[] },
+      revision: { aprobado:true, resumen: metodo === 'estructura_flexible'
+        ? 'Clonación estructural validada y datos del grado y título auditados.'
+        : 'Validación integral del PPA superada: datos, semanas y plantilla verificados.', detalles:[],
+        celdasSinCambio:0, celdasReemplazadas:plan.semanas.reduce((n,w)=>n+w.filas.length*9,0),
+        coberturaTablas:coberturaFlexible },
       seEjecutoVaciarTodo: true, datosProyectoExtraidos, libroHechosExtraidos: libroValido,
     };
   }
