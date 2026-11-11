@@ -3,6 +3,7 @@ import {
   setTextoCelda, setTextoParrafo, clonarFila, insertarFilaDespues, eliminarFila,
 } from '../docxClone/docxEditor';
 import { PpaCompleto, IdentidadPpa, semanasDeCalendario, textoFecha, validarPpaCompleto } from './ppaEstructurado';
+import { referenciasGradoAnterior } from './auditoriaGrado';
 
 const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const nombre = (e: Element) => e.localName || e.nodeName.replace(/^.*:/, '');
@@ -194,6 +195,24 @@ export async function adaptarPpaCompletoAWord(
   if (getTextoCompleto(verificado.doc.documentElement).includes(original.docente) &&
       original.docente !== identidad.docente) {
     throw new Error('El DOCX generado conserva información de otro docente.');
+  }
+  // Una adaptación de tercero a quinto también debe revisar menciones escritas
+  // con otras variantes (tercer grado, 3er grado, etc.), incluso en encabezados.
+  const referenciasAnteriores = new Set(referenciasGradoAnterior(
+    getTextoCompleto(verificado.doc.documentElement), original.grado, identidad.gradoSeccion,
+  ));
+  const encabezadosYPies = Object.keys(verificado.zip.files)
+    .filter(path => /^word\\/(?:header|footer)\\d*\\.xml$/.test(path));
+  for (const path of encabezadosYPies) {
+    const xml = await verificado.zip.file(path)?.async('string');
+    if (!xml) continue;
+    const parte = new DOMParser().parseFromString(xml, 'application/xml');
+    for (const hallazgo of referenciasGradoAnterior(
+      getTextoCompleto(parte.documentElement), original.grado, identidad.gradoSeccion,
+    )) referenciasAnteriores.add(hallazgo);
+  }
+  if (referenciasAnteriores.size) {
+    throw new Error(`El Word todavía menciona el grado anterior (${[...referenciasAnteriores].join(', ')}). No se entregó una adaptación incompleta.`);
   }
   return blob;
 }
