@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - feat/llamadas-camila-gemini-20261107
+      - feat/camila-memoria-documentos-20261110
   workflow_dispatch:
 permissions:
   contents: read
