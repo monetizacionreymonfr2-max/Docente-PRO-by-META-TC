@@ -58,7 +58,10 @@ test('la reconexión precarga el contexto sin hablar automáticamente y limpia a
   assert.ok(vivo.includes('sendClientContent({ turns: this.contextoInicial, turnComplete: false })'));
   assert.ok(vivo.includes('this.eventos.alTurno(pendienteDocente, pendienteCamila)'));
   assert.ok(pagina.includes('registrarTurnoVozCamila(historialVozRef.current, usuario, camila)'));
-  assert.ok(pagina.includes('}, contextoAnterior);'));
+  assert.ok(pagina.includes('}, contextoAnterior, segundosRestantes);'));
+  assert.ok(pagina.includes('puedeReconectarLlamada(inicioActual, Date.now(), reintento)'));
+  assert.ok(pagina.includes('reconexionTimerRef.current = window.setTimeout'));
+  assert.ok(pagina.includes('inicioLlamadaRef.current = null'));
   assert.ok(pagina.includes('historialVozRef.current = []'));
   assert.equal(vivo.includes('localStorage'), false);
   assert.match(vivo, /Math\.min\(540/);

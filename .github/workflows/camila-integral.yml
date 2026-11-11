@@ -5,6 +5,7 @@ on:
       - implementacion-claude-flujo-completo-20261030
       - finalizacion-mi-formato-20261106
       - feat/llamadas-camila-gemini-20261107
+      - feat/camila-memoria-documentos-20261110
   workflow_dispatch:
 jobs:
   validar:

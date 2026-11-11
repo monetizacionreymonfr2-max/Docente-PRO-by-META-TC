@@ -38,12 +38,16 @@ import {
   CamilaPersistence, type ResumenConversacion, type RecuerdoCamila,
 } from '../lib/camila/camilaPersistence';
 import { hayConversacionSinGuardar } from '../lib/camila/camilaConversationGuard';
+import {
+  leerUltimoChatAutorizado, recordarUltimoChatAutorizado, olvidarUltimoChatAutorizado,
+} from '../lib/camila/continuidadChat';
 import { ColaHistorialPrivado } from '../lib/camila/colaHistorialPrivado';
 import DocxPreviewViewer from '../components/formato/DocxPreviewViewer';
 import { FormatoService, fileToBase64 } from '../lib/formatoService';
 import { SupabaseService } from '../lib/supabaseService';
 import { supabase } from '../lib/supabase';
 import { SesionVozCamila } from '../lib/camila/vozEnVivo';
+import { segundosRestantesLlamada, puedeReconectarLlamada } from '../lib/camila/reconexionLlamada';
 import { prepararContextoLlamadaCamila, registrarTurnoVozCamila, type TurnoVozCamila } from '../lib/camila/contextoVoz';
 import { FormatoDocente } from '../types/formato';
 import { PlantillaDocx, DocxMapa } from '../lib/docxClone/types';
@@ -142,6 +146,8 @@ export default function CamilaFormato() {
   const [avisoVoz, setAvisoVoz] = useState<string | null>(null);
   const reconocimientoRef = useRef<any>(null);
   const llamadaRef = useRef<SesionVozCamila | null>(null);
+  const inicioLlamadaRef = useRef<number | null>(null);
+  const reconexionTimerRef = useRef<number | null>(null);
   // Solo memoria volátil de la pantalla: no persiste audios ni transcripciones.
   const historialVozRef = useRef<TurnoVozCamila[]>([]);
   const prepararDocumentoDesdeVozRef = useRef<(instruccion: string) => Promise<string>>(
@@ -160,6 +166,8 @@ export default function CamilaFormato() {
   const [avisoPrivacidad, setAvisoPrivacidad] = useState<string | null>(null);
   const colaGuardadoRef = useRef(new ColaHistorialPrivado());
   const omitirPrimerAutoguardadoRef = useRef<string | null>(null);
+  const estadoChatRef = useRef({ conversacionId, mensajes });
+  useEffect(() => { estadoChatRef.current = { conversacionId, mensajes }; }, [conversacionId, mensajes]);
   const [tituloRecuerdo, setTituloRecuerdo] = useState('');
   const [contenidoRecuerdo, setContenidoRecuerdo] = useState('');
   const [recuerdoEditandoId, setRecuerdoEditandoId] = useState<string | null>(null);
@@ -198,50 +206,82 @@ export default function CamilaFormato() {
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   }, []);
 
-  // La llamada es voluntaria y se cierra al abandonar Mi Formato.
+  // Cerrar siempre al salir. Ningún reintento reactiva el micrófono tras colgar.
   useEffect(() => () => {
+    inicioLlamadaRef.current = null;
+    if (reconexionTimerRef.current !== null) window.clearTimeout(reconexionTimerRef.current);
+    reconexionTimerRef.current = null;
     const llamada = llamadaRef.current;
     llamadaRef.current = null;
     llamada?.detener();
   }, []);
 
   const finalizarLlamada = () => {
+    inicioLlamadaRef.current = null;
+    if (reconexionTimerRef.current !== null) window.clearTimeout(reconexionTimerRef.current);
+    reconexionTimerRef.current = null;
     llamadaRef.current?.detener();
     llamadaRef.current = null;
     setEstadoLlamada('inactiva');
     setLlamadaSilenciada(false);
   };
 
-  const alternarLlamada = () => {
-    if (llamadaRef.current) { finalizarLlamada(); return; }
-    if (!llamadaHabilitada) return;
-    if (escuchando) reconocimientoRef.current?.stop();
-    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-    setAvisoLlamada(null);
-    setUltimoTurnoLlamada(null);
-    setEstadoLlamada('conectando');
-    const contextoAnterior = prepararContextoLlamadaCamila(historialVozRef.current, mensajes, {
-      formato: formatoActivo?.nombre || nombreBorradorLocal || undefined,
-      proyecto: proyectoActivo?.titulo || undefined,
-      recuerdosAutorizados: usarRecuerdos ? recuerdos.map(({ titulo, contenido }) => ({ titulo, contenido })) : [],
-    });
+  const iniciarSesionLlamada = (reintento = 0) => {
+    const inicio = inicioLlamadaRef.current;
+    if (inicio === null) return;
+    const segundosRestantes = segundosRestantesLlamada(inicio, Date.now());
+    if (segundosRestantes < 15) {
+      finalizarLlamada();
+      setAvisoLlamada('Se cumplieron los nueve minutos de llamada. Puede volver a llamar sin perder los turnos transcritos.');
+      return;
+    }
+    const contextoAnterior = prepararContextoLlamadaCamila(
+      historialVozRef.current,
+      estadoChatRef.current.mensajes,
+      {
+        formato: formatoActivo?.nombre || nombreBorradorLocal || undefined,
+        proyecto: proyectoActivo?.titulo || undefined,
+        recuerdosAutorizados: usarRecuerdos ? recuerdos.map(({ titulo, contenido }) => ({ titulo, contenido })) : [],
+      },
+    );
     const llamada = new SesionVozCamila({
       alConectar: () => {
-        if (llamadaRef.current === llamada) setEstadoLlamada('conectada');
+        if (llamadaRef.current !== llamada) return;
+        setEstadoLlamada('conectada');
+        setAvisoLlamada(null);
       },
-      alCerrar: () => {
-        if (llamadaRef.current === llamada) {
-          llamadaRef.current = null;
-          setEstadoLlamada('inactiva');
-          setLlamadaSilenciada(false);
+      alCerrar: (motivo) => {
+        if (llamadaRef.current !== llamada) return;
+        llamadaRef.current = null;
+        setLlamadaSilenciada(false);
+        const inicioActual = inicioLlamadaRef.current;
+        if (motivo === 'interrupcion' && inicioActual !== null &&
+            puedeReconectarLlamada(inicioActual, Date.now(), reintento)) {
+          setEstadoLlamada('conectando');
+          setAvisoLlamada('La conexión se interrumpió. Camila está reconectando con el contexto de esta conversación…');
+          reconexionTimerRef.current = window.setTimeout(() => {
+            reconexionTimerRef.current = null;
+            if (inicioLlamadaRef.current === inicioActual) iniciarSesionLlamada(reintento + 1);
+          }, 1200);
+          return;
+        }
+        inicioLlamadaRef.current = null;
+        setEstadoLlamada('inactiva');
+        if (motivo === 'limite') {
+          setAvisoLlamada('Finalizaron los nueve minutos de llamada. Puede volver a llamar y continuar la conversación.');
+        } else if (motivo === 'interrupcion') {
+          setAvisoLlamada('No fue posible recuperar la conexión. Puede volver a llamar; Camila conserva los turnos transcritos.');
         }
       },
-      alError: (mensaje) => setAvisoLlamada(mensaje),
+      alError: (mensaje) => {
+        if (llamadaRef.current === llamada) setAvisoLlamada(mensaje);
+      },
       alTurno: (usuario, camila) => {
         if (llamadaRef.current !== llamada) return;
         historialVozRef.current = registrarTurnoVozCamila(historialVozRef.current, usuario, camila);
-        // Conservar las transcripciones como turnos de chat: se sincronizan con Supabase
-        // solo si el docente ya autorizó «Guardar chat». Jamás almacenar audio.
+        // Guardar las transcripciones como turnos de chat en memoria temporal.
+        // Solo se sincroniza con Supabase después de que el docente autorice Guardar chat.
+        // Nunca almacenamos la grabación de voz.
         setMensajes(prev => [
           ...prev,
           ...(usuario.trim() ? [{ id: crypto.randomUUID(), emisor: 'docente' as const, texto: usuario, fecha: new Date() }] : []),
@@ -250,9 +290,24 @@ export default function CamilaFormato() {
         setUltimoTurnoLlamada([usuario && `Docente: ${usuario}`, camila && `Camila: ${camila}`].filter(Boolean).join(' · ').slice(0, 220));
       },
       alPrepararDocumento: (instruccion) => prepararDocumentoDesdeVozRef.current(instruccion),
-    }, contextoAnterior);
+    }, contextoAnterior, segundosRestantes);
     llamadaRef.current = llamada;
     void llamada.iniciar();
+  };
+
+  const alternarLlamada = () => {
+    if (inicioLlamadaRef.current !== null || llamadaRef.current) {
+      finalizarLlamada();
+      return;
+    }
+    if (!llamadaHabilitada) return;
+    if (escuchando) reconocimientoRef.current?.stop();
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    setAvisoLlamada(null);
+    setUltimoTurnoLlamada(null);
+    setEstadoLlamada('conectando');
+    inicioLlamadaRef.current = Date.now();
+    iniciarSesionLlamada();
   };
 
   const alternarSilencioLlamada = () => {
@@ -365,6 +420,29 @@ export default function CamilaFormato() {
     return () => { activo = false; };
   }, [teacherId]);
 
+  // Retomar automáticamente solo conversaciones que el docente decidió guardar.
+  // localStorage conserva únicamente el UUID, nunca conversaciones, audios o Word.
+  useEffect(() => {
+    if (!teacherId) return;
+    let activo = true;
+    const ultimoId = leerUltimoChatAutorizado(window.localStorage, teacherId);
+    if (ultimoId) {
+      void CamilaPersistence.obtenerConversacion(teacherId, ultimoId).then((conversacion) => {
+        if (!activo) return;
+        const actual = estadoChatRef.current;
+        // No reemplazar una conversación que el docente ya empezó a escribir.
+        if (actual.conversacionId || actual.mensajes.length !== 1) return;
+        omitirPrimerAutoguardadoRef.current = conversacion.id;
+        setConversacionId(conversacion.id);
+        setMensajes(conversacion.mensajes.map((m) => ({
+          id: m.id, emisor: m.emisor, texto: m.texto, fecha: new Date(m.fecha),
+        })));
+        setAvisoPrivacidad('Retomé su conversación guardada. Si trabajaba con un Word, vuelva a abrirlo para seguir editando.');
+      }).catch(() => { /* No cargar datos fuera de una sesión válida. */ });
+    }
+    return () => { activo = false; };
+  }, [teacherId]);
+
   // Al guardar una conversación una vez, el docente autoriza la sincronización
   // de sus siguientes turnos. Se encadenan escrituras para evitar sobrescrituras.
   const actualizarHistorialEnCola = (id: string, contenido = mensajes) => {
@@ -401,12 +479,14 @@ export default function CamilaFormato() {
     setPersistenciaOcupada(true);
     setAvisoPrivacidad(null);
     try {
-      if (conversacionId) await actualizarHistorialEnCola(conversacionId);
+      let idGuardado = conversacionId;
+      if (idGuardado) await actualizarHistorialEnCola(idGuardado);
       else {
-        const id = await CamilaPersistence.crearConversacion(teacherId, mensajes);
-        omitirPrimerAutoguardadoRef.current = id;
-        setConversacionId(id);
+        idGuardado = await CamilaPersistence.crearConversacion(teacherId, mensajes);
+        omitirPrimerAutoguardadoRef.current = idGuardado;
+        setConversacionId(idGuardado);
       }
+      recordarUltimoChatAutorizado(window.localStorage, teacherId, idGuardado);
       setAvisoPrivacidad('Conversación guardada en su historial privado. Los siguientes mensajes se sincronizarán automáticamente.');
       setHistorialGuardado(await CamilaPersistence.listarConversaciones(teacherId));
     } catch (error) { setAvisoPrivacidad(error instanceof Error ? error.message : 'No se pudo guardar su conversación.'); }
@@ -457,6 +537,7 @@ export default function CamilaFormato() {
       historialVozRef.current = [];
       omitirPrimerAutoguardadoRef.current = conversacion.id;
       setConversacionId(conversacion.id);
+      recordarUltimoChatAutorizado(window.localStorage, teacherId, conversacion.id);
       setMensajes(conversacion.mensajes.map((m) => ({
         id: m.id, emisor: m.emisor, texto: m.texto, fecha: new Date(m.fecha),
       })));
@@ -475,6 +556,7 @@ export default function CamilaFormato() {
       finalizarLlamada();
       cerrarDocumentoDeSesion();
       historialVozRef.current = [];
+      olvidarUltimoChatAutorizado(window.localStorage, teacherId);
       setConversacionId(null);
       setMensajes([{ id: `inicio-${Date.now()}`, emisor: 'camila',
         texto: `${saludo}${nombre ? `, ${nombre}` : ''}. Soy Camila. ¿En qué puedo ayudarle hoy?`, fecha: new Date() }]);
@@ -493,7 +575,10 @@ export default function CamilaFormato() {
       await colaGuardadoRef.current.prepararEliminacion(id);
       await CamilaPersistence.eliminarConversacion(teacherId, id);
       setHistorialGuardado((prev) => prev.filter((c) => c.id !== id));
-      if (conversacionId === id) setConversacionId(null);
+      if (conversacionId === id) {
+        olvidarUltimoChatAutorizado(window.localStorage, teacherId);
+        setConversacionId(null);
+      }
       setAvisoPrivacidad('Se eliminó únicamente la conversación que usted confirmó.');
     } catch (error) { setAvisoPrivacidad(error instanceof Error ? error.message : 'No se pudo eliminar la conversación.'); }
     finally {
