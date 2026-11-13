@@ -9,6 +9,7 @@ import {
   PlantillaDocx,
   CoberturaTabla,
 } from './types';
+import { escribirTextoParrafoSeguro, escribirLineasCeldaSeguro } from '../camilaFormato/adaptacionIntegral/escrituraOoxml';
 
 const W_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 
@@ -261,79 +262,16 @@ export function construirMapa(doc: Document): DocxMapa {
 }
 
 /**
- * Modifica el texto de un párrafo conservando su w:pPr y w:rPr del run principal
+ * Sustituye solo texto editable: nunca elimina logos, campos, encabezados,
+ * notas, saltos de página ni otros runs no textuales. El formato sigue intacto.
  */
 export function setTextoParrafo(p: Element, texto: string): void {
-  const runs = Array.from(p.getElementsByTagNameNS(W_NS, 'r'));
-  const fallbackRuns = runs.length > 0 ? runs : Array.from(p.querySelectorAll('r'));
-
-  // Buscar el run principal que tenga más texto o propiedades de formato
-  let mainRPr: Node | null = null;
-  if (fallbackRuns.length > 0) {
-    let maxLen = -1;
-    let bestRun = fallbackRuns[0];
-    for (const r of fallbackRuns) {
-      const text = getTextoCompleto(r);
-      if (text.length > maxLen) {
-        maxLen = text.length;
-        bestRun = r;
-      }
-    }
-    const rPr = bestRun.getElementsByTagNameNS(W_NS, 'rPr')[0] || bestRun.querySelector('rPr');
-    if (rPr) {
-      mainRPr = rPr.cloneNode(true);
-    }
-  }
-
-  // Eliminar todos los runs previos
-  for (const r of fallbackRuns) {
-    p.removeChild(r);
-  }
-
-  // Crear un nuevo w:r con un único w:t
-  const doc = p.ownerDocument;
-  const newR = doc.createElementNS(W_NS, 'w:r');
-  if (mainRPr) {
-    newR.appendChild(mainRPr);
-  }
-
-  const newT = doc.createElementNS(W_NS, 'w:t');
-  newT.setAttribute('xml:space', 'preserve');
-  newT.textContent = texto;
-  newR.appendChild(newT);
-
-  p.appendChild(newR);
+  escribirTextoParrafoSeguro(p, texto);
 }
 
-/**
- * Modifica el texto de una celda w:tc creando un w:p por cada línea
- * Usa el primer w:p como prototipo de formato y nunca deja la celda sin párrafos
- */
+/** Reutiliza párrafos y preserva imágenes/campos al reemplazar una celda. */
 export function setTextoCelda(tc: Element, lineas: string[]): void {
-  const pList = Array.from(tc.getElementsByTagNameNS(W_NS, 'p'));
-  const fallbackPList = pList.length > 0 ? pList : Array.from(tc.querySelectorAll('p'));
-
-  let protoP: Element;
-  if (fallbackPList.length > 0) {
-    protoP = fallbackPList[0].cloneNode(true) as Element;
-  } else {
-    const doc = tc.ownerDocument;
-    protoP = doc.createElementNS(W_NS, 'w:p');
-  }
-
-  // Eliminar párrafos existentes de la celda
-  for (const p of fallbackPList) {
-    tc.removeChild(p);
-  }
-
-  const doc = tc.ownerDocument;
-  const lineasProcesar = lineas && lineas.length > 0 ? lineas : [''];
-
-  for (const linea of lineasProcesar) {
-    const nuevoP = protoP.cloneNode(true) as Element;
-    setTextoParrafo(nuevoP, linea);
-    tc.appendChild(nuevoP);
-  }
+  escribirLineasCeldaSeguro(tc, lineas);
 }
 
 /**

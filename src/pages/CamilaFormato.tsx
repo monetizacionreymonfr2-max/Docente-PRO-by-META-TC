@@ -693,6 +693,7 @@ export default function CamilaFormato() {
         {
           id: 'snap-0',
           xml: serializer.serializeToString(dVivo),
+          blob: blobInicial,
           mapa,
           descripcion: 'Documento original cargado',
           timestamp: Date.now(),
@@ -833,7 +834,7 @@ export default function CamilaFormato() {
       setIsProcessing(true);
       setProgresoDetalle('Revirtiendo cambios al estado anterior...');
 
-      const revertido = await prepararDeshacerSeguro(blobDocx, anterior.xml);
+      const revertido = await prepararDeshacerSeguro(blobDocx, anterior.xml, anterior.blob);
       const rev = revisarDocumentoVivo(docOrig, revertido.doc, plantillaActual);
 
       setDocVivo(revertido.doc);
@@ -1112,6 +1113,7 @@ export default function CamilaFormato() {
           fecha: new Date(), revision: resultado.revision,
         }]);
       }
+      return resultado.operacionesEjecutadas.length > 0;
     } catch (err: any) {
       console.error('[CamilaFormato] No se pudo completar el turno.');
       setInputTexto(texto);
@@ -1125,6 +1127,7 @@ export default function CamilaFormato() {
           fecha: new Date(),
         },
       ]);
+      return false;
     } finally {
       setIsProcessing(false);
       setProgresoDetalle(null);
@@ -1141,8 +1144,10 @@ export default function CamilaFormato() {
       }
       trabajoVozOcupadoRef.current = true;
       try {
-        await handleEnviarMensaje(instruccion);
-        return 'El procesamiento ha terminado. Pida al docente revisar los cambios o avisos en el chat y la pestaña Documento.';
+        const resultado = await handleEnviarMensaje(instruccion);
+        return resultado === true
+          ? 'Solicitud aplicada al Word. Revise el resultado y los avisos en la pestaña Documento.'
+          : 'No se confirmó una modificación del Word. Revise el aviso en el chat antes de continuar.';
       } catch {
         return 'Hubo un problema al preparar la solicitud. Pida al docente revisar el chat y reintentar.';
       } finally {

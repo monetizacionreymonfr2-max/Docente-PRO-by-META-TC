@@ -18,7 +18,8 @@
     "test:camila-privacidad": "node --test tests/camila-privacidad.test.mjs && node --import tsx --test tests/camila-persistencia-simulada.test.mjs tests/camila-continuidad-chat.test.mjs",
     "test:mi-formato": "node --import tsx tests/mi-formato-encabezados.test.mjs && node --import tsx tests/mi-formato-integridad-docx.test.mjs && node --import tsx tests/mi-formato-flujo-propuestas.test.mjs && node --import tsx tests/mi-formato-responsive.test.mjs",
     "test:ppa-completo": "node --import tsx --test tests/ppa-completo-estructurado.test.mjs tests/ppa-adaptador-docx.test.mjs tests/ppa-intencion-integral.test.mjs tests/ppa-auditoria-grado.test.mjs tests/ppa-adaptador-flexible.test.mjs",
-    "verify:camila": "npm run lint && npm run test:camila-voz && npm run test:camila-privacidad && npm run test:ppa-completo && npm run test:gemini"
+    "verify:camila": "npm run lint && npm run test:camila-voz && npm run test:camila-privacidad && npm run test:ppa-completo && npm run test:gemini && npm run test:ppa-adaptacion-integral",
+    "test:ppa-adaptacion-integral": "node --import tsx --test tests/ppa-adaptacion-integral.test.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.50.1",

@@ -11,6 +11,7 @@ export async function prepararEdicionAutomatica(blob: Blob, solicitud: string) {
   const snapshot: SnapshotDocx = {
     id: `snap-${Date.now()}`,
     xml: new XMLSerializer().serializeToString(word.doc),
+    blob,
     mapa,
     descripcion: solicitud.slice(0, 40) || 'Edición de Camila',
     timestamp: Date.now(),

@@ -237,7 +237,7 @@ test('la interfaz aplica cambios en la vista previa sin pedir aprobar cada propu
   assert.match(pantalla, /<DocxPreviewViewer blob=\{blobDocx\}/);
   assert.match(pantalla, /disabled=\{!accionesDocumento\.deshacer\}/);
   assert.match(pantalla, /disabled=\{!accionesDocumento\.descargar\}/);
-  assert.match(pantalla, /prepararDeshacerSeguro\(blobDocx, anterior\.xml\)/);
+  assert.match(pantalla, /prepararDeshacerSeguro\(blobDocx, anterior\.xml, anterior\.blob\)/);
   assert.match(pantalla, /No pude deshacer el último cambio\. Su documento permanece como estaba/);
   assert.doesNotMatch(pantalla, /propuestaPendiente|Aprobar y aplicar|Descartar propuesta/);
 });

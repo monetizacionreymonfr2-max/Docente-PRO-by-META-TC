@@ -1,4 +1,9 @@
 import { solicitaPpaIntegral } from './solicitudIntegral';
+import { interpretarSolicitudAdaptacion } from './adaptacionIntegral/solicitudAdaptacion';
+import {
+  adaptarProyectoAulaIntegral, AclaracionNecesariaError,
+} from './adaptacionIntegral/adaptadorGenerico';
+import { proveedorGeminiAdaptacion } from './adaptacionIntegral/proveedorGemini';
 import { generarPpaCompletoClaude } from '../camila/claudeClient';
 import { adaptarPpaCompletoAWord } from './adaptarPpaDocx';
 import { esIncompatibilidadEstructuralPpa, erroresAuditoriaPpaGenerico } from './seleccionAdaptadorPpa';
@@ -67,6 +72,8 @@ export interface OperacionDocx {
 export interface SnapshotDocx {
   id: string;
   xml: string;
+  /** Copia completa que permite deshacer también encabezados, pies, imágenes y relaciones. */
+  blob?: Blob;
   mapa: DocxMapa;
   descripcion: string;
   timestamp: number;
@@ -588,6 +595,45 @@ export async function enviarMensajeACamilaFormato(params: {
     onProgresoVaciarTodo,
   } = params;
 
+  // La adaptación de grado de un Word existente no se resuelve con cambios
+  // parciales: debe inventariar todas las tablas y pasar auditoría del DOCX.
+  const solicitudAdaptacion = interpretarSolicitudAdaptacion(mensajeDocente, historialTurnos);
+  if (solicitudAdaptacion.esAdaptacionIntegral && solicitudAdaptacion.gradoDestino !== null) {
+    // Usamos la copia activa, para respetar las ediciones anteriores del docente.
+    const originalDeTrabajo = await guardarDocx(zipVivo, docVivo);
+    try {
+      const adaptado = await adaptarProyectoAulaIntegral(originalDeTrabajo, {
+        gradoDestino: solicitudAdaptacion.gradoDestino,
+        gradoOrigen: solicitudAdaptacion.gradoOrigenDeclarado ?? undefined,
+        docenteDestino: solicitudAdaptacion.docenteDestino ?? undefined,
+        // Sin hechos confirmados no se trasladan diagnósticos/matrículas de otro curso.
+        proveedor: proveedorGeminiAdaptacion,
+        onProgreso: onProgresoVaciarTodo,
+      });
+      const nuevo = await cargarDocx(adaptado.blob);
+      const informe = adaptado.informe;
+      return {
+        respuestaCamila: `Adapté el contenido pedagógico de ${informe.gradoOrigen}.º a ${informe.gradoDestino}.º grado y comprobé el Word. Revisé ${informe.bloquesRevisados} bloques, modifiqué ${informe.bloquesModificados} y conservé ${informe.preservado.imagenes} imágenes. ${informe.datosPendientes.length ? `Hay ${informe.datosPendientes.length} datos del nuevo grupo que debe confirmar; se marcaron como pendientes.` : ''} ${informe.advertencias.slice(0, 2).join(' ')}`.trim(),
+        operacionesEjecutadas: [{ tipo: 'vaciar_todo' }], operacionesOmitidas: [],
+        nuevoBlob: adaptado.blob, nuevoMapa: construirMapa(nuevo.doc),
+        revision: { aprobado: informe.auditoria.aprobado,
+          resumen: 'Auditoría integral del Word aprobada; revise la adaptación pedagógica.',
+          detalles: [...informe.advertencias, ...informe.datosPendientes],
+          celdasSinCambio: 0, celdasReemplazadas: informe.bloquesModificados,
+          coberturaTablas: [] },
+        seEjecutoVaciarTodo: true,
+      };
+    } catch (error) {
+      if (error instanceof AclaracionNecesariaError) return {
+        respuestaCamila: error.pregunta,
+        operacionesEjecutadas: [], operacionesOmitidas: ['Adaptación pendiente de aclaración; Word intacto.'],
+        nuevoBlob: originalDeTrabajo, nuevoMapa: mapaActual,
+        revision: revisarDocumentoVivo(docOrig, docVivo, plantilla),
+      };
+      throw error; // no se publica ni se previsualiza un DOCX rechazado
+    }
+  }
+
   // 1. Preparar contexto actual para el prompt
   const revisionPrevia = revisarDocumentoVivo(docOrig, docVivo, plantilla);
 
@@ -847,7 +893,9 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
   const nuevoMapa = construirMapa(docVivo);
   const revision = revisarDocumentoVivo(docOrig, docVivo, plantilla);
 
-  let respuestaFinal = parsed.respuesta || 'Listo, apliqué los cambios solicitados en el documento.';
+  let respuestaFinal = ejecutadas.length > 0
+    ? (parsed.respuesta || 'Apliqué los cambios solicitados en el documento.')
+    : 'Revisé su solicitud, pero no se aplicaron cambios verificables al Word. Puede indicar qué apartado desea modificar.';
   if (parsed.pregunta) {
     respuestaFinal += `\n\n${parsed.pregunta}`;
   }
