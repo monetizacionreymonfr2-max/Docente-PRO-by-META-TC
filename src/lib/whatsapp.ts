@@ -45,7 +45,7 @@ export function getWhatsAppUrl(phone: string = getWhatsAppNumber(), text: string
 }
 
 /** Mensaje de contacto predeterminado de Camila Plus; no es una respuesta automática. */
-export const CAMILA_PLUS_WHATSAPP_MESSAGE = 'Hola, Camila. Soy docente de DOCENTY PRO y quiero conocer el Plan Camila Plus de $5 por 30 días para solicitar proyectos pedagógicos y planificaciones semanales en el formato de mi institución.';
+export const CAMILA_PLUS_WHATSAPP_MESSAGE = 'Hola, Camila. Soy docente de DOCENTY PRO y quiero conocer el Plan Camila Plus de $5 por 30 días para solicitar proyectos pedagógicos, planificaciones semanales, documentos institucionales y materiales de apoyo educativo. Puedo enviarte los datos por escrito y adjuntar el formato de mi institución si lo necesito.';
 
 export function getCamilaPlusWhatsAppMessage(customerCode = ''): string {
   const code = customerCode.trim().toUpperCase();
