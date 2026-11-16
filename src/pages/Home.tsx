@@ -31,7 +31,7 @@ export default function Home() {
 
   // Cada docente ve el aviso una sola vez en este dispositivo/navegador.
   // Se conserva el acceso a la tarjeta informativa después de cerrar el aviso.
-  const avisoKey = `docenty:aviso-camila-plus-v1:${teacherId}`;
+  const avisoKey = `docenty:aviso-camila-plus-v2:${teacherId}`;
   useEffect(() => {
     if (!teacherId || isAdmin || planType === 'plus') {
       setMostrarAvisoPlus(false);
@@ -100,8 +100,8 @@ export default function Home() {
               Conoce Camila Plus
             </h2>
             <p className="text-slate-200 text-sm leading-relaxed mb-4">
-              Ahora puedes solicitar proyectos pedagógicos y planificaciones semanales mediante WhatsApp,
-              adaptados a los datos de tu aula y al formato de tu institución.
+              Ahora puedes solicitar proyectos, planificaciones, documentos institucionales y material de apoyo educativo por WhatsApp,
+              con los datos reales de tu aula y, cuando corresponda, en el formato de tu institución. Envía tus solicitudes por escrito: este canal no procesa audios.
             </p>
             <div className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 mb-4">
               <p className="text-white font-bold text-sm">Plan Pro: $2 / 30 días</p>
@@ -148,8 +148,8 @@ export default function Home() {
             <p className="text-futuristic-accent font-black text-xs uppercase tracking-widest">Nueva opción de atención</p>
             <h2 className="text-2xl text-white font-black mt-1">Camila Plus por WhatsApp</h2>
             <p className="text-slate-300 text-sm mt-2 leading-relaxed">
-              Tus proyectos pedagógicos y planificaciones semanales, basados en los datos de tu aula
-              y adaptados al formato de tu escuela. Incluye las herramientas de DOCENTY PRO.
+              Proyectos pedagógicos, planificaciones semanales, documentos institucionales y materiales de apoyo educativo,
+              elaborados con los datos de tu aula y adaptados al formato de tu escuela. WhatsApp recibe solicitudes escritas, no audios. Incluye las herramientas de DOCENTY PRO.
             </p>
             <p className="text-white text-sm font-bold mt-2">Plan Plus: $5 por 30 días.
               {planType !== 'plus' && <span className="text-slate-300 font-normal"> Tu Plan Pro se mantiene vigente según tu suscripción.</span>}
@@ -287,7 +287,7 @@ export default function Home() {
                   <span className="text-center">WHATSAPP OFICIAL DE CAMILA PLUS</span>
                 </button>
                 <p className="text-slate-300 text-xs mt-4 font-semibold">
-                  Proyectos pedagógicos y planificaciones semanales en el formato de tu institución.
+                  Proyectos, planificaciones, documentos institucionales y materiales educativos. Solicitudes por escrito (sin audios).
                 </p>
               </div>
             </div>
