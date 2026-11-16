@@ -7,7 +7,7 @@ interface LimitReachedModalProps {
 }
 
 export default function LimitReachedModal({ isOpen, onClose }: LimitReachedModalProps) {
-  const WHATSAPP_URL = getWhatsAppUrl('Hola, vengo de DOCENTE PRO. Alcancé el límite de invitado y quiero adquirir un código PRO por $2 (30 días).');
+  const WHATSAPP_URL = getWhatsAppUrl(undefined, 'Hola, Camila. Soy docente de DOCENTY PRO. Quiero adquirir un código PRO por $2 (30 días).');
 
   if (!isOpen) return null;
 
