@@ -12,10 +12,15 @@ test('Camila informa los dos planes sin prometer automatización de WhatsApp', (
   assert.match(reglas, /Plan PRO: USD 2 por 30 días/);
   assert.match(reglas, /Plan PLUS: USD 5 por 30 días/);
   assert.match(reglas, /servicio de WhatsApp se presenta como «Camila Plus»/);
-  assert.match(reglas, /Si preguntan directamente si es un bot autónomo/);
+  assert.match(reglas, /Si preguntan directamente quién responde o si es un bot autónomo/);
   assert.match(reglas, /código de atención permanente/);
   assert.match(reglas, /DIFERENTE del código de activación/);
   assert.match(reglas, /Nunca afirmes haber revisado, activado/);
+  assert.match(reglas, /DOCUMENTOS INSTITUCIONALES/);
+  assert.match(reglas, /MATERIAL DE APOYO EDUCATIVO/);
+  assert.match(reglas, /no procesa mensajes de voz/);
+  assert.match(reglas, /No uses una política de privacidad como justificación para afirmar algo falso/);
+  assert.match(reglas, /Los documentos que necesiten autorización deben revisarse y aprobarse/);
 });
 
 test('Camila chat y ventas incorporan el prompt común sin perder pautas pedagógicas', () => {
@@ -35,4 +40,6 @@ test('La voz presenta Camila Plus sin falsas afirmaciones sobre WhatsApp ni func
   assert.match(voice, /no es un bot autónomo de WhatsApp/);
   assert.match(voice, /No prometas que Mi Formato está habilitado/);
   assert.match(voice, /No pidas datos personales de menores/);
+  assert.match(voice, /documentos institucionales y materiales de apoyo educativo/);
+  assert.match(voice, /En WhatsApp Camila Plus no puede escuchar ni procesar audios/);
 });
