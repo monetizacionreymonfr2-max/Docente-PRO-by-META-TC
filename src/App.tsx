@@ -20,6 +20,8 @@ import CamilaFormato from './pages/CamilaFormato';
 import { puedeVerMiFormato } from './config/features';
 import ActivationModal from './components/ActivationModal';
 import ResetPasswordModal from './components/ResetPasswordModal';
+import LegalPage from './pages/LegalPage';
+import LegalConsentGate from './components/LegalConsentGate';
 import { Loader2, UserX } from 'lucide-react';
 
 const ADMIN_EMAILS = ['monetizacionreymonfr2@gmail.com', 'tecnomundo235@gmail.com'];
@@ -181,6 +183,10 @@ export default function App() {
     };
   }, []);
 
+  // Las páginas legales son públicas, incluso si no hay sesión o la licencia venció.
+  if (window.location.pathname === '/legal/privacidad') return <LegalPage kind="privacidad" />;
+  if (window.location.pathname === '/legal/terminos') return <LegalPage kind="terminos" />;
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center hex-bg">
@@ -281,15 +287,18 @@ export default function App() {
 
   if (!isActive) {
     return (
+      <LegalConsentGate userId={user.id}>
       <BrowserRouter>
         <Routes>
           <Route path="*" element={<ActivationModal userId={user.id} email={user.email} />} />
         </Routes>
       </BrowserRouter>
+      </LegalConsentGate>
     );
   }
 
   return (
+    <LegalConsentGate userId={user.id}>
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} generationsCount={generationsCount} codeId={codeId} customerCode={customerCode} planType={planType} teacherId={user.id} teacherName={teacherName} expiresAt={expiresAt} />}>
@@ -311,5 +320,6 @@ export default function App() {
         </Route>
       </Routes>
     </BrowserRouter>
+    </LegalConsentGate>
   );
 }
