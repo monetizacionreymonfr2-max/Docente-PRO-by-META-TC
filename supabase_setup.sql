@@ -99,50 +99,50 @@ CREATE POLICY blacklist_delete_admin ON blacklist FOR DELETE TO authenticated
 CREATE POLICY "estudiantes_access_policy" ON estudiantes
     FOR ALL
     TO authenticated
-    USING (true)
-    WITH CHECK (true);
+    USING (docente_id = (SELECT auth.uid())::text)
+    WITH CHECK (docente_id = (SELECT auth.uid())::text);
 
 -- Tabla INFORMES_MATERNAL: Informes diarios y seguimiento maternal
 CREATE POLICY "informes_maternal_access_policy" ON informes_maternal
     FOR ALL
     TO authenticated
-    USING (true)
-    WITH CHECK (true);
+    USING (teacher_id = (SELECT auth.uid())::text)
+    WITH CHECK (teacher_id = (SELECT auth.uid())::text);
 
 -- Tabla ASISTENCIA: Registro diario de asistencia estudiantil
 CREATE POLICY "asistencia_access_policy" ON asistencia
     FOR ALL
     TO authenticated
-    USING (true)
-    WITH CHECK (true);
+    USING (teacher_id = (SELECT auth.uid())::text)
+    WITH CHECK (teacher_id = (SELECT auth.uid())::text);
 
 -- Tabla PLANIFICACIONES: Unidades didácticas y planes diarios
 CREATE POLICY "planificaciones_access_policy" ON planificaciones
     FOR ALL
     TO authenticated
-    USING (true)
-    WITH CHECK (true);
+    USING (teacher_id = (SELECT auth.uid())::text)
+    WITH CHECK (teacher_id = (SELECT auth.uid())::text);
 
 -- Tabla CAMILA_LOGS: Registro de observaciones de Camila
 CREATE POLICY "camila_logs_access_policy" ON camila_logs
     FOR ALL
     TO authenticated
-    USING (true)
-    WITH CHECK (true);
+    USING (teacher_id = (SELECT auth.uid())::text)
+    WITH CHECK (teacher_id = (SELECT auth.uid())::text);
 
 -- Tabla PPA: Proyectos Pedagógicos de Aula
 CREATE POLICY "ppa_access_policy" ON ppa
     FOR ALL
     TO authenticated
-    USING (true)
-    WITH CHECK (true);
+    USING (teacher_id = (SELECT auth.uid())::text)
+    WITH CHECK (teacher_id = (SELECT auth.uid())::text);
 
 -- Tabla REPORTES: Boletines y reportes académicos generados
 CREATE POLICY "reportes_access_policy" ON reportes
     FOR ALL
     TO authenticated
-    USING (true)
-    WITH CHECK (true);
+    USING (teacher_id = (SELECT auth.uid())::text)
+    WITH CHECK (teacher_id = (SELECT auth.uid())::text);
 
 -- ==============================================================================
 -- TABLA FORMATOS_DOCENTE: Almacenamiento de formatos escolares por docente
