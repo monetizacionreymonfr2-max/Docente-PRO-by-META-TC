@@ -99,7 +99,8 @@ export default function App() {
             expiresAt: isAdminEmail(userEmail) ? new Date(Date.now() + 365 * 100 * 24 * 3600 * 1000).toISOString() : null
           };
           await SupabaseService.createUserProfile(authUser.id, defaultProfile);
-          setProfile(defaultProfile);
+          const created = await SupabaseService.getUserProfile(authUser.id, userEmail);
+          setProfile(created || defaultProfile);
         }
 
         // 3. Security Shield: Auto-ban intruder (ugax6060@gmail.com)
@@ -270,6 +271,8 @@ export default function App() {
   const isActive = isSubscriptionValid();
   const accessLevel = profile?.access_level || 'pro';
   const codeId = profile?.activationCode || '';
+  const customerCode = profile?.customerCode || '';
+  const planType = profile?.planType === 'plus' ? 'plus' : 'pro';
   const generationsCount = profile?.generationsCount || 0;
   const expiresAt = profile?.expiresAt;
   // El nombre solo se utiliza para personalizar el saludo; nunca para permisos.
@@ -289,7 +292,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} generationsCount={generationsCount} codeId={codeId} teacherId={user.id} teacherName={teacherName} expiresAt={expiresAt} />}>
+        <Route path="/" element={<Layout isAdmin={isAdmin} accessLevel={accessLevel} generationsCount={generationsCount} codeId={codeId} customerCode={customerCode} planType={planType} teacherId={user.id} teacherName={teacherName} expiresAt={expiresAt} />}>
           <Route index element={<Navigate to="/home" replace />} />
           <Route path="home" element={<Home />} />
           <Route path="earn-money" element={<EarnMoney />} />
