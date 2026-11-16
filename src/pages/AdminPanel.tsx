@@ -36,6 +36,7 @@ interface Code {
   id: string;
   status: 'disponible' | 'usado';
   access_level: 'guest' | 'pro';
+  planType?: 'pro' | 'plus';
   usedBy?: string;
   usedByEmail?: string;
   expiresAt?: any;
@@ -49,6 +50,8 @@ interface ProfileUser {
   role: 'admin' | 'teacher';
   generationsCount: number;
   access_level?: 'guest' | 'pro';
+  planType?: 'pro' | 'plus';
+  customerCode?: string;
   activationCode?: string;
   expiresAt?: any;
   createdAt?: any;
@@ -129,6 +132,7 @@ export default function AdminPanel() {
         id: c.id,
         status: c.status,
         access_level: c.access_level,
+        planType: c.planType || 'pro',
         usedBy: c.usedBy || undefined,
         usedByEmail: c.usedByEmail || undefined,
         expiresAt: c.expiresAt,
@@ -157,6 +161,8 @@ export default function AdminPanel() {
         role: u.role,
         generationsCount: u.generationsCount,
         access_level: u.access_level,
+        planType: u.planType || 'pro',
+        customerCode: u.customerCode || undefined,
         activationCode: u.activationCode || undefined,
         expiresAt: u.expiresAt,
         createdAt: u.createdAt
@@ -264,13 +270,13 @@ export default function AdminPanel() {
     }
   };
 
-  const generateCode = async (level: 'guest' | 'pro') => {
+  const generateCode = async (level: 'guest' | 'pro' | 'plus') => {
     setIsGenerating(level);
     try {
-      const randomPart = () => Math.random().toString(36).substring(2, 6).toUpperCase();
-      const codeId = `META-${randomPart()}-${randomPart()}`;
-      
-      await SupabaseService.generateCode(codeId, level);
+      const randomPart = () => Array.from(crypto.getRandomValues(new Uint8Array(4)))
+        .map(n => (n % 36).toString(36).toUpperCase()).join('');
+      const codeId = `${level === 'plus' ? 'PLUS' : 'META'}-${randomPart()}-${randomPart()}`;
+      await SupabaseService.generateCode(codeId, level === 'plus' ? 'pro' : level, level === 'plus' ? 'plus' : 'pro');
       alert(`Código ${codeId} generado exitosamente!`);
       fetchCodes();
     } catch (error: any) {
@@ -372,6 +378,18 @@ export default function AdminPanel() {
     } catch (error: any) {
       console.error("Error toggling active:", error);
       alert(`Error: ${error?.message || error}`);
+    }
+  };
+
+  const handleChangePlan = async (user: ProfileUser) => {
+    if (user.role === 'admin') return;
+    const nextPlan: 'pro' | 'plus' = user.planType === 'plus' ? 'pro' : 'plus';
+    if (!window.confirm(`¿Cambiar a ${nextPlan.toUpperCase()} el servicio de ${user.email}? No modifica su fecha de vencimiento.`)) return;
+    try {
+      await SupabaseService.updateProfilePlanType(user.id, nextPlan);
+      await fetchUsersProfile();
+    } catch (error: any) {
+      alert(`No se pudo cambiar el plan: ${error?.message || error}`);
     }
   };
 
@@ -573,7 +591,9 @@ export default function AdminPanel() {
   const filteredUsers = users.filter(usr => {
     if (!searchQuery) return true;
     const lowerQuery = searchQuery.toLowerCase();
-    return (usr.email || '').toLowerCase().includes(lowerQuery) || (usr.id || '').toLowerCase().includes(lowerQuery);
+    return (usr.email || '').toLowerCase().includes(lowerQuery) ||
+      (usr.id || '').toLowerCase().includes(lowerQuery) ||
+      (usr.customerCode || '').toLowerCase().includes(lowerQuery);
   });
 
   if (!isCurrentAdmin) {
@@ -682,7 +702,7 @@ export default function AdminPanel() {
       {/* VIEW 1: CODES */}
       {activeTab === 'licencias' && (
         <div className="space-y-8 animate-in fade-in duration-300">
-          <div className="flex justify-end gap-3">
+          <div className="flex justify-end gap-3 flex-wrap">
             <button
               onClick={() => generateCode('guest')}
               disabled={!!isGenerating}
@@ -698,6 +718,14 @@ export default function AdminPanel() {
             >
               {isGenerating === 'pro' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
               {isGenerating === 'pro' ? 'Generando...' : 'Código PRO'}
+            </button>
+            <button
+              onClick={() => generateCode('plus')}
+              disabled={!!isGenerating}
+              className="bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 px-6 rounded-2xl flex items-center gap-3 shadow-lg shadow-violet-500/20 active:scale-95 transition-all text-xs uppercase tracking-wider disabled:opacity-50"
+            >
+              {isGenerating === 'plus' ? <Loader2 className="w-5 h-5 animate-spin" /> : <Wand2 className="w-5 h-5" />}
+              {isGenerating === 'plus' ? 'Generando...' : 'Código PLUS'}
             </button>
           </div>
 
@@ -777,7 +805,7 @@ export default function AdminPanel() {
                           <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider ${
                             code.access_level === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
                           }`}>
-                            {code.access_level || 'pro'}
+                            {code.planType === 'plus' ? 'PLUS' : code.access_level || 'pro'}
                           </span>
                           <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
                             code.status === 'disponible' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'
@@ -938,7 +966,7 @@ export default function AdminPanel() {
                             <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-widest ${
                               code.access_level === 'pro' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'
                             }`}>
-                              {code.access_level || 'pro'}
+                              {code.planType === 'plus' ? 'PLUS' : code.access_level || 'pro'}
                             </span>
                           </td>
                           <td className="px-6 py-4">
@@ -1150,7 +1178,7 @@ export default function AdminPanel() {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Buscar docente por correo o ID..."
+                  placeholder="Buscar por código, correo o ID..."
                   className="bg-transparent border-none focus:outline-none text-white text-sm w-full placeholder:text-slate-600"
                 />
               </div>
@@ -1191,6 +1219,7 @@ export default function AdminPanel() {
                               <span className="font-mono text-[9px] text-slate-400 block truncate">
                                 ID: {user.id}
                               </span>
+                              <span className="font-mono text-xs text-cyan-700 block mt-1">Código: {user.customerCode || 'Pendiente'}</span>
                             </div>
                             <button
                               onClick={() => handleToggleUserActive(user)}
@@ -1226,6 +1255,13 @@ export default function AdminPanel() {
                               </div>
                             </div>
 
+                            <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-200/50">
+                              <span className="text-slate-400 font-medium text-[11px]">Plan:</span>
+                              <button onClick={() => handleChangePlan(user)} disabled={user.role === 'admin'}
+                                className="px-3 py-1 bg-violet-100 text-violet-800 rounded-lg font-bold text-xs disabled:opacity-50">
+                                {(user.planType || 'pro').toUpperCase()} · Cambiar
+                              </button>
+                            </div>
                             <div className="flex items-center justify-between pt-1 border-t border-slate-200/50">
                               <span className="text-slate-400 font-medium text-[11px]">Suscripción:</span>
                               <div className="text-right">
@@ -1352,6 +1388,7 @@ export default function AdminPanel() {
                                 <div className="flex flex-col">
                                   <span className="font-bold text-gray-900 text-xs">{user.email}</span>
                                   <span className="font-mono text-[9px] text-gray-400 truncate mt-0.5">{user.id}</span>
+                                  <span className="font-mono text-xs text-cyan-700 mt-1">{user.customerCode || 'Código pendiente'}</span>
                                 </div>
                               </td>
                               <td className="px-6 py-4 text-xs font-semibold">
@@ -1366,6 +1403,11 @@ export default function AdminPanel() {
                                     {user.access_level || 'pro'}
                                   </button>
                                   <div>{getExpirationBadge(user.expiresAt)}</div>
+                                  <button onClick={() => handleChangePlan(user)} disabled={user.role === 'admin'}
+                                    className="self-start px-2 py-1 text-[10px] rounded bg-violet-100 text-violet-800 font-bold disabled:opacity-50"
+                                    title="Cambiar entre Plan Pro y Plan Plus sin modificar la vigencia">
+                                    Plan {(user.planType || 'pro').toUpperCase()} · Cambiar
+                                  </button>
                                 </div>
                               </td>
                               <td className="px-6 py-4">

@@ -26,29 +26,74 @@ DROP POLICY IF EXISTS "planificaciones_access_policy" ON planificaciones;
 DROP POLICY IF EXISTS "camila_logs_access_policy" ON camila_logs;
 DROP POLICY IF EXISTS "ppa_access_policy" ON ppa;
 DROP POLICY IF EXISTS "reportes_access_policy" ON reportes;
+-- Reejecutar el script no debe dejar políticas permisivas ni duplicadas.
+DROP POLICY IF EXISTS profiles_select_self_or_admin ON profiles;
+DROP POLICY IF EXISTS profiles_insert_admin ON profiles;
+DROP POLICY IF EXISTS profiles_insert_self_unpaid ON profiles;
+DROP POLICY IF EXISTS profiles_update_admin ON profiles;
+DROP POLICY IF EXISTS profiles_delete_admin ON profiles;
+DROP POLICY IF EXISTS activation_codes_select_admin ON activation_codes;
+DROP POLICY IF EXISTS activation_codes_insert_admin ON activation_codes;
+DROP POLICY IF EXISTS activation_codes_update_admin ON activation_codes;
+DROP POLICY IF EXISTS activation_codes_delete_admin ON activation_codes;
+DROP POLICY IF EXISTS blacklist_select_self_or_admin ON blacklist;
+DROP POLICY IF EXISTS blacklist_insert_admin ON blacklist;
+DROP POLICY IF EXISTS blacklist_update_admin ON blacklist;
+DROP POLICY IF EXISTS blacklist_delete_admin ON blacklist;
 
 -- 3. Crear Políticas de Seguridad RLS
 
--- Tabla PROFILES: Acceso para perfiles de usuario y administradores
-CREATE POLICY "profiles_access_policy" ON profiles
-    FOR ALL
-    TO authenticated, anon
-    USING (true)
-    WITH CHECK (true);
+-- Los permisos sobre planes y licencias se validan con auth.users, no con el cliente.
+CREATE SCHEMA IF NOT EXISTS private;
+CREATE OR REPLACE FUNCTION private.is_docenty_admin()
+RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path=''
+AS $admin$
+ SELECT EXISTS(SELECT 1 FROM auth.users u WHERE u.id=(SELECT auth.uid())
+  AND lower(u.email) IN ('monetizacionreymonfr2@gmail.com','tecnomundo235@gmail.com'));
+$admin$;
+REVOKE ALL ON FUNCTION private.is_docenty_admin() FROM PUBLIC, anon;
+GRANT USAGE ON SCHEMA private TO authenticated;
+GRANT EXECUTE ON FUNCTION private.is_docenty_admin() TO authenticated;
 
--- Tabla ACTIVATION_CODES: Verificación y canje de códigos de activación
-CREATE POLICY "activation_codes_access_policy" ON activation_codes
-    FOR ALL
-    TO authenticated, anon
-    USING (true)
-    WITH CHECK (true);
+-- Las cuentas únicamente pueden leer su perfil. Administración autorizada ve todos.
+CREATE POLICY profiles_select_self_or_admin ON profiles FOR SELECT TO authenticated
+ USING (id=(SELECT auth.uid())::text OR (SELECT private.is_docenty_admin()));
+CREATE POLICY profiles_insert_admin ON profiles FOR INSERT TO authenticated
+ WITH CHECK ((SELECT private.is_docenty_admin()));
+CREATE POLICY profiles_insert_self_unpaid ON profiles FOR INSERT TO authenticated
+ WITH CHECK (
+ id=(SELECT auth.uid())::text
+ AND lower(email)=lower(coalesce(auth.jwt()->>'email',''))
+ AND is_active=false AND role='teacher' AND generations_count=0
+ AND access_level='pro' AND plan_type='pro'
+ AND activation_code IS NULL AND expires_at IS NULL
+ );
+CREATE POLICY profiles_update_admin ON profiles FOR UPDATE TO authenticated
+ USING ((SELECT private.is_docenty_admin()))
+ WITH CHECK ((SELECT private.is_docenty_admin()));
+CREATE POLICY profiles_delete_admin ON profiles FOR DELETE TO authenticated
+ USING ((SELECT private.is_docenty_admin()));
 
--- Tabla BLACKLIST: Verificación de correos bloqueados y gestión admin
-CREATE POLICY "blacklist_access_policy" ON blacklist
-    FOR ALL
-    TO authenticated, anon
-    USING (true)
-    WITH CHECK (true);
+-- Códigos de venta: solo administración puede crear/ver/editar; canje por RPC segura.
+CREATE POLICY activation_codes_select_admin ON activation_codes FOR SELECT TO authenticated
+ USING ((SELECT private.is_docenty_admin()));
+CREATE POLICY activation_codes_insert_admin ON activation_codes FOR INSERT TO authenticated
+ WITH CHECK ((SELECT private.is_docenty_admin()));
+CREATE POLICY activation_codes_update_admin ON activation_codes FOR UPDATE TO authenticated
+ USING ((SELECT private.is_docenty_admin()))
+ WITH CHECK ((SELECT private.is_docenty_admin()));
+CREATE POLICY activation_codes_delete_admin ON activation_codes FOR DELETE TO authenticated
+ USING ((SELECT private.is_docenty_admin()));
+
+CREATE POLICY blacklist_select_self_or_admin ON blacklist FOR SELECT TO authenticated
+ USING (lower(email)=lower(coalesce(auth.jwt()->>'email','')) OR (SELECT private.is_docenty_admin()));
+CREATE POLICY blacklist_insert_admin ON blacklist FOR INSERT TO authenticated
+ WITH CHECK ((SELECT private.is_docenty_admin()));
+CREATE POLICY blacklist_update_admin ON blacklist FOR UPDATE TO authenticated
+ USING ((SELECT private.is_docenty_admin()))
+ WITH CHECK ((SELECT private.is_docenty_admin()));
+CREATE POLICY blacklist_delete_admin ON blacklist FOR DELETE TO authenticated
+ USING ((SELECT private.is_docenty_admin()));
 
 -- Tabla ESTUDIANTES: Gestión de estudiantes por los docentes
 CREATE POLICY "estudiantes_access_policy" ON estudiantes

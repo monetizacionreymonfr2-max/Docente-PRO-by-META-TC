@@ -9,6 +9,8 @@ export interface SupabaseUserProfile {
   role: 'admin' | 'teacher';
   generations_count: number;
   access_level: 'guest' | 'pro';
+  plan_type: 'pro' | 'plus';
+  customer_code: string | null;
   activation_code: string | null;
   expires_at: string | null;
   created_at?: string;
@@ -102,6 +104,7 @@ export interface SupabaseActivationCode {
   id: string;
   status: 'disponible' | 'usado';
   access_level: 'guest' | 'pro';
+  plan_type: 'pro' | 'plus';
   used_by: string | null;
   used_by_email: string | null;
   expires_at: string | null;
@@ -171,6 +174,8 @@ export const SupabaseService = {
         role: data.role,
         generationsCount: data.generations_count || 0,
         access_level: data.access_level,
+        planType: data.plan_type || 'pro',
+        customerCode: data.customer_code || null,
         activationCode: data.activation_code,
         expiresAt: data.expires_at,
         createdAt: data.created_at
@@ -223,6 +228,7 @@ export const SupabaseService = {
         role: oldProfile.role || 'teacher',
         generations_count: oldProfile.generations_count || 0,
         access_level: oldProfile.access_level || 'pro',
+        plan_type: oldProfile.plan_type || 'pro',
         activation_code: oldProfile.activation_code || null,
         expires_at: oldProfile.expires_at || null,
         created_at: oldProfile.created_at || new Date().toISOString()
@@ -282,43 +288,21 @@ export const SupabaseService = {
   },
 
   async createUserProfile(uid: string, profile: any): Promise<void> {
-    const randomCodePart = () => Math.random().toString(36).substring(2, 6).toUpperCase();
-    const activationCodeId = `META-${randomCodePart()}-${randomCodePart()}`;
-
-    try {
-      await supabase.from('activation_codes').insert({
-        id: activationCodeId,
-        status: 'disponible',
-        access_level: profile.access_level || 'pro',
-        expires_at: profile.expiresAt || null,
-        created_at: new Date().toISOString()
-      });
-    } catch (e) {
-      console.warn("Could not insert activation code during profile creation:", e);
-    }
-
+    // Los perfiles nuevos no generan licencias vendibles automáticamente.
     const payload = {
       id: uid,
       email: (profile.email || '').trim().toLowerCase(),
-      is_active: profile.isActive ?? false,
-      role: profile.role || 'teacher',
-      generations_count: profile.generationsCount || 0,
-      access_level: profile.access_level || 'pro',
-      activation_code: activationCodeId,
-      expires_at: profile.expiresAt || null,
+      is_active: false,
+      role: 'teacher',
+      generations_count: 0,
+      access_level: 'pro',
+      plan_type: 'pro',
+      activation_code: null,
+      expires_at: null,
       created_at: new Date().toISOString()
     };
-    
-    // Use insert instead of upsert to prevent overwriting active profiles!
     const { error } = await supabase.from('profiles').insert(payload);
-    if (error) {
-      // If it's a unique key violation (profile already exists), we can safely ignore it
-      if (error.code === '23505' || error.message?.includes('duplicate key') || error.message?.includes('already exists')) {
-        console.log("[Profiles] Profile already exists, skipping creation to preserve status.");
-        return;
-      }
-      throw error;
-    }
+    if (error && error.code !== '23505') throw error;
   },
 
   async bulkCreateProfiles(emails: string[], defaults: { role: 'admin' | 'teacher'; access_level: 'guest' | 'pro'; is_active: boolean; expires_at: string | null;  }): Promise<{ successCount: number; errors: string[] }> {
@@ -445,12 +429,9 @@ export const SupabaseService = {
 
   async updateProfilePassword(uid: string, password: string): Promise<void> {},
 
-  async incrementGenerationsCount(uid: string, inc: number = 1): Promise<void> {
-    // Correct way in Supabase: select current value then update, or use rpc function increment_generation
-    const { data, error: fetchErr } = await supabase.from('profiles').select('generations_count').eq('id', uid).maybeSingle();
-    if (fetchErr) return;
-    const current = data?.generations_count || 0;
-    await supabase.from('profiles').update({ generations_count: current + inc }).eq('id', uid);
+  async incrementGenerationsCount(_uid: string, inc: number = 1): Promise<void> {
+    const { error } = await supabase.rpc('increment_docenty_generations', { p_delta: inc });
+    if (error) throw error;
   },
 
   async updateProfileRole(uid: string, role: 'admin' | 'teacher'): Promise<void> {
@@ -462,7 +443,13 @@ export const SupabaseService = {
   },
 
   async updateProfileAccessLevel(uid: string, access_level: 'guest' | 'pro'): Promise<void> {
-    await supabase.from('profiles').update({ access_level }).eq('id', uid);
+    const { error } = await supabase.from('profiles').update({ access_level }).eq('id', uid);
+    if (error) throw error;
+  },
+
+  async updateProfilePlanType(uid: string, planType: 'pro' | 'plus'): Promise<void> {
+    const { error } = await supabase.from('profiles').update({ plan_type: planType }).eq('id', uid);
+    if (error) throw error;
   },
 
   async updateProfileSubscription(uid: string, days: number, expiresAtStr?: string, codeId?: string, userEmail?: string): Promise<any> {
@@ -666,6 +653,8 @@ export const SupabaseService = {
       role: d.role,
       generationsCount: d.generations_count || 0,
       access_level: d.access_level,
+      planType: d.plan_type || 'pro',
+      customerCode: d.customer_code || null,
       activationCode: d.activation_code,
       expiresAt: d.expires_at,
       createdAt: d.created_at
@@ -681,6 +670,7 @@ export const SupabaseService = {
       code: c.id,
       status: c.status,
       access_level: c.access_level,
+      planType: c.plan_type || 'pro',
       usedBy: c.used_by,
       usedByEmail: c.used_by_email,
       expiresAt: c.expires_at,
@@ -688,96 +678,30 @@ export const SupabaseService = {
     }));
   },
 
-  async generateCode(codeId: string, level: 'guest' | 'pro'): Promise<void> {
-    await supabase.from('activation_codes').insert({
+  async generateCode(codeId: string, level: 'guest' | 'pro', planType: 'pro' | 'plus' = 'pro'): Promise<void> {
+    const { error } = await supabase.from('activation_codes').insert({
       id: codeId,
       status: 'disponible',
       access_level: level,
+      plan_type: planType,
       used_by: null,
       used_by_email: null,
       expires_at: null,
       created_at: new Date().toISOString()
     });
+    if (error) throw error;
   },
 
   async deleteCode(codeId: string): Promise<void> {
     await supabase.from('activation_codes').delete().eq('id', codeId);
   },
 
-  async claimActivationCode(codeId: string, userId: string, userEmail: string): Promise<{ success: boolean; message: string }> {
-    try {
-      // 1. Fetch activation code
-      const { data: code, error: codeError } = await supabase
-        .from('activation_codes')
-        .select('*')
-        .eq('id', codeId.trim().toUpperCase())
-        .maybeSingle();
-
-      if (codeError) throw codeError;
-      if (!code) {
-        return { success: false, message: 'El código ingresado no existe.' };
-      }
-
-      if (code.status !== 'disponible') {
-        return { success: false, message: 'Este código ya ha sido utilizado.' };
-      }
-
-      const expires = new Date();
-      if (code.access_level === 'pro') {
-        expires.setDate(expires.getDate() + 30); // 30 days
-      } else {
-        expires.setDate(expires.getDate() + 15); // 15 days
-      }
-
-      const expiresISO = expires.toISOString();
-
-      // Update code
-      const { error: updateCodeErr } = await supabase.from('activation_codes').update({
-        status: 'usado',
-        used_by: userId,
-        used_by_email: userEmail.trim().toLowerCase(),
-        expires_at: expiresISO
-      }).eq('id', code.id);
-
-      if (updateCodeErr) throw updateCodeErr;
-
-      // Update profile or insert if it doesn't exist to avoid 0-row updates when a profile row is missing
-      const { data: existingProfile } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('id', userId)
-        .maybeSingle();
-
-      let profileError;
-      if (existingProfile) {
-        const { error } = await supabase.from('profiles').update({
-          is_active: true,
-          access_level: code.access_level,
-          activation_code: code.id,
-          expires_at: expiresISO
-        }).eq('id', userId);
-        profileError = error;
-      } else {
-        const { error } = await supabase.from('profiles').insert({
-          id: userId,
-          email: userEmail.trim().toLowerCase(),
-          is_active: true,
-          role: 'teacher',
-          generations_count: 0,
-          access_level: code.access_level,
-          activation_code: code.id,
-          expires_at: expiresISO,
-          created_at: new Date().toISOString()
-        });
-        profileError = error;
-      }
-
-      if (profileError) throw profileError;
-
-      return { success: true, message: `¡Activado exitosamente! Tienes acceso nivel: ${code.access_level.toUpperCase()}` };
-    } catch (err: any) {
-      return { success: false, message: `Error al canjear código: ${err?.message || err}` };
-    }
+  async claimActivationCode(codeId: string, _userId: string, _userEmail: string): Promise<{ success: boolean; message: string }> {
+    const { data, error } = await supabase.rpc('redeem_docenty_code', {
+      p_code: codeId.trim().toUpperCase()
+    });
+    if (error) return { success: false, message: error.message || 'No se pudo activar el código.' };
+    return { success: data?.success === true, message: data?.message || 'No se pudo activar el código.' };
   },
 
   // --- ESTUDIANTES ---
