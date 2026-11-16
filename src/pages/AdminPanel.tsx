@@ -82,6 +82,8 @@ export default function AdminPanel() {
   const [usersLoading, setUsersLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [hasLoadedUsers, setHasLoadedUsers] = useState(false);
+  const [validLicenseSearch, setValidLicenseSearch] = useState('');
+  const [validLicenseFilter, setValidLicenseFilter] = useState<'todos' | 'pro' | 'plus' | 'guest'>('todos');
 
   // Manual User Creation states
   const [newEmail, setNewEmail] = useState('');
@@ -216,7 +218,7 @@ export default function AdminPanel() {
   // Fetch data when activeTab changes
   useEffect(() => {
     if (isCurrentAdmin) {
-      if (activeTab === 'licencias') fetchCodes();
+      if (activeTab === 'licencias') { fetchCodes(); fetchUsersProfile(); }
       else if (activeTab === 'usuarios') fetchUsersProfile();
       else if (activeTab === 'blacklist') fetchBlacklist();
     }
@@ -588,6 +590,30 @@ export default function AdminPanel() {
     );
   };
 
+  // Una licencia está vigente únicamente si el docente tiene acceso habilitado
+  // y una fecha futura de vencimiento. Los administradores no son clientes.
+  const isSubscriptionCurrent = (user: ProfileUser): boolean => {
+    if (user.role === 'admin' || !user.isActive || !user.expiresAt) return false;
+    const expiresAt = new Date(user.expiresAt).getTime();
+    return Number.isFinite(expiresAt) && expiresAt > Date.now();
+  };
+
+  const getSubscriptionCategory = (user: ProfileUser): 'guest' | 'pro' | 'plus' => {
+    if (user.access_level === 'guest') return 'guest';
+    return user.planType === 'plus' ? 'plus' : 'pro';
+  };
+
+  // Se cuentan usuarios únicos, no códigos utilizados, para evitar duplicar renovaciones.
+  const currentSubscriptions = users.filter(isSubscriptionCurrent);
+  const visibleCurrentSubscriptions = currentSubscriptions
+    .filter(user => {
+      const query = validLicenseSearch.trim().toLowerCase();
+      const matchesSearch = (user.email || '').toLowerCase().includes(query)
+        || (user.customerCode || '').toLowerCase().includes(query);
+      return matchesSearch && (validLicenseFilter === 'todos' || getSubscriptionCategory(user) === validLicenseFilter);
+    })
+    .sort((a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime());
+
   const filteredUsers = users.filter(usr => {
     if (!searchQuery) return true;
     const lowerQuery = searchQuery.toLowerCase();
@@ -640,7 +666,7 @@ export default function AdminPanel() {
 
           <button
             onClick={() => {
-              if (activeTab === 'licencias') fetchCodes();
+              if (activeTab === 'licencias') { fetchCodes(); fetchUsersProfile(); }
               else if (activeTab === 'usuarios') fetchUsersProfile();
               else if (activeTab === 'blacklist') fetchBlacklist();
             }}
@@ -729,7 +755,7 @@ export default function AdminPanel() {
             </button>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm flex items-center gap-4">
               <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600 shrink-0">
                 <Ticket size={24} />
@@ -756,6 +782,108 @@ export default function AdminPanel() {
                 <p className="text-sm font-bold text-gray-600 uppercase tracking-widest leading-none mb-1">Usados</p>
                 <p className="text-2xl font-black text-gray-900">{hasLoadedCodes ? codes.filter(c => c.status === 'usado').length : '—'}</p>
               </div>
+            </div>
+            <div className="bg-white p-6 rounded-3xl border border-emerald-100 shadow-sm flex items-center gap-4">
+              <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shrink-0">
+                <UserCheck size={24} />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-gray-600 uppercase tracking-widest leading-none mb-1">En vigencia</p>
+                <p className="text-2xl font-black text-gray-900">{hasLoadedUsers ? currentSubscriptions.length : '—'}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-3xl border border-emerald-100 shadow-sm overflow-hidden">
+            <div className="px-5 sm:px-8 py-5 border-b border-emerald-100 bg-emerald-50/50">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <h2 className="flex items-center gap-2 font-black text-gray-900 uppercase tracking-tight text-sm">
+                    <UserCheck size={19} className="text-emerald-600" />
+                    Suscripciones vigentes
+                  </h2>
+                  <p className="text-xs text-slate-600 mt-1">
+                    Docentes habilitados cuya suscripción aún no ha vencido. No incluye administradores.
+                  </p>
+                </div>
+                <span className="self-start bg-white text-emerald-700 border border-emerald-200 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap">
+                  {hasLoadedUsers ? currentSubscriptions.length : '—'} vigentes
+                </span>
+              </div>
+              {hasLoadedUsers && (
+                <p className="text-xs text-slate-600 mt-3">
+                  PRO: {currentSubscriptions.filter(user => getSubscriptionCategory(user) === 'pro').length}
+                  {' · '} PLUS: {currentSubscriptions.filter(user => getSubscriptionCategory(user) === 'plus').length}
+                  {' · '} Invitado: {currentSubscriptions.filter(user => getSubscriptionCategory(user) === 'guest').length}
+                </p>
+              )}
+            </div>
+            <div className="px-5 sm:px-8 pt-5 pb-3 flex flex-col sm:flex-row gap-3">
+              <div className="flex-1 flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3">
+                <Search size={16} className="shrink-0 text-slate-400" />
+                <input
+                  type="search"
+                  aria-label="Buscar suscripciones vigentes por correo o código"
+                  value={validLicenseSearch}
+                  onChange={event => setValidLicenseSearch(event.target.value)}
+                  placeholder="Buscar docente por correo o código..."
+                  className="w-full min-w-0 bg-transparent py-3 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none"
+                />
+              </div>
+              <select
+                aria-label="Filtrar suscripciones vigentes por plan"
+                value={validLicenseFilter}
+                onChange={event => setValidLicenseFilter(event.target.value as 'todos' | 'pro' | 'plus' | 'guest')}
+                className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-3 text-xs text-slate-800 font-semibold"
+              >
+                <option value="todos">Todos los planes</option>
+                <option value="pro">PRO</option>
+                <option value="plus">PLUS</option>
+                <option value="guest">Invitado</option>
+              </select>
+            </div>
+            <div className="px-5 sm:px-8 pb-6">
+              {usersLoading ? (
+                <div className="py-8 text-sm text-slate-500 flex items-center justify-center gap-2">
+                  <Loader2 size={18} className="animate-spin" />
+                  Consultando licencias vigentes...
+                </div>
+              ) : !hasLoadedUsers ? (
+                <p className="py-8 text-center text-xs text-slate-500">No se pudieron cargar las suscripciones. Usa Sincronizar.</p>
+              ) : visibleCurrentSubscriptions.length === 0 ? (
+                <p className="py-8 text-center text-xs text-slate-500">
+                  {currentSubscriptions.length === 0 ? 'No hay docentes con suscripciones vigentes.' : 'No hay coincidencias con el filtro seleccionado.'}
+                </p>
+              ) : (
+                <div className="max-h-[28rem] overflow-y-auto rounded-xl border border-slate-200 divide-y divide-slate-100">
+                  {visibleCurrentSubscriptions.map(user => (
+                    <div key={user.id} className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-slate-50/70">
+                      <div className="min-w-0">
+                        <p className="font-bold text-sm text-slate-900 break-all">{user.email || 'Sin correo registrado'}</p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Vence: {formatExpirationDate(user.expiresAt) || 'Sin fecha válida'}
+                          {' · '} {calculateDaysLeft(user.expiresAt)} días restantes
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 shrink-0">
+                        <span className="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase">
+                          {getSubscriptionCategory(user) === 'guest' ? 'Invitado' : getSubscriptionCategory(user).toUpperCase()}
+                        </span>
+                        <span className="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase">
+                          Vigente
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => { setSearchQuery(user.email); setActiveTab('usuarios'); }}
+                          className="bg-slate-900 hover:bg-slate-800 text-white rounded-lg px-3 py-2 text-[10px] font-bold"
+                        >
+                          Ver cuenta
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
