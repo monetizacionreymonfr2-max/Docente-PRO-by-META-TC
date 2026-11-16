@@ -6,6 +6,7 @@ import { Bot, User, Send, Loader2, Volume2, VolumeX, Mic, MicOff, Radio, X, Spar
 import Markdown from 'react-markdown';
 import { puedeVerMiFormato } from '../config/features';
 import { SesionVozCamila } from '../lib/camila/vozEnVivo';
+import { INSTRUCCIONES_PLANES_CAMILA } from '../lib/camila/instruccionesPlanes';
 
 interface Message {
   id: string;
@@ -25,7 +26,7 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat', isA
 
   useEffect(() => {
     if (mode === 'sales') {
-      const salesGreeting = '¡Hola! Mira, ¿estás interesado en Docenty Pro By Reymon Castillo? Soy Camila y estoy aquí para mostrarte cómo más de 1200 colegas ya están ahorrando horas de trabajo administrativo gracias a mi ayuda. Nuestra plataforma, creada por el ingeniero venezolano de Apure, Reymon Castillo, es la más fácil de usar y está totalmente adaptada a nuestra pedagogía. ¿Te gustaría saber cómo puedes obtener tu acceso total por solo $2 dólares al cambio del BCV?';
+      const salesGreeting = '¡Hola! Soy Camila, de DOCENTY PRO. Contamos con el Plan Pro por $2 durante 30 días, con las herramientas y mi asistencia dentro de la plataforma, y el Plan Plus por $5 durante 30 días, que agrega atención asistida por WhatsApp a cargo de nuestro equipo para proyectos y planificaciones en el formato de tu institución. ¿Quieres que te explique las diferencias o cómo solicitar tu plan?';
       setMessages([
         { id: 'welcome', role: 'model', text: salesGreeting }
       ]);
@@ -220,7 +221,7 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat', isA
       // Greeting for sales mode when starting live mode
       if (mode === 'sales') {
         setTimeout(() => {
-          speakText('¡Hola! Soy Camila. Es un gusto saludarte. He notado que estás explorando Docenty Pro By Reymon Castillo y me encantaría explicarte cómo puedes unirte a los más de mil doscientos docentes que ya usan nuestra plataforma. Fue creada por el ingeniero venezolano Reymon Castillo, nacido en Apure, pensando justamente en nuestras necesidades pedagógicas. Es tan fácil como hablar conmigo y pedirme lo que necesites. Puedes obtener tu código PRO por solo dos dólares al cambio del B C V pagando con Pago Móvil. Al tocar el botón de activación, hablarás directamente con Reymon. ¿Tienes alguna duda de cómo funciona o quieres que te explique los beneficios para tu grado?');
+          speakText('¡Hola! Soy Camila, de DOCENTY PRO. Puedes usar nuestro Plan Pro por dos dólares durante treinta días, o el Plan Plus por cinco dólares durante treinta días. Plus añade la elaboración asistida de proyectos y planificaciones mediante WhatsApp, donde te atiende personalmente nuestro equipo. Si necesitas los datos de pago, solicítalos por el contacto oficial de la plataforma. ¿Qué te gustaría conocer?');
         }, 1200);
       }
     }
@@ -249,19 +250,16 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat', isA
     }
 
     try {
-      const systemInstruction = mode === 'sales' 
-        ? `Tú eres Camila, experta en ventas de Docenty Pro By Reymon Castillo. Tu objetivo es convencer al docente de suscribirse.
+      const systemInstruction = mode === 'sales'
+        ? `Eres Camila, asistente informativa y pedagógica de DOCENTY PRO. Explica con precisión y sin presión comercial qué servicio corresponde a cada plan.
+Nombre oficial: DOCENTY PRO By Reymon Castillo, creado por Reymon Castillo.
 
-Directrices:
-1. INFORMACIÓN CLAVE Y NOMBRE:
-   - Nombre oficial de la plataforma: "Docenty Pro By Reymon Castillo" (o Docenty PRO). Cuando te pregunten cómo se llama la plataforma o este sistema, responde que se llama "Docenty Pro By Reymon Castillo".
-   - Somos más de 1200 docentes.
-   - Creado por Reymon Castillo, Ingeniero venezolano nacido en Apure.
-   - El botón de WhatsApp contacta DIRECTAMENTE con Reymon para cualquier duda o servicio profesional.
-   - Pago móvil de $2 a tasa BCV por 30 días. NO INVENTES LOS DATOS DEL PAGO (móvil, banco, cédula). Di siempre que deben pedirlos por el botón de WhatsApp.
-2. ESTILO: Muy profesional, amable y convincente.
-3. CIERRE: Invita siempre a usar el botón de WhatsApp cuando estén listos para comprar o necesiten los datos reales de pago.`
+${INSTRUCCIONES_PLANES_CAMILA}
+
+Responde las preguntas de forma amable y breve. Nunca inventes usuarios activos, pruebas sociales, fechas de pago ni disponibilidad de funciones. Comparte el canal de contacto oficial de la plataforma solo cuando el docente lo necesite.`
         : `Tú eres Camila, la asistente virtual y pedagógica avanzada de la plataforma Docenty Pro By Reymon Castillo. Debes seguir estas directrices estrictas:
+
+${INSTRUCCIONES_PLANES_CAMILA}
 
 1. IDENTIDAD, NOMBRE Y CREADOR:
 - Nombre oficial: "Docenty Pro By Reymon Castillo" (también referida como Docenty PRO). Si te preguntan cuál es el nombre de la plataforma, aplicación o software, debes responder con orgullo que se llama "Docenty Pro By Reymon Castillo".
