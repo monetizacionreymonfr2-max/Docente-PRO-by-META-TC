@@ -11,7 +11,8 @@ test('Camila informa los dos planes sin prometer automatización de WhatsApp', (
   const reglas = read('src/lib/camila/instruccionesPlanes.ts');
   assert.match(reglas, /Plan PRO: USD 2 por 30 días/);
   assert.match(reglas, /Plan PLUS: USD 5 por 30 días/);
-  assert.match(reglas, /atención de WhatsApp es MANUAL/);
+  assert.match(reglas, /servicio de WhatsApp se presenta como «Camila Plus»/);
+  assert.match(reglas, /Si preguntan directamente si es un bot autónomo/);
   assert.match(reglas, /código de atención permanente/);
   assert.match(reglas, /DIFERENTE del código de activación/);
   assert.match(reglas, /Nunca afirmes haber revisado, activado/);
@@ -27,11 +28,11 @@ test('Camila chat y ventas incorporan el prompt común sin perder pautas pedagó
   assert.match(camila, /Plan Plus por \$5 durante 30 días/);
 });
 
-test('La voz explica Plus como atención humana sin afirmar funciones no habilitadas', () => {
+test('La voz presenta Camila Plus sin falsas afirmaciones sobre WhatsApp ni funciones no habilitadas', () => {
   const voice = read('api/camila-live-token.js');
   assert.match(voice, /PLAN PLUS: cinco dólares por treinta días/);
-  assert.match(voice, /WhatsApp se atiende manualmente/);
-  assert.match(voice, /no envías mensajes automáticos/);
+  assert.match(voice, /servicio de WhatsApp como Camila Plus/);
+  assert.match(voice, /no es un bot autónomo de WhatsApp/);
   assert.match(voice, /No prometas que Mi Formato está habilitado/);
   assert.match(voice, /No pidas datos personales de menores/);
 });

@@ -26,7 +26,7 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat', isA
 
   useEffect(() => {
     if (mode === 'sales') {
-      const salesGreeting = '¡Hola! Soy Camila, de DOCENTY PRO. Contamos con el Plan Pro por $2 durante 30 días, con las herramientas y mi asistencia dentro de la plataforma, y el Plan Plus por $5 durante 30 días, que agrega atención asistida por WhatsApp a cargo de nuestro equipo para proyectos y planificaciones en el formato de tu institución. ¿Quieres que te explique las diferencias o cómo solicitar tu plan?';
+      const salesGreeting = '¡Hola! Soy Camila, de DOCENTY PRO. Contamos con el Plan Pro por $2 durante 30 días, con las herramientas y mi asistencia dentro de la plataforma, y el Plan Plus por $5 durante 30 días, que agrega el servicio Camila Plus por WhatsApp para proyectos y planificaciones en el formato de tu institución. ¿Quieres que te explique las diferencias o cómo solicitar tu plan?';
       setMessages([
         { id: 'welcome', role: 'model', text: salesGreeting }
       ]);
@@ -221,7 +221,7 @@ export function CamilaInner({ teacherId, isEmbedded, onClose, mode = 'chat', isA
       // Greeting for sales mode when starting live mode
       if (mode === 'sales') {
         setTimeout(() => {
-          speakText('¡Hola! Soy Camila, de DOCENTY PRO. Puedes usar nuestro Plan Pro por dos dólares durante treinta días, o el Plan Plus por cinco dólares durante treinta días. Plus añade la elaboración asistida de proyectos y planificaciones mediante WhatsApp, donde te atiende personalmente nuestro equipo. Si necesitas los datos de pago, solicítalos por el contacto oficial de la plataforma. ¿Qué te gustaría conocer?');
+          speakText('¡Hola! Soy Camila, de DOCENTY PRO. Puedes usar nuestro Plan Pro por dos dólares durante treinta días, o el Plan Plus por cinco dólares durante treinta días. Plus añade el servicio Camila Plus por WhatsApp para elaborar proyectos y planificaciones según las necesidades de tu aula. Si necesitas los datos de pago, solicítalos por el contacto oficial de la plataforma. ¿Qué te gustaría conocer?');
         }, 1200);
       }
     }
