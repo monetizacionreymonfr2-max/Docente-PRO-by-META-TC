@@ -14,14 +14,16 @@ test('El botón principal presenta el WhatsApp de Camila Plus', () => {
   assert.doesNotMatch(home, /servicios de programación y desarrollo web/);
   assert.match(home, /getCamilaPlusWhatsAppMessage\(customerCode \|\| ''\)/);
   assert.match(helper, /Plan Camila Plus de \$5 por 30 días/);
+  assert.match(helper, /documentos institucionales y materiales de apoyo educativo/);
 });
 
 test('El aviso de novedad se muestra una vez por docente y dispositivo', () => {
-  assert.match(home, /docenty:aviso-camila-plus-v1:/);
+  assert.match(home, /docenty:aviso-camila-plus-v2:/);
   assert.match(home, /localStorage\.getItem\(avisoKey\)/);
   assert.match(home, /localStorage\.setItem\(avisoKey, '1'\)/);
   assert.match(home, /mostrarAvisoPlus &&/);
   assert.match(home, /Camila Plus por WhatsApp/);
+  assert.match(home, /Solicitudes por escrito \(sin audios\)/);
   assert.match(layout, /<Outlet context=\{\{[^}]*customerCode, planType/);
 });
 
