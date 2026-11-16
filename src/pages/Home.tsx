@@ -281,7 +281,7 @@ export default function Home() {
               <div className="pt-8">
                 <button 
                   onClick={handleWhatsAppContact}
-                  className="flex items-center gap-3 bg-gradient-to-r from-green-600 to-emerald-500 hover:scale-105 active:scale-95 text-white font-black px-10 py-5 rounded-2xl shadow-[0_15px_30px_rgba(34,197,94,0.3)] transition-all mx-auto lg:mx-0 group"
+                  className="w-full sm:w-auto max-w-full flex items-center justify-center gap-3 bg-gradient-to-r from-green-600 to-emerald-500 hover:scale-105 active:scale-95 text-white font-black px-5 sm:px-10 py-5 rounded-2xl shadow-[0_15px_30px_rgba(34,197,94,0.3)] transition-all mx-auto lg:mx-0 group"
                 >
                   <MessageCircle size={24} className="fill-white" />
                   <span className="text-center">WHATSAPP OFICIAL DE CAMILA PLUS</span>
