@@ -283,6 +283,11 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', cust
             <Outlet context={{ isGuest, generationsCount, teacherId, teacherName, isAdmin, customerCode, planType }} />
           </div>
         </AccessProtection>
+        <footer className="no-print text-center text-xs text-slate-400 pb-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+          <a href="/legal/terminos" className="hover:text-cyan-300 hover:underline">Términos y condiciones</a>
+          <a href="/legal/privacidad" className="hover:text-cyan-300 hover:underline">Política de privacidad</a>
+          <a href="mailto:monetizacionreymonfr2@gmail.com" className="hover:text-cyan-300 hover:underline">Soporte legal</a>
+        </footer>
       </main>
 
     </div>
