@@ -29,13 +29,15 @@ interface LayoutProps {
   isAdmin?: boolean;
   accessLevel?: 'guest' | 'pro';
   codeId?: string;
+  customerCode?: string;
+  planType?: 'pro' | 'plus';
   generationsCount?: number;
   teacherId?: string;
   teacherName?: string;
   expiresAt?: any;
 }
 
-export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', generationsCount = 0, teacherId = '', teacherName = '', expiresAt }: LayoutProps) {
+export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', customerCode = '', planType = 'pro', generationsCount = 0, teacherId = '', teacherName = '', expiresAt }: LayoutProps) {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const isGuest = accessLevel === 'guest';
@@ -239,7 +241,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
               </div>
               <div className="overflow-hidden">
                 <span className="block text-[10px] font-bold uppercase tracking-wider text-amber-500/80">
-                  {daysRemaining > 10000 ? 'Suscripción Activa' : 'Suscripción PRO'}
+                  {daysRemaining > 10000 ? 'Suscripción activa' : `Plan ${planType === 'plus' ? 'Plus' : 'Pro'}`}
                 </span>
                 <span className="text-xs font-black text-white block truncate">
                   {daysRemaining > 10000 
@@ -255,8 +257,16 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', gene
           </div>
         )}
 
+        {!isAdmin && (
+          <div className="px-6 py-3 border-t border-white/10 bg-cyan-500/5">
+            <span className="block text-[10px] uppercase tracking-wider text-cyan-300 font-bold">Código de atención</span>
+            <strong className="block text-sm font-mono tracking-wider text-white mt-1">{customerCode || 'Cargando...'}</strong>
+            <span className="block text-[10px] text-slate-400 mt-1">Úsalo para identificarte al escribir a Camila por WhatsApp.</span>
+          </div>
+        )}
+
         <div className="p-4 border-t border-white/10">
-          <button 
+          <button
             onClick={handleLogout}
             className="flex items-center gap-3 px-4 py-3 w-full text-left rounded-xl text-slate-400 hover:bg-red-600/10 hover:text-white transition-all"
           >
