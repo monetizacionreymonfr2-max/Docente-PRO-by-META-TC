@@ -280,7 +280,7 @@ export default function Layout({ isAdmin, accessLevel = 'pro', codeId = '', cust
       <main className="flex-1 overflow-y-auto bg-transparent pt-16 md:pt-0">
         <AccessProtection accessLevel={accessLevel} codeId={codeId}>
           <div className={location.pathname === '/camila-formato' ? "p-1 sm:p-4 max-w-7xl mx-auto" : "p-4 md:p-8 max-w-7xl mx-auto"}>
-            <Outlet context={{ isGuest, generationsCount, teacherId, teacherName, isAdmin }} />
+            <Outlet context={{ isGuest, generationsCount, teacherId, teacherName, isAdmin, customerCode, planType }} />
           </div>
         </AccessProtection>
       </main>
