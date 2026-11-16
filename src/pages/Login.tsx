@@ -240,6 +240,10 @@ export default function Login() {
           </button>
         </form>
 
+        <div className="mt-6 flex flex-wrap justify-center gap-x-4 gap-y-2 text-xs">
+          <a href="/legal/terminos" className="text-cyan-300 hover:underline">Términos y condiciones</a>
+          <a href="/legal/privacidad" className="text-cyan-300 hover:underline">Política de privacidad</a>
+        </div>
         <div className="mt-8 flex items-center justify-center gap-3">
           <div className="w-1.5 h-1.5 rounded-full bg-futuristic-accent animate-pulse"></div>
           <span className="text-[9px] font-black text-white/20 tracking-[0.2em] uppercase">V 4.0.0 Stable Cloud (Supabase)</span>
