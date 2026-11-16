@@ -133,7 +133,7 @@ export default function ActivationModal({ userId, email }: ActivationModalProps)
               Compra tu código PRO por $2 (30 días)
             </p>
             <a
-              href={getWhatsAppUrl('Hola, quiero comprar mi código PRO.')}
+              href={getWhatsAppUrl(undefined, 'Hola, Camila. Quiero comprar mi código de activación PRO de DOCENTY PRO por $2 (30 días).')}
               target="_blank"
               rel="noopener noreferrer"
               className="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-3 shadow-lg shadow-green-500/20 active:scale-[0.98] transition-all"
