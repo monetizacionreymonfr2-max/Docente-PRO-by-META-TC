@@ -45,7 +45,8 @@ import { SupabaseService } from '../lib/supabaseService';
 import { supabase } from '../lib/supabase';
 import { FormatoDocente } from '../types/formato';
 import { PlantillaDocx, DocxMapa } from '../lib/docxClone/types';
-import { cargarDocx, construirMapa, guardarDocx } from '../lib/docxClone/docxEditor';
+import { cargarDocx, construirMapa, guardarDocx, validarDocxClonado } from '../lib/docxClone/docxEditor';
+import { prepararOperacionesPython } from '../lib/camilaFormato/operacionesPython';
 import { analizarPlantillaDocx } from '../lib/docxClone/plantillaAnalyzer';
 import {
   MensajeChatFormato,
@@ -110,6 +111,7 @@ export default function CamilaFormato() {
   const skillWordVisible = isAdmin === true && (herramientasOpcionalesVisibles || opcionesEntorno?.VITE_CAMILA_SKILLS_TOOLS === 'true');
   const pdfLibreOfficeVisible = isAdmin === true && (herramientasOpcionalesVisibles || opcionesEntorno?.VITE_CAMILA_LIBREOFFICE_TOOLS === 'true');
   const editorPythonVisible = isAdmin === true && opcionesEntorno?.VITE_CAMILA_DOCX_EDIT_TOOLS === 'true';
+  const [modoFicticioPython, setModoFicticioPython] = useState(false);
   useEffect(()=>{setVistaPdfUrl(null)},[blobDocx]);
   const [nombreBorradorLocal, setNombreBorradorLocal] = useState<string | null>(null);
   // La propuesta se genera sobre una copia aislada. El documento activo solo
@@ -473,6 +475,7 @@ export default function CamilaFormato() {
 
   // Cargar formato activo en memoria
   const cargarFormatoEnSesion = async (formato: FormatoDocente, arrayBuffer?: ArrayBuffer) => {
+    setModoFicticioPython(false);
     if (isProcessing || propuestaPendiente) {
       setMensajes((prev) => [...prev, {
         id: `msg-${Date.now()}`, emisor: 'camila',
@@ -891,14 +894,15 @@ export default function CamilaFormato() {
           texto: m.texto,
         }));
 
-      // La inteligencia artificial prepara el borrador sobre una copia real del
-      // DOCX. Nunca modificamos docVivo ni zipVivo antes de la autorización.
+      // El motor de IA propone cambios sobre una copia. El worker Python
+      // recibe solamente operaciones validadas y documentos ficticios autorizados.
       if (!blobDocx) throw new Error('No hay un documento Word disponible.');
       const borrador = await cargarDocx(blobDocx);
+      const mapaAntes = construirMapa(borrador.doc);
       const resultado = await enviarMensajeACamilaFormato({
         mensajeDocente: texto,
         historialTurnos,
-        mapaActual: construirMapa(borrador.doc),
+        mapaActual: mapaAntes,
         docVivo: borrador.doc,
         zipVivo: borrador.zip,
         docOrig,
@@ -918,6 +922,63 @@ export default function CamilaFormato() {
       if (resultado.libroHechosExtraidos) setLibroHechosTemporal(resultado.libroHechosExtraidos);
 
       if (resultado.operacionesEjecutadas.length > 0) {
+        // Fase experimental: en Preview, un administrador puede habilitar el
+        // modo Word FICTICIO una sola vez por archivo. Si el plan tiene acciones
+        // complejas, se mantiene el flujo tradicional sin enviar el Word al worker.
+        const planPython = editorPythonVisible && modoFicticioPython && adjuntosEnviados.length === 0
+          ? prepararOperacionesPython(resultado.operacionesEjecutadas, mapaAntes, plantillaActual)
+          : null;
+        if (planPython) {
+          setProgresoDetalle('Python está aplicando los cambios sobre una copia de prueba...');
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.access_token) throw new Error('Inicie sesión para editar el Word de prueba.');
+          const response = await fetch('/api/camila-edit-docx', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+            body: JSON.stringify({
+              archivoBase64: await blobABase64(blobDocx), operaciones: planPython,
+              consentimiento: true, soloFicticio: true,
+            }),
+          });
+          const resultadoPython = await response.json();
+          if (!response.ok || typeof resultadoPython.archivoBase64 !== 'string' ||
+              resultadoPython.operacionesAplicadas !== planPython.length) {
+            throw new Error(resultadoPython.error || 'El motor Python rechazó el cambio; documento intacto.');
+          }
+          const binario = atob(resultadoPython.archivoBase64);
+          const bytes = Uint8Array.from(binario, (c) => c.charCodeAt(0));
+          const editado = new Blob([bytes], {
+            type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          });
+          const zipOriginal = await cargarDocx(blobDocx);
+          const integridad = await validarDocxClonado(zipOriginal.zip, editado);
+          if (!integridad.valido) {
+            throw new Error('El Word no superó la revisión de integridad. Se conserva la versión anterior.');
+          }
+          const documentoEditado = await cargarDocx(editado);
+          const mapaEditado = construirMapa(documentoEditado.doc);
+          const revision = revisarDocumentoVivo(docOrig, documentoEditado.doc, plantillaActual);
+          setDocVivo(documentoEditado.doc);
+          setZipVivo(documentoEditado.zip);
+          setMapaActual(mapaEditado);
+          setBlobDocx(editado);
+          setRevisionActual(revision);
+          setSnapshots((prev) => [...prev.slice(-9), {
+            id: 'snap-' + Date.now(),
+            xml: new XMLSerializer().serializeToString(documentoEditado.doc),
+            mapa: mapaEditado,
+            descripcion: texto.slice(0, 40),
+            timestamp: Date.now(),
+          }]);
+          setTabActiva('documento');
+          setMensajes((prev) => [...prev, {
+            id: 'msg-' + Date.now(), emisor: 'camila',
+            texto: 'Apliqué ' + planPython.length + ' cambio(s) en la copia Word de prueba. Puede revisar el resultado y usar Deshacer si es necesario.',
+            operacionesEjecutadas: resultado.operacionesEjecutadas,
+            fecha: new Date(), revision,
+          }]);
+          return;
+        }
         setPropuestaPendiente({ solicitud: texto, resultado });
         setTabActiva('documento');
         setMensajes((prev) => [...prev, {
@@ -1625,6 +1686,21 @@ export default function CamilaFormato() {
                 className="px-2 py-1.5 rounded-xl border border-violet-400/40 text-violet-200 text-xs disabled:opacity-30">
                 Skill Word · ficticio
               </button>
+              )}
+              {editorPythonVisible && (
+                <button type="button"
+                  onClick={() => {
+                    if (modoFicticioPython) {
+                      setModoFicticioPython(false);
+                    } else if (window.confirm('ACTIVAR MODO DE PRUEBA: confirme que su Word actual contiene únicamente información FICTICIA y que autoriza procesarlo temporalmente en el worker privado. Este permiso dura solo para este archivo abierto.')) {
+                      setModoFicticioPython(true);
+                    }
+                  }}
+                  disabled={!blobDocx || isProcessing || procesandoOpcional || Boolean(propuestaPendiente)}
+                  aria-pressed={modoFicticioPython}
+                  className="px-2 py-1.5 rounded-xl border border-amber-400/40 text-amber-200 text-xs disabled:opacity-30">
+                  {modoFicticioPython ? 'Prueba ficticia: activa' : 'Activar prueba Python'}
+                </button>
               )}
               {editorPythonVisible && (
               <button type="button" onClick={solicitarEdicionWordPythonFicticio}
