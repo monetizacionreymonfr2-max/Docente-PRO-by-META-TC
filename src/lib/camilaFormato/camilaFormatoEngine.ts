@@ -1,10 +1,10 @@
 import { solicitaPpaIntegral } from './solicitudIntegral';
-import { generarPpaCompletoClaude } from '../camila/claudeClient';
+import { generarPpaCompletoClaude } from '../camila/geminiFormatoClient';
 import { adaptarPpaCompletoAWord } from './adaptarPpaDocx';
 import { validarPpaCompleto, type PpaCompleto, type IdentidadPpa } from './ppaEstructurado';
 import { detectarAreasExcluidas } from '../docxClone/clonerPipeline';
 import JSZip from 'jszip';
-import { askCamilaFormatoClaude } from '../camila/claudeClient';
+import { askCamilaFormatoClaude } from '../camila/geminiFormatoClient';
 import {
   combinarDatosProyecto, prepararVaciadoPpa, type DatosProyectoPropuesto,
 } from './contextoProyectoPpa';
