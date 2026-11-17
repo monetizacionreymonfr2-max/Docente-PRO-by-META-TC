@@ -188,3 +188,5 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: 'Camila no pudo completar la solicitud. Inténtelo de nuevo.' });
   }
 }
+
+export { validMessage, esquemaGemini, respuestaEstructuradaValida };
