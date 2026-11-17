@@ -92,6 +92,53 @@ class EditorWordTests(unittest.TestCase):
         changed = base64.b64decode(response["archivoBase64"], validate=True)
         self.assertEqual(Document(BytesIO(changed)).tables[0].cell(0, 1).text, "Quinto")
 
+    def test_set_parrafo_por_id_y_precondicion(self):
+        original = word_ficticio()
+        result, changed = editar_word(original, [
+            {"tipo": "set_parrafo", "id": "p1",
+             "esperado": "La actividad de lectura guiada inicia hoy.",
+             "texto": "Actividad pedagógica revisada para segundo grado."},
+        ])
+        self.assertEqual(changed, 1)
+        after = Document(BytesIO(result))
+        self.assertEqual(after.paragraphs[1].text, "Actividad pedagógica revisada para segundo grado.")
+        self.assertTrue(after.paragraphs[1].runs[1].bold)
+        with self.assertRaises(ValueError):
+            editar_word(original, [
+                {"tipo": "set_parrafo", "id": "p1",
+                 "esperado": "Dato desactualizado", "texto": "No debe guardarse"},
+            ])
+
+    def test_set_celda_por_id_preserva_tabla_y_falla_en_formato_ambiguo(self):
+        original = word_ficticio()
+        result, count = editar_word(original, [
+            {"tipo": "set_celda", "id": "t0.r0.c1", "esperado": "Segundo",
+             "lineas": ["Quinto grado"]},
+        ])
+        self.assertEqual(count, 1)
+        self.assertEqual(Document(BytesIO(result)).tables[0].cell(0, 1).text, "Quinto grado")
+        for bad in (
+            {"tipo": "set_celda", "id": "t0.r0.c1", "esperado": "Tercero",
+             "lineas": ["Quinto"]},
+            {"tipo": "set_celda", "id": "t4.r0.c0", "esperado": "",
+             "lineas": ["Quinto"]},
+            {"tipo": "set_celda", "id": "t0.r0.c1", "esperado": "Segundo",
+             "lineas": ["Quinto", "Sexto"]},
+        ):
+            with self.assertRaises(ValueError):
+                editar_word(original, [bad])
+
+    def test_operacion_mixta_es_atomica(self):
+        original = word_ficticio()
+        with self.assertRaises(ValueError):
+            editar_word(original, [
+                {"tipo": "set_celda", "id": "t0.r0.c1", "esperado": "Segundo",
+                 "lineas": ["Tercero"]},
+                {"tipo": "set_parrafo", "id": "p1", "esperado": "texto incorrecto",
+                 "texto": "No publicar"},
+            ])
+        self.assertEqual(Document(BytesIO(original)).tables[0].cell(0, 1).text, "Segundo")
+
     def test_descarta_json_malformado_y_base64_falso(self):
         for invalid in (b"not-json", b"{}", b'{"archivoBase64":"??","operaciones":[]}'):
             with self.assertRaises(ValueError):
