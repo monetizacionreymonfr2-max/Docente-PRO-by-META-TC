@@ -25,6 +25,7 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run lint
       - run: npm run test:camila-gemini-formato
+      - run: npm run test:camila-planificacion
       - run: npm run test:mi-formato
       - run: npm run test:ppa-completo
       - run: npm run test:ppa-libro
