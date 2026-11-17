@@ -180,7 +180,7 @@ export default async function handler(req, res) {
       : mode === 'ppa_completo' ? SYSTEM_PPA_COMPLETO
         : mode === 'ppa_bloque' ? SYSTEM_PPA_BLOQUE : SYSTEM;
     const reglasEdicion = '\n\nEl docente puede solicitar cambios directamente; el editor hará una vista previa y conservará Deshacer. No exija aprobaciones repetidas antes de preparar una edición explícitamente solicitada. Nunca afirme haber guardado el archivo o una memoria sin confirmación del almacenamiento. Ante datos esenciales ausentes, haga solo una pregunta.';
-    const model = process.env.CAMILA_FORMATO_GEMINI_MODEL || 'gemini-3.1-flash-lite';
+    const model = process.env.CAMILA_FORMATO_GEMINI_MODEL || 'gemini-3.5-flash-lite';
     const ai = new GoogleGenAI({ apiKey: key });
     const result = await ai.models.generateContent({
       model,
