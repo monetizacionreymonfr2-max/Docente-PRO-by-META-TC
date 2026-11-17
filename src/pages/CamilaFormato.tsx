@@ -914,6 +914,7 @@ export default function CamilaFormato() {
         adjuntosMemoria: adjuntosEnviados,
         archivoOriginalData: archivoOriginalBuffer,
         onProgresoVaciarTodo: (paso) => setProgresoDetalle(paso),
+        usarGeminiPreview: editorPythonVisible && modoFicticioPython,
       });
 
       if (resultado.datosProyectoExtraidos) {
@@ -1699,7 +1700,7 @@ export default function CamilaFormato() {
                   disabled={!blobDocx || isProcessing || procesandoOpcional || Boolean(propuestaPendiente)}
                   aria-pressed={modoFicticioPython}
                   className="px-2 py-1.5 rounded-xl border border-amber-400/40 text-amber-200 text-xs disabled:opacity-30">
-                  {modoFicticioPython ? 'Prueba ficticia: activa' : 'Activar prueba Python'}
+                  {modoFicticioPython ? 'Gemini + Python: prueba activa' : 'Activar prueba Gemini + Python'}
                 </button>
               )}
               {editorPythonVisible && (
