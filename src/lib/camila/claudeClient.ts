@@ -63,13 +63,29 @@ export async function generarBloquePpaClaude(
 export async function askCamilaFormatoClaude(
   instruccionConContexto: string,
   historial: Array<{ rol: 'user' | 'model'; texto: string }>,
-  adjuntos: CamilaAdjuntoVisual[] = []
+  adjuntos: CamilaAdjuntoVisual[] = [],
+  usarGeminiPreview = false
 ): Promise<string> {
   const messages: CamilaTurn[] = historial.slice(-6).map((item) => ({
     role: item.rol === 'model' ? 'assistant' : 'user',
     content: item.texto.slice(0, 12000),
   }));
   messages.push({ role: 'user', content: instruccionConContexto });
+  if (usarGeminiPreview) {
+    if (adjuntos.length) throw new Error('La prueba Gemini solo admite texto y el mapa de un Word ficticio.');
+    const { data: { session }, error } = await supabase.auth.getSession();
+    if (error || !session?.access_token) throw new Error('Inicie sesión para probar Gemini.');
+    const response = await fetch('/api/camila-gemini-formato', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+      body: JSON.stringify({ messages, consentimiento: true, soloFicticio: true }),
+    });
+    const payload: { text?: string; error?: string } = await response.json();
+    if (!response.ok || typeof payload.text !== 'string' || !payload.text.trim()) {
+      throw new Error(payload.error || 'Camila Gemini no está disponible en Preview.');
+    }
+    return payload.text;
+  }
   return sendCamilaClaude(adjuntos.length ? conAdjuntosEnUltimoTurno(messages, adjuntos) : messages, 'formato');
 }
 
