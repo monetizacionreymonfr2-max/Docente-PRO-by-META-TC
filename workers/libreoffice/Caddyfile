@@ -1,9 +1,9 @@
 {$WORKER_DOMAIN} {
     request_body {
-        max_size 2MB
+        max_size 3MB
     }
     @worker {
-        path /health /convert
+        path /health /convert /edit
     }
     handle @worker {
         reverse_proxy converter:8787
