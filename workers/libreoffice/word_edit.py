@@ -4,6 +4,7 @@ No ejecuta código recibido del modelo, no modifica encabezados ni elimina imág
 La IA propone operaciones; este módulo valida y cambia únicamente texto inequívoco.
 """
 from io import BytesIO
+import re
 import zipfile
 
 from docx import Document
@@ -22,24 +23,96 @@ UNSAFE_ELEMENTS = {
 }
 
 
+def _texto_seguro(text, max_chars=MAX_REPLACEMENT):
+    if not isinstance(text, str) or len(text) > max_chars:
+        raise ValueError("Texto demasiado largo o inválido")
+    if any(ord(ch) < 32 for ch in text):
+        raise ValueError("No se permiten caracteres de control")
+
+
 def _validar_operaciones(operations):
     if not isinstance(operations, list) or not (1 <= len(operations) <= MAX_OPERATIONS):
         raise ValueError("Se requieren entre 1 y 20 operaciones")
     for operation in operations:
-        if not isinstance(operation, dict) or set(operation) != {"tipo", "buscar", "reemplazar"}:
+        if not isinstance(operation, dict):
             raise ValueError("Operación no permitida")
-        if operation["tipo"] != "reemplazar_texto":
+        kind = operation.get("tipo")
+        if kind == "reemplazar_texto":
+            if set(operation) != {"tipo", "buscar", "reemplazar"}:
+                raise ValueError("Campos no autorizados para reemplazo")
+            old, new = operation["buscar"], operation["reemplazar"]
+            _texto_seguro(old, MAX_SEARCH)
+            _texto_seguro(new)
+            if not old:
+                raise ValueError("Texto de búsqueda vacío")
+        elif kind == "set_parrafo":
+            if set(operation) != {"tipo", "id", "esperado", "texto"} or not isinstance(
+                    operation["id"], str) or not re.fullmatch(r"p(?:0|[1-9][0-9]{0,4})", operation["id"]):
+                raise ValueError("Párrafo objetivo inválido")
+            _texto_seguro(operation["esperado"])
+            _texto_seguro(operation["texto"])
+        elif kind == "set_celda":
+            if set(operation) != {"tipo", "id", "esperado", "lineas"} or not isinstance(
+                    operation["id"], str) or not re.fullmatch(
+                    r"t(?:0|[1-9][0-9]{0,4})\.r(?:0|[1-9][0-9]{0,4})\.c(?:0|[1-9][0-9]{0,4})",
+                    operation["id"]):
+                raise ValueError("Celda objetivo inválida")
+            _texto_seguro(operation["esperado"])
+            if not isinstance(operation["lineas"], list) or len(operation["lineas"]) != 1:
+                raise ValueError("Solo una línea por celda en la edición experimental")
+            _texto_seguro(operation["lineas"][0])
+        else:
             raise ValueError("Tipo de operación no permitido")
-        old, new = operation["buscar"], operation["reemplazar"]
-        if not isinstance(old, str) or not (1 <= len(old) <= MAX_SEARCH):
-            raise ValueError("Texto de búsqueda inválido")
-        if not isinstance(new, str) or len(new) > MAX_REPLACEMENT:
-            raise ValueError("Texto de reemplazo demasiado largo")
-        if any(ord(ch) < 32 and ch not in "\n\t" for ch in old + new):
-            raise ValueError("Caracteres de control no permitidos")
-        # Los saltos de párrafo requieren operaciones estructurales específicas.
-        if "\n" in old + new or "\r" in old + new or "\t" in old + new:
-            raise ValueError("No se admiten saltos de línea ni tabuladores en reemplazos")
+
+
+def _nodo_para_id(root, operation):
+    body = root.find(f"{{{W_NS}}}body")
+    if body is None:
+        raise ValueError("Word sin cuerpo")
+    direct_children = list(body)
+    if operation["tipo"] == "set_parrafo":
+        paragraphs = [item for item in direct_children if item.tag == f"{{{W_NS}}}p"]
+        number = int(operation["id"][1:])
+        if number >= len(paragraphs):
+            raise ValueError("Párrafo no encontrado")
+        return paragraphs[number]
+    table_index, row_index, cell_index = (int(n) for n in re.findall(r"[0-9]+", operation["id"]))
+    tables = [item for item in direct_children if item.tag == f"{{{W_NS}}}tbl"]
+    if table_index >= len(tables):
+        raise ValueError("Tabla no encontrada")
+    rows = tables[table_index].findall(f"{{{W_NS}}}tr")
+    if row_index >= len(rows):
+        raise ValueError("Fila no encontrada")
+    cells = rows[row_index].findall(f"{{{W_NS}}}tc")
+    if cell_index >= len(cells):
+        raise ValueError("Celda no encontrada")
+    paragraphs = cells[cell_index].findall(f"{{{W_NS}}}p")
+    # Una celda multipárrafo requiere operaciones estructurales fuera de este contrato.
+    if len(paragraphs) != 1 or cells[cell_index].find(f".//{{{W_NS}}}tbl") is not None:
+        raise ValueError("Celda compleja: edición automática no autorizada")
+    return paragraphs[0]
+
+
+def _actualizar_parrafo(paragraph, expected, replacement):
+    if any(element.tag in UNSAFE_ELEMENTS for element in paragraph.iter()):
+        raise ValueError("Párrafo con elementos especiales: edición no segura")
+    nodes, text = _texto_parrafo(paragraph)
+    if text.strip() != expected:
+        raise ValueError("El documento cambió; la operación no coincide con su contenido")
+    if not nodes:
+        run = etree.SubElement(paragraph, f"{{{W_NS}}}r")
+        value = etree.SubElement(run, f"{{{W_NS}}}t")
+        value.text = replacement
+        if replacement.startswith(" ") or replacement.endswith(" "):
+            value.set(XML_SPACE, "preserve")
+        return
+    if text:
+        _reemplazar_en_nodos(nodes, 0, len(text), replacement)
+    else:
+        nodes[0].text = replacement
+        if replacement.startswith(" ") or replacement.endswith(" "):
+            nodes[0].set(XML_SPACE, "preserve")
+
 
 
 def _texto_parrafo(paragraph):
@@ -101,6 +174,12 @@ def editar_word(original: bytes, operations: list) -> tuple[bytes, int]:
             raise ValueError("Documento demasiado complejo")
 
         for operation in operations:
+            if operation["tipo"] in ("set_parrafo", "set_celda"):
+                paragraph = _nodo_para_id(root, operation)
+                replacement = (operation["texto"] if operation["tipo"] == "set_parrafo"
+                               else operation["lineas"][0])
+                _actualizar_parrafo(paragraph, operation["esperado"], replacement)
+                continue
             old, replacement = operation["buscar"], operation["reemplazar"]
             matches = []
             for paragraph in paragraphs:
