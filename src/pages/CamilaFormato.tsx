@@ -111,8 +111,8 @@ export default function CamilaFormato() {
   const pdfLibreOfficeVisible = isAdmin === true && (herramientasOpcionalesVisibles || opcionesEntorno?.VITE_CAMILA_LIBREOFFICE_TOOLS === 'true');
   useEffect(()=>{setVistaPdfUrl(null)},[blobDocx]);
   const [nombreBorradorLocal, setNombreBorradorLocal] = useState<string | null>(null);
-  // La propuesta se genera sobre una copia aislada. El documento activo solo
-  // cambia después de que el docente apruebe expresamente el resultado.
+  // Las herramientas opcionales pueden crear propuestas para revisión manual.
+  // Los cambios pedidos en el chat principal se aplican directamente con Deshacer.
   const [propuestaPendiente, setPropuestaPendiente] = useState<{
     solicitud: string;
     resultado: ResultadoCamilaFormato;
@@ -401,7 +401,22 @@ export default function CamilaFormato() {
       })));
       setModalHistorialOpen(false);
       setTabActiva('chat');
-      setAvisoPrivacidad('Conversación recuperada. Si utilizaba un Word, deberá abrirlo de nuevo para continuar editándolo.');
+      // Las versiones guardadas con autorización están asociadas a esta conversación.
+      // Se ofrecen para retomar el Word sin guardar automáticamente adjuntos o documentos.
+      let aviso = 'Conversación recuperada. Si trabajaba con un Word, puede abrirlo desde Mis versiones.';
+      if (versionesDisponibles) {
+        try {
+          const versionesDeEstaConversacion = await VersionesPpa.listar(teacherId, id);
+          if (versionesDeEstaConversacion.length > 0) {
+            setVersionesPrivadas(versionesDeEstaConversacion);
+            setModalVersionesOpen(true);
+            aviso = 'Conversación recuperada. Seleccione la versión Word que guardó para continuar donde se quedó.';
+          }
+        } catch {
+          aviso = 'Conversación recuperada. Las versiones no pudieron consultarse ahora; puede reintentarlo desde Mis versiones.';
+        }
+      }
+      setAvisoPrivacidad(aviso);
     } catch (error) { setAvisoPrivacidad(error instanceof Error ? error.message : 'No se pudo abrir la conversación.'); }
     finally { setPersistenciaOcupada(false); }
   };
@@ -758,6 +773,46 @@ export default function CamilaFormato() {
     } finally { setPersistenciaOcupada(false); }
   };
 
+  // Aplica el Word ya validado por el motor a partir de una copia aislada.
+  // Cada instrucción explícita del docente se ve en la vista previa y puede deshacerse.
+  // Guardar la versión en la nube sigue exigiendo consentimiento independiente.
+  const aplicarResultadoAlDocumento = async (
+    solicitud: string,
+    resultado: ResultadoCamilaFormato,
+    generadoSinPlantilla = false,
+    registrarRespuesta = true,
+  ) => {
+    const aplicado = await cargarDocx(resultado.nuevoBlob);
+    const mapaAplicado = construirMapa(aplicado.doc);
+    const xmlAplicado = new XMLSerializer().serializeToString(aplicado.doc);
+    setDocVivo(aplicado.doc);
+    setZipVivo(aplicado.zip);
+    setMapaActual(mapaAplicado);
+    setBlobDocx(resultado.nuevoBlob);
+    setRevisionActual(resultado.revision);
+    if (generadoSinPlantilla) setNombreBorradorLocal('PPA_Borrador_Docente');
+    setSnapshots((prev) => [...prev.slice(-9), {
+      id: `snap-${crypto.randomUUID()}`,
+      xml: xmlAplicado,
+      mapa: mapaAplicado,
+      descripcion: solicitud.slice(0, 60) || 'Cambio solicitado',
+      timestamp: Date.now(),
+    }]);
+    setPropuestaPendiente(null);
+    setTabActiva('documento');
+    if (registrarRespuesta) {
+      setMensajes((prev) => [...prev, {
+        id: `msg-${crypto.randomUUID()}`,
+        emisor: 'camila',
+        texto: `${resultado.respuestaCamila}\n\n**Cambios aplicados al Word:** ${resultado.operacionesEjecutadas.length}. Puede verlos en Documento, utilizar **Deshacer** o descargar el archivo. Para recuperarlo otro día, guarde una versión privada con su autorización.`,
+        operacionesEjecutadas: resultado.operacionesEjecutadas,
+        operacionesOmitidas: resultado.operacionesOmitidas,
+        fecha: new Date(),
+        revision: resultado.revision,
+      }]);
+    }
+  };
+
   const handleEnviarMensaje = async (textoAEnviar?: string) => {
     const texto = (textoAEnviar || inputTexto).trim() || (adjuntos.length
       ? 'Analice los archivos adjuntos, indíqueme qué información contienen y pregúnteme qué documento desea preparar con ellos.'
@@ -835,11 +890,10 @@ export default function CamilaFormato() {
                 nuevoMapa: construirMapa(archivoPropuesto.doc),
                 revision,
               };
-              setPropuestaPendiente({ solicitud: texto, resultado: propuesta, generadoSinPlantilla: true });
-              setTabActiva('documento');
-              respuesta = `Preparé un **borrador Word del PPA** a partir de los datos de esta conversación. No he copiado la identidad de ningún formato anterior. ${
+              await aplicarResultadoAlDocumento(texto, propuesta, true, false);
+              respuesta = `Preparé y abrí el **borrador Word del PPA** a partir de los datos de esta conversación. No copié la identidad de otra plantilla. ${
                 generado.pendientes.length ? `Queda por confirmar: ${generado.pendientes.join(', ')}.` : 'Los datos principales están completos.'
-              } Revíselo y elija **Aprobar y aplicar** o **Descartar propuesta**. Si su escuela usa un formato propio, puede adjuntarlo después.`;
+              } Puede revisar el Word, pedirme correcciones, utilizar **Deshacer** y guardar una versión privada cuando lo autorice.`;
             }
           }
         } else {
@@ -890,8 +944,8 @@ export default function CamilaFormato() {
           texto: m.texto,
         }));
 
-      // La inteligencia artificial prepara el borrador sobre una copia real del
-      // DOCX. Nunca modificamos docVivo ni zipVivo antes de la autorización.
+      // La inteligencia artificial edita una copia aislada del DOCX;
+      // únicamente incorporamos su resultado cuando el archivo final pudo abrirse.
       if (!blobDocx) throw new Error('No hay un documento Word disponible.');
       const borrador = await cargarDocx(blobDocx);
       const resultado = await enviarMensajeACamilaFormato({
@@ -917,13 +971,7 @@ export default function CamilaFormato() {
       if (resultado.libroHechosExtraidos) setLibroHechosTemporal(resultado.libroHechosExtraidos);
 
       if (resultado.operacionesEjecutadas.length > 0) {
-        setPropuestaPendiente({ solicitud: texto, resultado });
-        setTabActiva('documento');
-        setMensajes((prev) => [...prev, {
-          id: `msg-${Date.now()}`, emisor: 'camila',
-          texto: `He preparado una propuesta con ${resultado.operacionesEjecutadas.length} cambio(s). Su documento original sigue intacto. Revise la vista previa y elija **Aprobar y aplicar** o **Descartar propuesta**.`,
-          fecha: new Date(),
-        }]);
+        await aplicarResultadoAlDocumento(texto, resultado);
       } else {
         setMensajes((prev) => [...prev, {
           id: `msg-${Date.now()}`, emisor: 'camila',
@@ -952,33 +1000,10 @@ export default function CamilaFormato() {
   const handleAprobarPropuesta = async () => {
     if (!accionesDocumento.aprobar || !propuestaPendiente) return;
     setIsProcessing(true);
-    setProgresoDetalle('Aplicando únicamente los cambios autorizados...');
+    setProgresoDetalle('Aplicando cambios al Word...');
     try {
       const { solicitud, resultado, generadoSinPlantilla } = propuestaPendiente;
-      const aprobado = await cargarDocx(resultado.nuevoBlob);
-      const mapaAprobado = construirMapa(aprobado.doc);
-      setDocVivo(aprobado.doc);
-      setZipVivo(aprobado.zip);
-      setMapaActual(mapaAprobado);
-      setBlobDocx(resultado.nuevoBlob);
-      setRevisionActual(resultado.revision);
-      if (generadoSinPlantilla) setNombreBorradorLocal('PPA_Borrador_Docente');
-      const xmlAprobado = new XMLSerializer().serializeToString(aprobado.doc);
-      setSnapshots((prev) => [...prev.slice(-9), {
-        id: `snap-${Date.now()}`, xml: xmlAprobado, mapa: mapaAprobado,
-        descripcion: solicitud.slice(0, 40) || 'Modificación autorizada', timestamp: Date.now(),
-      }]);
-      setPropuestaPendiente(null);
-      setTabActiva('chat');
-      setMensajes((prev) => [...prev, {
-        id: `msg-${Date.now()}`, emisor: 'camila',
-        texto: generadoSinPlantilla
-          ? 'Borrador Word aprobado. Ya puede descargarlo o pedirme cambios. Para respetar el formato de su escuela, adjunte el Word institucional cuando lo tenga.'
-          : `Cambios aplicados con su autorización: ${resultado.operacionesEjecutadas.length} modificación(es) en el documento Word. Puede revisar el resultado, utilizar Deshacer durante esta sesión o descargar la nueva versión cuando esté conforme.`,
-        operacionesEjecutadas: resultado.operacionesEjecutadas,
-        operacionesOmitidas: resultado.operacionesOmitidas,
-        fecha: new Date(), revision: resultado.revision,
-      }]);
+      await aplicarResultadoAlDocumento(solicitud, resultado, generadoSinPlantilla);
     } catch (error) {
       setMensajes((prev) => [...prev, {
         id: `msg-${Date.now()}`, emisor: 'camila',
@@ -1001,7 +1026,7 @@ export default function CamilaFormato() {
     }]);
   };
 
-  /** Dos opciones de Claude. El usuario conserva el Word hasta aprobar. */
+  /** Herramientas opcionales con consentimiento adicional y archivos ficticios. */
   const solicitarSkillWordFicticio = async () => {
     if (!skillWordVisible || !blobDocx || procesandoOpcional || propuestaPendiente) return;
     const instruccion = window.prompt('¿Qué cambios debe hacer la Skill de Word en su formato FICTICIO?');
