@@ -109,6 +109,7 @@ export default function CamilaFormato() {
   const herramientasOpcionalesVisibles = isAdmin === true && opcionesEntorno?.VITE_CAMILA_OPTIONAL_TOOLS === 'true';
   const skillWordVisible = isAdmin === true && (herramientasOpcionalesVisibles || opcionesEntorno?.VITE_CAMILA_SKILLS_TOOLS === 'true');
   const pdfLibreOfficeVisible = isAdmin === true && (herramientasOpcionalesVisibles || opcionesEntorno?.VITE_CAMILA_LIBREOFFICE_TOOLS === 'true');
+  const editorPythonVisible = isAdmin === true && opcionesEntorno?.VITE_CAMILA_DOCX_EDIT_TOOLS === 'true';
   useEffect(()=>{setVistaPdfUrl(null)},[blobDocx]);
   const [nombreBorradorLocal, setNombreBorradorLocal] = useState<string | null>(null);
   // La propuesta se genera sobre una copia aislada. El documento activo solo
@@ -1042,6 +1043,67 @@ export default function CamilaFormato() {
     } finally { setProcesandoOpcional(false); }
   };
 
+  // Prueba integrada del worker Python: cambios declarativos y solo documentos ficticios.
+  // La API vuelve a comprobar permisos, entorno Preview, consentimiento y HMAC.
+  const solicitarEdicionWordPythonFicticio = async () => {
+    if (!editorPythonVisible || !blobDocx || procesandoOpcional || propuestaPendiente || isProcessing) return;
+    const buscar = window.prompt('Texto exacto y ÚNICO a sustituir en este Word FICTICIO:');
+    if (!buscar || buscar.length > 500) return;
+    const reemplazar = window.prompt('Texto nuevo (puede dejarlo vacío para eliminar el fragmento):');
+    if (reemplazar === null || reemplazar.length > 5000) return;
+    if (!window.confirm('Esta prueba envía temporalmente un Word FICTICIO al procesador Python privado. No use datos reales de docentes ni estudiantes. ¿Confirma que el archivo es ficticio y autoriza su procesamiento?')) return;
+    setProcesandoOpcional(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Inicie sesión.');
+      const response = await fetch('/api/camila-edit-docx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + session.access_token },
+        body: JSON.stringify({
+          archivoBase64: await blobABase64(blobDocx),
+          operaciones: [{ tipo: 'reemplazar_texto', buscar, reemplazar }],
+          consentimiento: true, soloFicticio: true,
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || typeof result.archivoBase64 !== 'string' ||
+          result.operacionesAplicadas !== 1) {
+        throw new Error(result.error || 'No fue posible editar el Word con el motor Python.');
+      }
+      const raw = atob(result.archivoBase64);
+      const bytes = Uint8Array.from(raw, (c) => c.charCodeAt(0));
+      const edited = new Blob([bytes], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      });
+      const opened = await cargarDocx(edited);
+      const revision = revisarDocumentoVivo(docOrig, opened.doc, plantillaActual);
+      const propuesta: ResultadoCamilaFormato = {
+        respuestaCamila: 'Reemplazo localizado aplicado por el motor Python a una copia para revisión.',
+        operacionesEjecutadas: [{ tipo: 'set_parrafo', texto: reemplazar }],
+        operacionesOmitidas: [],
+        nuevoBlob: edited,
+        nuevoMapa: construirMapa(opened.doc),
+        revision,
+      };
+      setPropuestaPendiente({ solicitud: 'Sustituir «' + buscar + '» por «' + reemplazar + '»', resultado: propuesta });
+      setTabActiva('documento');
+      setMensajes(prev => [...prev, {
+        id: 'msg-' + Date.now(), emisor: 'camila',
+        texto: 'El motor Python preparó el cambio sobre una copia ficticia. Revise la vista previa antes de aplicarla.',
+        fecha: new Date(), revision,
+      }]);
+    } catch (error) {
+      setMensajes(prev => [...prev, {
+        id: 'msg-' + Date.now(), emisor: 'camila',
+        texto: 'No se cambió el documento: ' + (error instanceof Error ? error.message : 'error del motor Python'),
+        fecha: new Date(),
+      }]);
+      setTabActiva('chat');
+    } finally {
+      setProcesandoOpcional(false);
+    }
+  };
+
   const solicitarPdfLibreOffice = async () => {
     const word=propuestaPendiente?.resultado.nuevoBlob || blobDocx;
     if(!pdfLibreOfficeVisible || !word || procesandoOpcional)return;
@@ -1562,6 +1624,13 @@ export default function CamilaFormato() {
                 disabled={!blobDocx || !!propuestaPendiente || procesandoOpcional}
                 className="px-2 py-1.5 rounded-xl border border-violet-400/40 text-violet-200 text-xs disabled:opacity-30">
                 Skill Word · ficticio
+              </button>
+              )}
+              {editorPythonVisible && (
+              <button type="button" onClick={solicitarEdicionWordPythonFicticio}
+                disabled={!blobDocx || !!propuestaPendiente || procesandoOpcional || isProcessing}
+                className="px-2 py-1.5 rounded-xl border border-amber-400/40 text-amber-200 text-xs disabled:opacity-30">
+                Editar Word · Python (prueba)
               </button>
               )}
               {pdfLibreOfficeVisible && (
