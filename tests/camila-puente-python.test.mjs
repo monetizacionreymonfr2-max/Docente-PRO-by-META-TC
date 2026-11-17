@@ -63,8 +63,9 @@ test('rechaza lotes mixtos, IDs duplicados y cambios estructurales aún no sopor
 
 test('no admite celdas multipárrafo que puedan romper su diseño', () => {
   const cell2 = parser.parseFromString('<w:tc xmlns:w="' + ns + '"><w:p/><w:p/></w:tc>', 'text/xml').documentElement;
-  const map2 = structuredClone({ parrafos:map.parrafos, tablas:map.tablas });
-  map2.tablas[0].filas[0].celdas[1].domNode = cell2;
+  const map2 = { ...map, tablas: [{ ...map.tablas[0], filas: [{ ...map.tablas[0].filas[0],
+    celdas: [map.tablas[0].filas[0].celdas[0], { ...map.tablas[0].filas[0].celdas[1], domNode:cell2 }],
+  }] }] };
   assert.equal(prepararOperacionesPython([
     { tipo:'set_celda', id:'t0.r0.c1', lineas:['Quinto'] },
   ], map2, plantilla), null);
