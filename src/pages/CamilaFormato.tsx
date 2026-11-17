@@ -17,12 +17,10 @@ import {
   FileUp,
   FolderOpen,
   BookOpen,
-  Cpu,
   ChevronDown,
   X,
   Eye,
   ShieldCheck,
-  Check,
   Plus,
   Trash2,
   Mic,
@@ -64,12 +62,6 @@ import { generarBorradorPpaSinPlantilla, prepararBorradorPpa, solicitaCrearWordP
 import { generarPpaSinPlantillaCompleto } from '../lib/camilaFormato/ppaSinPlantillaCompleto';
 import { VersionesPpa, type VersionDocumentoPpa } from '../lib/camilaFormato/versionesPpa';
 import { prepararDeshacerSeguro } from '../lib/camilaFormato/deshacerSeguro';
-import {
-  getCamilaFormatoModel,
-  setCamilaFormatoModel,
-  listarModelosDisponibles,
-  ModeloGeminiInfo,
-} from '../lib/camilaFormato/camilaFormatoConfig';
 
 async function blobABase64(blob: Blob): Promise<string> {
   const bytes=new Uint8Array(await blob.arrayBuffer());
@@ -171,7 +163,6 @@ export default function CamilaFormato() {
   const [modalProyectosOpen, setModalProyectosOpen] = useState(false);
   const [modalFormatosOpen, setModalFormatosOpen] = useState(false);
   const [modalRevisionOpen, setModalRevisionOpen] = useState(false);
-  const [modalModelosOpen, setModalModelosOpen] = useState(false);
   const [modalHistorialOpen, setModalHistorialOpen] = useState(false);
   const [modalVersionesOpen, setModalVersionesOpen] = useState(false);
   const [versionesPrivadas, setVersionesPrivadas] = useState<VersionDocumentoPpa[]>([]);
@@ -181,8 +172,6 @@ export default function CamilaFormato() {
   // Datos para modales
   const [proyectosGuardados, setProyectosGuardados] = useState<any[]>([]);
   const [formatosGuardados, setFormatosGuardados] = useState<FormatoDocente[]>([]);
-  const [modelosDisponibles, setModelosDisponibles] = useState<ModeloGeminiInfo[]>([]);
-  const [modeloSeleccionado, setModeloSeleccionado] = useState(getCamilaFormatoModel());
   const [revisionActual, setRevisionActual] = useState<RevisionCoberturaDocx | null>(null);
 
   // Referencias UI
@@ -1143,23 +1132,6 @@ export default function CamilaFormato() {
 
         {/* CONTROLES DERECHA */}
         <div className="flex items-center gap-2">
-          {/* Selector de modelo IA para Admin */}
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={async () => {
-                const list = await listarModelosDisponibles();
-                setModelosDisponibles(list);
-                setModalModelosOpen(true);
-              }}
-              className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-mono text-cyan-300 flex items-center gap-1.5 transition-all"
-              title="Configuración técnica de Camila (administrador)"
-            >
-              <Cpu size={14} />
-              <span className="hidden sm:inline">Configurar Camila</span>
-            </button>
-          )}
-
           {/* Botón Revisar Documento */}
           {revisionVisible && (snapshots.length > 1 || Boolean(propuestaPendiente)) && (
             <button
@@ -2029,53 +2001,6 @@ export default function CamilaFormato() {
         </div>
       )}
 
-      {/* MODAL: SELECCIONAR MODELO IA (ADMIN) */}
-      {modalModelosOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/10 p-5 shadow-2xl flex flex-col max-h-[85vh]">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Cpu size={16} className="text-cyan-400" /> Configuración de Camila
-              </h3>
-              <button
-                type="button"
-                onClick={() => setModalModelosOpen(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-400 py-2">
-              Opciones de procesamiento disponibles para el administrador:
-            </p>
-
-            <div className="flex-1 overflow-y-auto py-2 space-y-2">
-              {modelosDisponibles.map((m, indice) => (
-                <div
-                  key={m.id}
-                  onClick={() => {
-                    setModeloSeleccionado(m.id);
-                    setCamilaFormatoModel(m.id);
-                    setModalModelosOpen(false);
-                  }}
-                  className={`p-3 rounded-2xl border cursor-pointer transition-all ${
-                    modeloSeleccionado === m.id
-                      ? 'bg-cyan-500/20 border-cyan-400 text-white'
-                      : 'bg-white/5 border-white/10 hover:bg-white/10 text-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs">Opción {indice + 1} · {m.description || 'Procesamiento de documentos'}</span>
-                    {modeloSeleccionado === m.id && <Check size={14} className="text-cyan-400" />}
-                  </div>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">Configuración interna de DOCENTY PRO</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );
