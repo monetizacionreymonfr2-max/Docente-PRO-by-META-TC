@@ -11,6 +11,7 @@
     "lint": "tsc --noEmit",
     "test:claude": "node --test tests/camila-claude.test.mjs",
     "test:camila-gemini-formato": "node --test tests/camila-gemini-formato.test.mjs",
+    "test:camila-planificacion": "node --import tsx --test tests/camila-planificacion-sin-plantilla.test.mjs",
     "test:camila-voz": "node --test tests/camila-voz-segura.test.mjs",
     "test:ppa-contexto": "node --import tsx --test tests/ppa-contexto-ficticio.test.mjs",
     "test:ppa-libro": "node --import tsx --test tests/ppa-libro-hechos.test.mjs",
