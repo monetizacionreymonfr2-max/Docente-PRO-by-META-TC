@@ -39,6 +39,7 @@ import { hayConversacionSinGuardar } from '../lib/camila/camilaConversationGuard
 import { ColaHistorialPrivado } from '../lib/camila/colaHistorialPrivado';
 import DocxPreviewViewer from '../components/formato/DocxPreviewViewer';
 import { FormatoService, fileToBase64 } from '../lib/formatoService';
+import { FEATURE_FLAGS } from '../config/features';
 import { SupabaseService } from '../lib/supabaseService';
 import { supabase } from '../lib/supabase';
 import { FormatoDocente } from '../types/formato';
@@ -520,10 +521,18 @@ export default function CamilaFormato() {
 
       const mapa = construirMapa(dVivo);
       let plantilla = formato.plantilla || null;
+      let avisoAnalisis = '';
 
       if (!plantilla) {
         setProgresoDetalle('Identificando tablas y secciones curriculares...');
-        plantilla = await analizarPlantillaDocx(mapa);
+        try {
+          plantilla = await analizarPlantillaDocx(mapa);
+        } catch {
+          // Si la cuota gratuita de Gemini se agota, conservar el documento
+          // accesible mediante su mapa local: no perder el Word por la IA.
+          plantilla = null;
+          avisoAnalisis = '\n\nLa revisión automática de la plantilla no estuvo disponible. El Word sigue abierto con su estructura original; puede consultarlo y reintentar su edición cuando Camila vuelva a responder.';
+        }
       }
 
       setDocOrig(dOrig);
@@ -557,7 +566,7 @@ export default function CamilaFormato() {
       const mensajeCarga: MensajeChatFormato = {
           id: `msg-${Date.now()}`,
           emisor: 'camila',
-          texto: `¡Listo! He cargado **${formato.nombre}**. Su estructura contiene ${mapa.tablas.length} tablas y ${mapa.parrafos.length} secciones en el cuerpo.\n\n¿Qué desea hacer con este formato?`,
+          texto: `¡Listo! He cargado **${formato.nombre}**. Su estructura contiene ${mapa.tablas.length} tablas y ${mapa.parrafos.length} secciones en el cuerpo.\n\n¿Qué desea hacer con este formato?${avisoAnalisis}`,
           fecha: new Date(),
           revision: rev,
       };
@@ -1179,6 +1188,12 @@ export default function CamilaFormato() {
           </div>
         </div>
       </header>
+
+      {FEATURE_FLAGS.MI_FORMATO_SOLO_ADMIN && (
+        <div role="note" className="shrink-0 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-400/30 text-xs text-amber-100">
+          <strong>Fase de prueba con Gemini gratuito:</strong> utilice solo formatos y datos ficticios. No adjunte información personal de estudiantes ni expedientes reales.
+        </div>
+      )}
 
       {/* BODY CONTENT: SPLIT EN DESKTOP, TABS EN MÓVIL */}
       <div className="flex-1 min-h-0 flex overflow-hidden gap-3">
