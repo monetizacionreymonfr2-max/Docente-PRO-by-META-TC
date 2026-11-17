@@ -9,6 +9,8 @@ on:
       - 'workers/libreoffice/**'
       - 'api/camila-edit-docx.js'
       - 'tests/test_word_edit_worker.py'
+      - 'tests/camila-word-edit-api.test.mjs'
+      - 'src/pages/CamilaFormato.tsx'
       - '.github/workflows/mi-formato-worker-documentos.yml'
   workflow_dispatch:
 
@@ -40,5 +42,6 @@ jobs:
           cache: npm
       - run: npm ci --no-audit --no-fund
       - run: node --check api/camila-edit-docx.js
+      - run: node --test tests/camila-word-edit-api.test.mjs
       - run: npm run lint
       - run: npm run build
