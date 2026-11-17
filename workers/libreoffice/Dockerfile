@@ -3,6 +3,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libreoffice-writer fonts-dejavu-core fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
+RUN pip install --no-cache-dir python-docx==1.2.0 lxml==6.0.2
 WORKDIR /app
 COPY server.py /app/server.py
 RUN useradd -r -u 10001 -m -s /usr/sbin/nologin camila
