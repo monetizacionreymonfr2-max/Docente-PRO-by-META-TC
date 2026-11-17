@@ -10,6 +10,8 @@ on:
       - 'api/camila-edit-docx.js'
       - 'tests/test_word_edit_worker.py'
       - 'tests/camila-word-edit-api.test.mjs'
+      - 'tests/camila-puente-python.test.mjs'
+      - 'src/lib/camilaFormato/operacionesPython.ts'
       - 'src/pages/CamilaFormato.tsx'
       - '.github/workflows/mi-formato-worker-documentos.yml'
   workflow_dispatch:
@@ -43,5 +45,6 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: node --check api/camila-edit-docx.js
       - run: node --test tests/camila-word-edit-api.test.mjs
+      - run: node --import tsx --test tests/camila-puente-python.test.mjs
       - run: npm run lint
       - run: npm run build
