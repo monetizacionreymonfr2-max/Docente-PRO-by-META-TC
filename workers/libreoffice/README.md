@@ -49,3 +49,20 @@ Pruebas: `python -m unittest discover -s tests -p 'test_word_edit_worker.py' -v`
 ### Límites conocidos
 
 Este editor **no es** todavía un clon del entorno de ChatGPT. Los reemplazos están limitados al texto inequívoco dentro de un párrafo (también dentro de tablas) y se rechazan elementos con dibujos, campos o cambios controlados. No recompone planificaciones pedagógicas ni genera contenido por sí solo: lo hará el motor de IA en otra capa, tras validar estructura, identidad y consentimiento. Revisar visualmente cada DOCX antes de utilizarlo oficialmente.
+
+
+## Integración conversacional Gemini + Python (segunda fase experimental)
+
+El chat **Camila Formato** permite, bajo `VITE_CAMILA_DOCX_EDIT_TOOLS=true`, activar manualmente **«Gemini + Python: prueba activa»** después de confirmar que el Word actual contiene solo datos ficticios. Al abrir otro archivo se desactiva el modo.
+
+- La planificación se solicita al endpoint `/api/camila-gemini-formato`, con el motor Gemini del servidor (no Claude). Este endpoint está cerrado salvo en Preview con `CAMILA_GEMINI_FORMATO_PREVIEW_ENABLED=true`; requiere sesión administradora. Usa `GEMINI_API_KEY` exclusivamente en servidor y `CAMILA_FORMATO_GEMINI_MODEL` opcional (predeterminado: `gemini-2.5-flash`). No se envían adjuntos binarios al planificador, solo texto/mapa de la sesión ficticia.
+- Gemini devuelve JSON con operaciones `set_parrafo` y `set_celda`, o ninguna operación y una explicación. La capa de DOCENTY PRO verifica IDs de párrafos y celdas, limita las operaciones a celdas de contenido que tengan un solo párrafo y excluye etiquetas fijas.
+- El navegador convierte cada operación compatible a una instrucción para Python con `esperado` (texto anterior). El worker comprueba esa precondición antes de modificar la copia del Word. Así se evitan escrituras sobre documentos desactualizados.
+- Se vuelve a abrir el DOCX devuelto, se comprueba su integridad y se actualiza la vista previa con **Deshacer** disponible, sin la aprobación repetitiva previa para este flujo específico.
+- Para insertar filas, reconstruir semanas y generar un PPA entero todavía se usa el flujo tradicional fuera del modo ficticio. Dentro del modo experimental Gemini/Python estas tareas se rechazan sin editar el documento.
+
+### Configuración de Preview únicamente
+
+Vercel (API/servidor): `CAMILA_DOCX_EDIT_PREVIEW_ENABLED=true`, `CAMILA_GEMINI_FORMATO_PREVIEW_ENABLED=true`, `CAMILA_PDF_WORKER_URL=https://TU_HOST/convert`, `CAMILA_PDF_WORKER_SECRET=<secreto fuerte>`, `GEMINI_API_KEY=<clave privada>`. Vercel (compilación cliente): `VITE_CAMILA_DOCX_EDIT_TOOLS=true`. Configurar solo tras el despliegue y la revisión del worker en DigitalOcean. Nunca crear variables `VITE_` con secretos. Ningún cambio de estas variables fue realizado automáticamente por este PR.
+
+**Pendiente para uso real:** despliegue controlado del contenedor, pruebas extremo a extremo con documentos ficticios de varios formatos, control de costos y migración del flujo completo de PPA/planificaciones. El chat general y las rutas de producción no se modifican.
