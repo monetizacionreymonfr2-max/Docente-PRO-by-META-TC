@@ -863,7 +863,10 @@ export default function CamilaFormato() {
           if (resultado.libroHechosExtraidos) setLibroHechosTemporal(resultado.libroHechosExtraidos);
           // Solo crear un Word nuevo cuando el docente lo solicite expresamente.
           // Si adjuntó su plantilla, se usará en el flujo de edición existente.
-          const pideCrearDocumento = solicitaCrearWordPpa(texto);
+          // La palabra "Word" también puede acompañar una planificación.
+          // Priorizar la intención explícita antes de aplicar el generador PPA.
+          const periodoPlan = detectarCreacionPlanificacion(texto);
+          const pideCrearDocumento = !periodoPlan && solicitaCrearWordPpa(texto);
           if (pideCrearDocumento) {
             const hechosVigentes = resultado.libroHechosExtraidos || libroHechosTemporal;
             // Solo los hechos respaldados por mensajes/adjuntos pueden llegar a
@@ -897,7 +900,7 @@ export default function CamilaFormato() {
               } Puede revisar el Word, pedirme correcciones, utilizar **Deshacer** y guardar una versión privada cuando lo autorice.`;
             }
           } else {
-            const periodo = detectarCreacionPlanificacion(texto);
+            const periodo = periodoPlan;
             if (periodo === 'sin_periodo') {
               respuesta = 'Puedo preparar su planificación. ¿La necesita diaria, semanal, quincenal o mensual?';
             } else if (periodo) {
