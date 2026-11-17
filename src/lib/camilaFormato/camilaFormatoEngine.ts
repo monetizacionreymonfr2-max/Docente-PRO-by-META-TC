@@ -558,6 +558,7 @@ export async function enviarMensajeACamilaFormato(params: {
   adjuntosMemoria?: AdjuntoSesion[];
   archivoOriginalData?: File | Blob | ArrayBuffer | null;
   onProgresoVaciarTodo?: (paso: string) => void;
+  usarGeminiPreview?: boolean;
 }): Promise<{
   respuestaCamila: string;
   operacionesEjecutadas: OperacionDocx[];
@@ -584,10 +585,21 @@ export async function enviarMensajeACamilaFormato(params: {
     adjuntosMemoria,
     archivoOriginalData,
     onProgresoVaciarTodo,
+    usarGeminiPreview = false,
   } = params;
 
   // 1. Preparar contexto actual para el prompt
   const revisionPrevia = revisarDocumentoVivo(docOrig, docVivo, plantilla);
+  // La fase Gemini/Python solo automatiza operaciones localizadas; nunca
+  // intenta convertir un PPA integral en una colección de parches parciales.
+  if (usarGeminiPreview && solicitaPpaIntegral(mensajeDocente)) {
+    return {
+      respuestaCamila: 'La prueba Gemini/Python todavía no admite reconstruir un PPA completo. Su Word no fue modificado. Puede desactivar el modo experimental para usar el flujo actual.',
+      operacionesEjecutadas: [], operacionesOmitidas: ['PPA integral aún no implementado en worker Python.'],
+      nuevoBlob: await guardarDocx(zipVivo, docVivo), nuevoMapa: mapaActual,
+      revision: revisionPrevia,
+    };
+  }
 
   let contextoDoc = `--- MAPA ESTRUCTURAL COMPACTO DEL DOCUMENTO WORD ACTUAL ---
 (Cada ID representa un párrafo pN o celda tX.rY.cZ del documento que puedes modificar con las operaciones exactas)
@@ -630,7 +642,7 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
     const adjuntosVisuales = (adjuntosMemoria || [])
       .filter((adj) => adj.mimeType.startsWith('image/') || adj.mimeType === 'application/pdf')
       .map(({ mimeType, base64 }) => ({ mimeType, base64 }));
-    responseText = (await askCamilaFormatoClaude(promptFinal, historialTurnos, adjuntosVisuales)).trim();
+    responseText = (await askCamilaFormatoClaude(promptFinal, historialTurnos, adjuntosVisuales, usarGeminiPreview)).trim();
   } catch (err: any) {
     const msg = err?.message || String(err);
     if (msg.includes('503') || msg.includes('429')) {
