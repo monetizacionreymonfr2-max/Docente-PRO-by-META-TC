@@ -41,7 +41,7 @@ El worker también implementa `POST /edit`, **apagado en la aplicación salvo qu
 - Solicitud al proxy: `{"archivoBase64":"<base64-docx>","operaciones":[{"tipo":"reemplazar_texto","buscar":"Texto original único","reemplazar":"Nuevo texto"}],"consentimiento":true,"soloFicticio":true}`.
 - Respuesta: `{"archivoBase64":"<base64-docx>","operacionesAplicadas":1,"mimeType":"application/vnd.openxmlformats-officedocument.wordprocessingml.document"}`.
 - Restricciones: tamaño original máximo 1.5 MB, hasta 20 cambios por solicitud, coincidencias de texto únicas por documento; rechaza reemplazos ambiguos, elementos complejos, macros y ZIP sospechosos. No modifica encabezados, pies, logos ni archivos ajenos a `word/document.xml`; un fallo invalida toda la solicitud.
-- Se puede usar en trabajos de prueba con archivos ficticios. **No hay conexión automática con el chat «Mi Formato» ni despliegue de infraestructura hasta completar pruebas end-to-end y autorizarlo.**
+- Se puede usar en trabajos de prueba con archivos ficticios. **Solo hay un botón de prueba manual para administradores en «Camila Formato» (si `VITE_CAMILA_DOCX_EDIT_TOOLS=true`); la conversación de Camila aún no ejecuta ediciones con este servicio automáticamente. No se ha desplegado la infraestructura externa.**
 - Herramientas Python: python-docx para abrir/verificar y lxml para modificar texto de OOXML de forma localizada. LibreOffice sigue sirviendo para la conversión de vista previa.
 
 Pruebas: `python -m unittest discover -s tests -p 'test_word_edit_worker.py' -v`. Si falta alguna dependencia local: `python -m pip install python-docx==1.2.0 lxml==6.0.2`.
