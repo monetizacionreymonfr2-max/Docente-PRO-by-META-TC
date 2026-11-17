@@ -1,4 +1,4 @@
-"""Worker de conversión DOCX->PDF. Sin dependencias de Python ni exposición de secretos."""
+"""Worker aislado de documentos: convierte DOCX a PDF y aplica reemplazos validados."""
 import base64
 import binascii
 import hashlib
