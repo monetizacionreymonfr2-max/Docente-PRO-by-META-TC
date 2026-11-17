@@ -39,7 +39,7 @@ export function prepararOperacionesPython(
       const esEtiqueta = plantilla?.tablas.some(tabla => tabla.celdasEtiquetaIds.includes(op.id)) ?? false;
       const parrafosDirectos = celda?.domNode
         ? Array.from(celda.domNode.childNodes).filter(n => n.nodeType === 1 &&
-          (n.localName || n.nodeName.split(':').pop()) === 'p')
+          ((n as Element).localName || n.nodeName.split(':').pop()) === 'p')
         : [];
       if (!celda || !Array.isArray(op.lineas) || op.lineas.length !== 1 ||
           !textoValido(op.lineas[0]) || !textoValido(celda.rawText) ||
