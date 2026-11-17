@@ -1,4 +1,4 @@
-import { generarBloquePpaClaude } from '../camila/claudeClient';
+import { generarBloquePpaClaude } from '../camila/geminiFormatoClient';
 import {
   CURRICULO_MPPE_2026_2027,
   AREAS_CURRICULARES,

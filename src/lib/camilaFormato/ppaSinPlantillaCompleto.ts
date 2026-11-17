@@ -2,7 +2,7 @@ import {
   AlignmentType, Document, HeadingLevel, Packer, Paragraph,
   Table, TableCell, TableRow, TextRun, WidthType,
 } from 'docx';
-import { generarPpaCompletoClaude } from '../camila/claudeClient';
+import { generarPpaCompletoClaude } from '../camila/geminiFormatoClient';
 import { type DatosProyectoPropuesto } from './contextoProyectoPpa';
 import { type IdentidadPpa, type PpaCompleto, validarPpaCompleto,
   semanasDeCalendario, textoFecha } from './ppaEstructurado';

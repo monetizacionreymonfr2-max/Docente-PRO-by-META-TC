@@ -91,7 +91,7 @@ ${semanas ? `Cronograma: EXACTAMENTE ${semanas} líneas, una por semana y en ord
 Fundamente todo en el diagnóstico dado, sin inventar estudiantes, institución, fechas ni hechos nuevos.
 No repita el texto de este prompt como contenido. Las propuestas pedagógicas deben ser claramente sugerencias revisables.`;
   const producir = generador || (async (prompt: string) => {
-    const { generarBloquePpaClaude } = await import('../camila/claudeClient');
+    const { generarBloquePpaClaude } = await import('../camila/geminiFormatoClient');
     return generarBloquePpaClaude('textos', prompt);
   });
   const bloques = validarBloques(await producir(instruccion), semanas);

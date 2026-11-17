@@ -17,12 +17,10 @@ import {
   FileUp,
   FolderOpen,
   BookOpen,
-  Cpu,
   ChevronDown,
   X,
   Eye,
   ShieldCheck,
-  Check,
   Plus,
   Trash2,
   Mic,
@@ -33,7 +31,7 @@ import {
   Brain,
   Save,
 } from 'lucide-react';
-import { askCamilaClaude, type CamilaTurn } from '../lib/camila/claudeClient';
+import { askCamilaClaude, type CamilaTurn } from '../lib/camila/geminiFormatoClient';
 import {
   CamilaPersistence, type ResumenConversacion, type RecuerdoCamila,
 } from '../lib/camila/camilaPersistence';
@@ -41,6 +39,7 @@ import { hayConversacionSinGuardar } from '../lib/camila/camilaConversationGuard
 import { ColaHistorialPrivado } from '../lib/camila/colaHistorialPrivado';
 import DocxPreviewViewer from '../components/formato/DocxPreviewViewer';
 import { FormatoService, fileToBase64 } from '../lib/formatoService';
+import { FEATURE_FLAGS } from '../config/features';
 import { SupabaseService } from '../lib/supabaseService';
 import { supabase } from '../lib/supabase';
 import { FormatoDocente } from '../types/formato';
@@ -61,15 +60,12 @@ import { obtenerAccionesDocumento } from '../lib/camilaFormato/accionesDocumento
 import { combinarDatosProyecto, type DatosProyectoPropuesto } from '../lib/camilaFormato/contextoProyectoPpa';
 import { datosProyectoDesdeLibro, preguntaPendienteLibroPpa, type LibroHechosPpa } from '../lib/camilaFormato/libroHechosPpa';
 import { generarBorradorPpaSinPlantilla, prepararBorradorPpa, solicitaCrearWordPpa } from '../lib/camilaFormato/borradorPpaSinPlantilla';
+import {
+  detectarCreacionPlanificacion, generarPlanificacionSinPlantilla, prepararPlanificacion,
+} from '../lib/camilaFormato/planificacionSinPlantilla';
 import { generarPpaSinPlantillaCompleto } from '../lib/camilaFormato/ppaSinPlantillaCompleto';
 import { VersionesPpa, type VersionDocumentoPpa } from '../lib/camilaFormato/versionesPpa';
 import { prepararDeshacerSeguro } from '../lib/camilaFormato/deshacerSeguro';
-import {
-  getCamilaFormatoModel,
-  setCamilaFormatoModel,
-  listarModelosDisponibles,
-  ModeloGeminiInfo,
-} from '../lib/camilaFormato/camilaFormatoConfig';
 
 async function blobABase64(blob: Blob): Promise<string> {
   const bytes=new Uint8Array(await blob.arrayBuffer());
@@ -111,8 +107,8 @@ export default function CamilaFormato() {
   const pdfLibreOfficeVisible = isAdmin === true && (herramientasOpcionalesVisibles || opcionesEntorno?.VITE_CAMILA_LIBREOFFICE_TOOLS === 'true');
   useEffect(()=>{setVistaPdfUrl(null)},[blobDocx]);
   const [nombreBorradorLocal, setNombreBorradorLocal] = useState<string | null>(null);
-  // La propuesta se genera sobre una copia aislada. El documento activo solo
-  // cambia después de que el docente apruebe expresamente el resultado.
+  // Las herramientas opcionales pueden crear propuestas para revisión manual.
+  // Los cambios pedidos en el chat principal se aplican directamente con Deshacer.
   const [propuestaPendiente, setPropuestaPendiente] = useState<{
     solicitud: string;
     resultado: ResultadoCamilaFormato;
@@ -171,7 +167,6 @@ export default function CamilaFormato() {
   const [modalProyectosOpen, setModalProyectosOpen] = useState(false);
   const [modalFormatosOpen, setModalFormatosOpen] = useState(false);
   const [modalRevisionOpen, setModalRevisionOpen] = useState(false);
-  const [modalModelosOpen, setModalModelosOpen] = useState(false);
   const [modalHistorialOpen, setModalHistorialOpen] = useState(false);
   const [modalVersionesOpen, setModalVersionesOpen] = useState(false);
   const [versionesPrivadas, setVersionesPrivadas] = useState<VersionDocumentoPpa[]>([]);
@@ -181,8 +176,6 @@ export default function CamilaFormato() {
   // Datos para modales
   const [proyectosGuardados, setProyectosGuardados] = useState<any[]>([]);
   const [formatosGuardados, setFormatosGuardados] = useState<FormatoDocente[]>([]);
-  const [modelosDisponibles, setModelosDisponibles] = useState<ModeloGeminiInfo[]>([]);
-  const [modeloSeleccionado, setModeloSeleccionado] = useState(getCamilaFormatoModel());
   const [revisionActual, setRevisionActual] = useState<RevisionCoberturaDocx | null>(null);
 
   // Referencias UI
@@ -401,7 +394,22 @@ export default function CamilaFormato() {
       })));
       setModalHistorialOpen(false);
       setTabActiva('chat');
-      setAvisoPrivacidad('Conversación recuperada. Si utilizaba un Word, deberá abrirlo de nuevo para continuar editándolo.');
+      // Las versiones guardadas con autorización están asociadas a esta conversación.
+      // Se ofrecen para retomar el Word sin guardar automáticamente adjuntos o documentos.
+      let aviso = 'Conversación recuperada. Si trabajaba con un Word, puede abrirlo desde Mis versiones.';
+      if (versionesDisponibles) {
+        try {
+          const versionesDeEstaConversacion = await VersionesPpa.listar(teacherId, id);
+          if (versionesDeEstaConversacion.length > 0) {
+            setVersionesPrivadas(versionesDeEstaConversacion);
+            setModalVersionesOpen(true);
+            aviso = 'Conversación recuperada. Seleccione la versión Word que guardó para continuar donde se quedó.';
+          }
+        } catch {
+          aviso = 'Conversación recuperada. Las versiones no pudieron consultarse ahora; puede reintentarlo desde Mis versiones.';
+        }
+      }
+      setAvisoPrivacidad(aviso);
     } catch (error) { setAvisoPrivacidad(error instanceof Error ? error.message : 'No se pudo abrir la conversación.'); }
     finally { setPersistenciaOcupada(false); }
   };
@@ -516,10 +524,18 @@ export default function CamilaFormato() {
 
       const mapa = construirMapa(dVivo);
       let plantilla = formato.plantilla || null;
+      let avisoAnalisis = '';
 
       if (!plantilla) {
         setProgresoDetalle('Identificando tablas y secciones curriculares...');
-        plantilla = await analizarPlantillaDocx(mapa);
+        try {
+          plantilla = await analizarPlantillaDocx(mapa);
+        } catch {
+          // Si la cuota gratuita de Gemini se agota, conservar el documento
+          // accesible mediante su mapa local: no perder el Word por la IA.
+          plantilla = null;
+          avisoAnalisis = '\n\nLa revisión automática de la plantilla no estuvo disponible. El Word sigue abierto con su estructura original; puede consultarlo y reintentar su edición cuando Camila vuelva a responder.';
+        }
       }
 
       setDocOrig(dOrig);
@@ -553,7 +569,7 @@ export default function CamilaFormato() {
       const mensajeCarga: MensajeChatFormato = {
           id: `msg-${Date.now()}`,
           emisor: 'camila',
-          texto: `¡Listo! He cargado **${formato.nombre}**. Su estructura contiene ${mapa.tablas.length} tablas y ${mapa.parrafos.length} secciones en el cuerpo.\n\n¿Qué desea hacer con este formato?`,
+          texto: `¡Listo! He cargado **${formato.nombre}**. Su estructura contiene ${mapa.tablas.length} tablas y ${mapa.parrafos.length} secciones en el cuerpo.\n\n¿Qué desea hacer con este formato?${avisoAnalisis}`,
           fecha: new Date(),
           revision: rev,
       };
@@ -629,7 +645,7 @@ export default function CamilaFormato() {
       return;
     }
 
-    // PDF e imágenes son referencias temporales que Claude puede analizar
+    // PDF e imágenes son referencias temporales que Camila puede analizar
     // incluso si todavía no se ha elegido ningún formato Word.
     if (nombreLow.endsWith('.pdf') || file.type.startsWith('image/')) {
       const mimeType = file.type || (nombreLow.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
@@ -758,6 +774,46 @@ export default function CamilaFormato() {
     } finally { setPersistenciaOcupada(false); }
   };
 
+  // Aplica el Word ya validado por el motor a partir de una copia aislada.
+  // Cada instrucción explícita del docente se ve en la vista previa y puede deshacerse.
+  // Guardar la versión en la nube sigue exigiendo consentimiento independiente.
+  const aplicarResultadoAlDocumento = async (
+    solicitud: string,
+    resultado: ResultadoCamilaFormato,
+    nombreBorrador: string | null = null,
+    registrarRespuesta = true,
+  ) => {
+    const aplicado = await cargarDocx(resultado.nuevoBlob);
+    const mapaAplicado = construirMapa(aplicado.doc);
+    const xmlAplicado = new XMLSerializer().serializeToString(aplicado.doc);
+    setDocVivo(aplicado.doc);
+    setZipVivo(aplicado.zip);
+    setMapaActual(mapaAplicado);
+    setBlobDocx(resultado.nuevoBlob);
+    setRevisionActual(resultado.revision);
+    if (nombreBorrador) setNombreBorradorLocal(nombreBorrador);
+    setSnapshots((prev) => [...prev.slice(-9), {
+      id: `snap-${crypto.randomUUID()}`,
+      xml: xmlAplicado,
+      mapa: mapaAplicado,
+      descripcion: solicitud.slice(0, 60) || 'Cambio solicitado',
+      timestamp: Date.now(),
+    }]);
+    setPropuestaPendiente(null);
+    setTabActiva('documento');
+    if (registrarRespuesta) {
+      setMensajes((prev) => [...prev, {
+        id: `msg-${crypto.randomUUID()}`,
+        emisor: 'camila',
+        texto: `${resultado.respuestaCamila}\n\n**Cambios aplicados al Word:** ${resultado.operacionesEjecutadas.length}. Puede verlos en Documento, utilizar **Deshacer** o descargar el archivo. Para recuperarlo otro día, guarde una versión privada con su autorización.`,
+        operacionesEjecutadas: resultado.operacionesEjecutadas,
+        operacionesOmitidas: resultado.operacionesOmitidas,
+        fecha: new Date(),
+        revision: resultado.revision,
+      }]);
+    }
+  };
+
   const handleEnviarMensaje = async (textoAEnviar?: string) => {
     const texto = (textoAEnviar || inputTexto).trim() || (adjuntos.length
       ? 'Analice los archivos adjuntos, indíqueme qué información contienen y pregúnteme qué documento desea preparar con ellos.'
@@ -807,7 +863,10 @@ export default function CamilaFormato() {
           if (resultado.libroHechosExtraidos) setLibroHechosTemporal(resultado.libroHechosExtraidos);
           // Solo crear un Word nuevo cuando el docente lo solicite expresamente.
           // Si adjuntó su plantilla, se usará en el flujo de edición existente.
-          const pideCrearDocumento = solicitaCrearWordPpa(texto);
+          // La palabra "Word" también puede acompañar una planificación.
+          // Priorizar la intención explícita antes de aplicar el generador PPA.
+          const periodoPlan = detectarCreacionPlanificacion(texto);
+          const pideCrearDocumento = !periodoPlan && solicitaCrearWordPpa(texto);
           if (pideCrearDocumento) {
             const hechosVigentes = resultado.libroHechosExtraidos || libroHechosTemporal;
             // Solo los hechos respaldados por mensajes/adjuntos pueden llegar a
@@ -835,11 +894,44 @@ export default function CamilaFormato() {
                 nuevoMapa: construirMapa(archivoPropuesto.doc),
                 revision,
               };
-              setPropuestaPendiente({ solicitud: texto, resultado: propuesta, generadoSinPlantilla: true });
-              setTabActiva('documento');
-              respuesta = `Preparé un **borrador Word del PPA** a partir de los datos de esta conversación. No he copiado la identidad de ningún formato anterior. ${
+              await aplicarResultadoAlDocumento(texto, propuesta, 'PPA_Borrador_Docente', false);
+              respuesta = `Preparé y abrí el **borrador Word del PPA** a partir de los datos de esta conversación. No copié la identidad de otra plantilla. ${
                 generado.pendientes.length ? `Queda por confirmar: ${generado.pendientes.join(', ')}.` : 'Los datos principales están completos.'
-              } Revíselo y elija **Aprobar y aplicar** o **Descartar propuesta**. Si su escuela usa un formato propio, puede adjuntarlo después.`;
+              } Puede revisar el Word, pedirme correcciones, utilizar **Deshacer** y guardar una versión privada cuando lo autorice.`;
+            }
+          } else {
+            const periodo = periodoPlan;
+            if (periodo === 'sin_periodo') {
+              respuesta = 'Puedo preparar su planificación. ¿La necesita diaria, semanal, quincenal o mensual?';
+            } else if (periodo) {
+              const hechosActuales = resultado.libroHechosExtraidos || libroHechosTemporal;
+              const datosConfirmados = hechosActuales ? datosProyectoDesdeLibro(hechosActuales) : {};
+              const estado = prepararPlanificacion(datosConfirmados, periodo);
+              if (!hechosActuales) {
+                respuesta = 'Para elaborar una planificación sin inventar información, ¿qué grado y sección atiende?';
+              } else if (estado.listo === false) {
+                respuesta = estado.pregunta;
+              } else {
+                setProgresoDetalle('Camila está preparando la planificación ' + periodo + '...');
+                const generada = await generarPlanificacionSinPlantilla(datosConfirmados, periodo);
+                const documento = await cargarDocx(generada.blob);
+                const revision = revisarDocumentoVivo(null, documento.doc, null);
+                const plan: ResultadoCamilaFormato = {
+                  respuestaCamila: 'Planificación creada para revisión.',
+                  operacionesEjecutadas: [], operacionesOmitidas: [],
+                  nuevoBlob: generada.blob,
+                  nuevoMapa: construirMapa(documento.doc),
+                  revision,
+                };
+                await aplicarResultadoAlDocumento(
+                  texto, plan, 'Planificacion_' + periodo + '_Borrador', false,
+                );
+                respuesta = 'Preparé la **planificación ' + periodo + '** en Word con los datos confirmados. ' +
+                  (generada.pendientes.length
+                    ? 'Datos pendientes: ' + generada.pendientes.join(', ') + '. '
+                    : '') +
+                  'Puede revisar el documento, pedirme cambios, utilizar Deshacer y guardar una versión privada cuando lo autorice. No sustituye el formato oficial de su institución.';
+              }
             }
           }
         } else {
@@ -890,8 +982,8 @@ export default function CamilaFormato() {
           texto: m.texto,
         }));
 
-      // La inteligencia artificial prepara el borrador sobre una copia real del
-      // DOCX. Nunca modificamos docVivo ni zipVivo antes de la autorización.
+      // La inteligencia artificial edita una copia aislada del DOCX;
+      // únicamente incorporamos su resultado cuando el archivo final pudo abrirse.
       if (!blobDocx) throw new Error('No hay un documento Word disponible.');
       const borrador = await cargarDocx(blobDocx);
       const resultado = await enviarMensajeACamilaFormato({
@@ -917,13 +1009,7 @@ export default function CamilaFormato() {
       if (resultado.libroHechosExtraidos) setLibroHechosTemporal(resultado.libroHechosExtraidos);
 
       if (resultado.operacionesEjecutadas.length > 0) {
-        setPropuestaPendiente({ solicitud: texto, resultado });
-        setTabActiva('documento');
-        setMensajes((prev) => [...prev, {
-          id: `msg-${Date.now()}`, emisor: 'camila',
-          texto: `He preparado una propuesta con ${resultado.operacionesEjecutadas.length} cambio(s). Su documento original sigue intacto. Revise la vista previa y elija **Aprobar y aplicar** o **Descartar propuesta**.`,
-          fecha: new Date(),
-        }]);
+        await aplicarResultadoAlDocumento(texto, resultado);
       } else {
         setMensajes((prev) => [...prev, {
           id: `msg-${Date.now()}`, emisor: 'camila',
@@ -952,33 +1038,10 @@ export default function CamilaFormato() {
   const handleAprobarPropuesta = async () => {
     if (!accionesDocumento.aprobar || !propuestaPendiente) return;
     setIsProcessing(true);
-    setProgresoDetalle('Aplicando únicamente los cambios autorizados...');
+    setProgresoDetalle('Aplicando cambios al Word...');
     try {
       const { solicitud, resultado, generadoSinPlantilla } = propuestaPendiente;
-      const aprobado = await cargarDocx(resultado.nuevoBlob);
-      const mapaAprobado = construirMapa(aprobado.doc);
-      setDocVivo(aprobado.doc);
-      setZipVivo(aprobado.zip);
-      setMapaActual(mapaAprobado);
-      setBlobDocx(resultado.nuevoBlob);
-      setRevisionActual(resultado.revision);
-      if (generadoSinPlantilla) setNombreBorradorLocal('PPA_Borrador_Docente');
-      const xmlAprobado = new XMLSerializer().serializeToString(aprobado.doc);
-      setSnapshots((prev) => [...prev.slice(-9), {
-        id: `snap-${Date.now()}`, xml: xmlAprobado, mapa: mapaAprobado,
-        descripcion: solicitud.slice(0, 40) || 'Modificación autorizada', timestamp: Date.now(),
-      }]);
-      setPropuestaPendiente(null);
-      setTabActiva('chat');
-      setMensajes((prev) => [...prev, {
-        id: `msg-${Date.now()}`, emisor: 'camila',
-        texto: generadoSinPlantilla
-          ? 'Borrador Word aprobado. Ya puede descargarlo o pedirme cambios. Para respetar el formato de su escuela, adjunte el Word institucional cuando lo tenga.'
-          : `Cambios aplicados con su autorización: ${resultado.operacionesEjecutadas.length} modificación(es) en el documento Word. Puede revisar el resultado, utilizar Deshacer durante esta sesión o descargar la nueva versión cuando esté conforme.`,
-        operacionesEjecutadas: resultado.operacionesEjecutadas,
-        operacionesOmitidas: resultado.operacionesOmitidas,
-        fecha: new Date(), revision: resultado.revision,
-      }]);
+      await aplicarResultadoAlDocumento(solicitud, resultado, generadoSinPlantilla ? 'PPA_Borrador_Docente' : null);
     } catch (error) {
       setMensajes((prev) => [...prev, {
         id: `msg-${Date.now()}`, emisor: 'camila',
@@ -1001,7 +1064,7 @@ export default function CamilaFormato() {
     }]);
   };
 
-  /** Dos opciones de Claude. El usuario conserva el Word hasta aprobar. */
+  /** Herramientas opcionales con consentimiento adicional y archivos ficticios. */
   const solicitarSkillWordFicticio = async () => {
     if (!skillWordVisible || !blobDocx || procesandoOpcional || propuestaPendiente) return;
     const instruccion = window.prompt('¿Qué cambios debe hacer la Skill de Word en su formato FICTICIO?');
@@ -1098,7 +1161,7 @@ export default function CamilaFormato() {
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-base sm:text-lg font-black text-white tracking-tight">Camila · Espacio pedagógico</h1>
+              <h1 className="text-base sm:text-lg font-black text-white tracking-tight">Camila Plus · Mi Formato</h1>
               <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-teal-500/20 text-teal-300 border border-teal-400/30">
                 Word Vivo
               </span>
@@ -1118,23 +1181,6 @@ export default function CamilaFormato() {
 
         {/* CONTROLES DERECHA */}
         <div className="flex items-center gap-2">
-          {/* Selector de modelo IA para Admin */}
-          {isAdmin && (
-            <button
-              type="button"
-              onClick={async () => {
-                const list = await listarModelosDisponibles();
-                setModelosDisponibles(list);
-                setModalModelosOpen(true);
-              }}
-              className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] font-mono text-cyan-300 flex items-center gap-1.5 transition-all"
-              title="Configuración técnica de Camila (administrador)"
-            >
-              <Cpu size={14} />
-              <span className="hidden sm:inline">Configurar Camila</span>
-            </button>
-          )}
-
           {/* Botón Revisar Documento */}
           {revisionVisible && (snapshots.length > 1 || Boolean(propuestaPendiente)) && (
             <button
@@ -1182,6 +1228,12 @@ export default function CamilaFormato() {
           </div>
         </div>
       </header>
+
+      {FEATURE_FLAGS.MI_FORMATO_SOLO_ADMIN && (
+        <div role="note" className="shrink-0 px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-400/30 text-xs text-amber-100">
+          <strong>Fase de prueba con Gemini gratuito:</strong> utilice solo formatos y datos ficticios. No adjunte información personal de estudiantes ni expedientes reales.
+        </div>
+      )}
 
       {/* BODY CONTENT: SPLIT EN DESKTOP, TABS EN MÓVIL */}
       <div className="flex-1 min-h-0 flex overflow-hidden gap-3">
@@ -2004,53 +2056,6 @@ export default function CamilaFormato() {
         </div>
       )}
 
-      {/* MODAL: SELECCIONAR MODELO IA (ADMIN) */}
-      {modalModelosOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-md rounded-3xl bg-slate-900 border border-white/10 p-5 shadow-2xl flex flex-col max-h-[85vh]">
-            <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Cpu size={16} className="text-cyan-400" /> Configuración de Camila
-              </h3>
-              <button
-                type="button"
-                onClick={() => setModalModelosOpen(false)}
-                className="text-slate-400 hover:text-white"
-              >
-                <X size={16} />
-              </button>
-            </div>
-
-            <p className="text-xs text-slate-400 py-2">
-              Opciones de procesamiento disponibles para el administrador:
-            </p>
-
-            <div className="flex-1 overflow-y-auto py-2 space-y-2">
-              {modelosDisponibles.map((m, indice) => (
-                <div
-                  key={m.id}
-                  onClick={() => {
-                    setModeloSeleccionado(m.id);
-                    setCamilaFormatoModel(m.id);
-                    setModalModelosOpen(false);
-                  }}
-                  className={`p-3 rounded-2xl border cursor-pointer transition-all ${
-                    modeloSeleccionado === m.id
-                      ? 'bg-cyan-500/20 border-cyan-400 text-white'
-                      : 'bg-white/5 border-white/10 hover:bg-white/10 text-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-xs">Opción {indice + 1} · {m.description || 'Procesamiento de documentos'}</span>
-                    {modeloSeleccionado === m.id && <Check size={14} className="text-cyan-400" />}
-                  </div>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">Configuración interna de DOCENTY PRO</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );

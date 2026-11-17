@@ -405,4 +405,4 @@ export default async function handler(req, res) {
 }
 
 // Contrato compartido con las pruebas aisladas de Anthropic.
-export { PPA_COMPLETO_SCHEMA, SYSTEM_PPA_COMPLETO };
+export { PPA_COMPLETO_SCHEMA, SYSTEM_PPA_COMPLETO, FORMATO_RESPONSE_SCHEMA, SYSTEM_FORMATO, PPA_BLOQUE_SCHEMAS, SYSTEM_PPA_BLOQUE, SYSTEM };
