@@ -633,7 +633,7 @@ export default function CamilaFormato() {
       return;
     }
 
-    // PDF e imágenes son referencias temporales que Claude puede analizar
+    // PDF e imágenes son referencias temporales que Camila puede analizar
     // incluso si todavía no se ha elegido ningún formato Word.
     if (nombreLow.endsWith('.pdf') || file.type.startsWith('image/')) {
       const mimeType = file.type || (nombreLow.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg');
@@ -1112,7 +1112,7 @@ export default function CamilaFormato() {
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-base sm:text-lg font-black text-white tracking-tight">Camila · Espacio pedagógico</h1>
+              <h1 className="text-base sm:text-lg font-black text-white tracking-tight">Camila Plus · Mi Formato</h1>
               <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-teal-500/20 text-teal-300 border border-teal-400/30">
                 Word Vivo
               </span>
