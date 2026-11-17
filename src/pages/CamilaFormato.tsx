@@ -60,6 +60,9 @@ import { obtenerAccionesDocumento } from '../lib/camilaFormato/accionesDocumento
 import { combinarDatosProyecto, type DatosProyectoPropuesto } from '../lib/camilaFormato/contextoProyectoPpa';
 import { datosProyectoDesdeLibro, preguntaPendienteLibroPpa, type LibroHechosPpa } from '../lib/camilaFormato/libroHechosPpa';
 import { generarBorradorPpaSinPlantilla, prepararBorradorPpa, solicitaCrearWordPpa } from '../lib/camilaFormato/borradorPpaSinPlantilla';
+import {
+  detectarCreacionPlanificacion, generarPlanificacionSinPlantilla, prepararPlanificacion,
+} from '../lib/camilaFormato/planificacionSinPlantilla';
 import { generarPpaSinPlantillaCompleto } from '../lib/camilaFormato/ppaSinPlantillaCompleto';
 import { VersionesPpa, type VersionDocumentoPpa } from '../lib/camilaFormato/versionesPpa';
 import { prepararDeshacerSeguro } from '../lib/camilaFormato/deshacerSeguro';
@@ -777,7 +780,7 @@ export default function CamilaFormato() {
   const aplicarResultadoAlDocumento = async (
     solicitud: string,
     resultado: ResultadoCamilaFormato,
-    generadoSinPlantilla = false,
+    nombreBorrador: string | null = null,
     registrarRespuesta = true,
   ) => {
     const aplicado = await cargarDocx(resultado.nuevoBlob);
@@ -788,7 +791,7 @@ export default function CamilaFormato() {
     setMapaActual(mapaAplicado);
     setBlobDocx(resultado.nuevoBlob);
     setRevisionActual(resultado.revision);
-    if (generadoSinPlantilla) setNombreBorradorLocal('PPA_Borrador_Docente');
+    if (nombreBorrador) setNombreBorradorLocal(nombreBorrador);
     setSnapshots((prev) => [...prev.slice(-9), {
       id: `snap-${crypto.randomUUID()}`,
       xml: xmlAplicado,
@@ -888,10 +891,44 @@ export default function CamilaFormato() {
                 nuevoMapa: construirMapa(archivoPropuesto.doc),
                 revision,
               };
-              await aplicarResultadoAlDocumento(texto, propuesta, true, false);
+              await aplicarResultadoAlDocumento(texto, propuesta, 'PPA_Borrador_Docente', false);
               respuesta = `Preparé y abrí el **borrador Word del PPA** a partir de los datos de esta conversación. No copié la identidad de otra plantilla. ${
                 generado.pendientes.length ? `Queda por confirmar: ${generado.pendientes.join(', ')}.` : 'Los datos principales están completos.'
               } Puede revisar el Word, pedirme correcciones, utilizar **Deshacer** y guardar una versión privada cuando lo autorice.`;
+            }
+          } else {
+            const periodo = detectarCreacionPlanificacion(texto);
+            if (periodo === 'sin_periodo') {
+              respuesta = 'Puedo preparar su planificación. ¿La necesita diaria, semanal, quincenal o mensual?';
+            } else if (periodo) {
+              const hechosActuales = resultado.libroHechosExtraidos || libroHechosTemporal;
+              const datosConfirmados = hechosActuales ? datosProyectoDesdeLibro(hechosActuales) : {};
+              const estado = prepararPlanificacion(datosConfirmados, periodo);
+              if (!hechosActuales) {
+                respuesta = 'Para elaborar una planificación sin inventar información, ¿qué grado y sección atiende?';
+              } else if (estado.listo === false) {
+                respuesta = estado.pregunta;
+              } else {
+                setProgresoDetalle('Camila está preparando la planificación ' + periodo + '...');
+                const generada = await generarPlanificacionSinPlantilla(datosConfirmados, periodo);
+                const documento = await cargarDocx(generada.blob);
+                const revision = revisarDocumentoVivo(null, documento.doc, null);
+                const plan: ResultadoCamilaFormato = {
+                  respuestaCamila: 'Planificación creada para revisión.',
+                  operacionesEjecutadas: [], operacionesOmitidas: [],
+                  nuevoBlob: generada.blob,
+                  nuevoMapa: construirMapa(documento.doc),
+                  revision,
+                };
+                await aplicarResultadoAlDocumento(
+                  texto, plan, 'Planificacion_' + periodo + '_Borrador', false,
+                );
+                respuesta = 'Preparé la **planificación ' + periodo + '** en Word con los datos confirmados. ' +
+                  (generada.pendientes.length
+                    ? 'Datos pendientes: ' + generada.pendientes.join(', ') + '. '
+                    : '') +
+                  'Puede revisar el documento, pedirme cambios, utilizar Deshacer y guardar una versión privada cuando lo autorice. No sustituye el formato oficial de su institución.';
+              }
             }
           }
         } else {
@@ -1001,7 +1038,7 @@ export default function CamilaFormato() {
     setProgresoDetalle('Aplicando cambios al Word...');
     try {
       const { solicitud, resultado, generadoSinPlantilla } = propuestaPendiente;
-      await aplicarResultadoAlDocumento(solicitud, resultado, generadoSinPlantilla);
+      await aplicarResultadoAlDocumento(solicitud, resultado, generadoSinPlantilla ? 'PPA_Borrador_Docente' : null);
     } catch (error) {
       setMensajes((prev) => [...prev, {
         id: `msg-${Date.now()}`, emisor: 'camila',
