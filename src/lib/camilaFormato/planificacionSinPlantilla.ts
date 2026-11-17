@@ -2,7 +2,6 @@ import {
   AlignmentType, Document, HeadingLevel, Packer, Paragraph,
   Table, TableCell, TableRow, TextRun, WidthType,
 } from 'docx';
-import { generarBloquePpaClaude } from '../camila/geminiFormatoClient';
 import type { DatosProyectoPropuesto } from './contextoProyectoPpa';
 
 export type PeriodoPlanificacion = 'diaria' | 'semanal' | 'quincenal' | 'mensual';
@@ -73,8 +72,7 @@ function validarSecciones(valor: unknown, periodo: PeriodoPlanificacion): Record
 export async function generarPlanificacionSinPlantilla(
   datos: DatosProyectoPropuesto,
   periodo: PeriodoPlanificacion,
-  generador: (prompt: string) => Promise<unknown> =
-    (prompt) => generarBloquePpaClaude('textos', prompt),
+  generador?: (prompt: string) => Promise<unknown>,
 ): Promise<{ blob: Blob; pendientes: string[] }> {
   const estado = prepararPlanificacion(datos, periodo);
   if (estado.listo === false) throw new Error(estado.pregunta);
@@ -101,7 +99,12 @@ export async function generarPlanificacionSinPlantilla(
       'Solo sugerencias pedagógicas; no inventar logros reales del grupo',
     ],
   });
-  const secciones = validarSecciones(await generador(prompt), periodo);
+  // En tests se inyecta un generador ficticio sin inicializar Supabase.
+  const producir = generador || (async (texto: string) => {
+    const { generarBloquePpaClaude } = await import('../camila/geminiFormatoClient');
+    return generarBloquePpaClaude('textos', texto);
+  });
+  const secciones = validarSecciones(await producir(prompt), periodo);
   const parrafo = (texto: string) => new Paragraph({
     spacing: { after: 110 }, children: [new TextRun({ text: texto, size: 21 })],
   });
