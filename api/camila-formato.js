@@ -80,6 +80,29 @@ function esquemaGemini(valor) {
   return res;
 }
 
+function operacionDocxValida(op) {
+  if (!op || typeof op !== 'object' || Array.isArray(op)) return false;
+  const string = (k) => typeof op[k] === 'string' && op[k].trim().length > 0 && op[k].length <= 20000;
+  const cadenas = (v) => Array.isArray(v) && v.length > 0 && v.length <= 150 &&
+    v.every((s) => typeof s === 'string' && s.length <= 20000);
+  switch (op.tipo) {
+    case 'set_celda': return string('id') && cadenas(op.lineas);
+    case 'set_parrafo': return string('id') && string('texto');
+    case 'set_encabezado': return string('etiqueta') && string('valor');
+    case 'reemplazar_filas':
+    case 'agregar_filas':
+      return string('tablaId') && Array.isArray(op.filas) &&
+        op.filas.length > 0 && op.filas.length <= 150 &&
+        op.filas.every((fila) => cadenas(fila));
+    case 'eliminar_filas': return cadenas(op.ids);
+    case 'eliminar_ficha': return string('tablaId');
+    case 'clonar_ficha': return string('tablaId');
+    case 'set_titulo': return string('texto');
+    case 'vaciar_todo': return true;
+    default: return false;
+  }
+}
+
 function respuestaEstructuradaValida(mode, blockType, texto) {
   try {
     const obj = JSON.parse(texto);
@@ -87,10 +110,9 @@ function respuestaEstructuradaValida(mode, blockType, texto) {
     if (mode === 'formato') {
       return typeof obj.respuesta === 'string' && Array.isArray(obj.operaciones) &&
         obj.operaciones.length <= 100 &&
-        obj.operaciones.every((op) => op && typeof op.tipo === 'string' &&
-          ['set_celda', 'set_parrafo', 'set_encabezado', 'reemplazar_filas',
-            'agregar_filas', 'eliminar_filas', 'eliminar_ficha', 'clonar_ficha',
-            'set_titulo', 'vaciar_todo'].includes(op.tipo));
+        obj.operaciones.every(operacionDocxValida) &&
+        !(obj.operaciones.some((op) => op.tipo === 'vaciar_todo') &&
+          obj.operaciones.some((op) => op.tipo !== 'vaciar_todo'));
     }
     if (mode === 'ppa_completo') {
       return REQUIRED_PPA_FIELDS.every((k) => typeof obj[k] === 'string') &&
@@ -182,11 +204,22 @@ export default async function handler(req, res) {
     }
     return res.status(200).json({ text: answer });
   } catch (error) {
-    // No registrar documentos, datos del docente, tokens ni claves en los logs.
+    // No registrar documentos, nombres, datos del docente, tokens ni claves.
+    const status = Number(error?.status ?? error?.code);
+    if (status === 429 || error?.name === 'RESOURCE_EXHAUSTED') {
+      // No se modifica el DOCX si Google agota las cuotas del nivel gratuito.
+      res.setHeader('Retry-After', '60');
+      return res.status(429).json({
+        error: 'Gemini alcanzó el límite de uso de la API gratuita. Su documento sigue intacto. Puede reintentar más tarde.',
+      });
+    }
+    if (status === 404) {
+      return res.status(503).json({ error: 'El modelo Gemini configurado no está disponible. Contacte al administrador.' });
+    }
     const tipo = error?.name === 'TimeoutError' ? 'timeout' : 'respuesta_no_disponible';
     console.error('[Camila Formato Gemini]', tipo);
-    return res.status(502).json({ error: 'Camila no pudo completar la solicitud. Inténtelo de nuevo.' });
+    return res.status(502).json({ error: 'Camila no pudo completar la solicitud. El documento no se ha modificado.' });
   }
 }
 
-export { validMessage, esquemaGemini, respuestaEstructuradaValida };
+export { validMessage, esquemaGemini, operacionDocxValida, respuestaEstructuradaValida };
