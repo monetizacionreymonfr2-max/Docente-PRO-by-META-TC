@@ -33,7 +33,7 @@ import {
   Brain,
   Save,
 } from 'lucide-react';
-import { askCamilaClaude, type CamilaTurn } from '../lib/camila/claudeClient';
+import { askCamilaClaude, type CamilaTurn } from '../lib/camila/geminiFormatoClient';
 import {
   CamilaPersistence, type ResumenConversacion, type RecuerdoCamila,
 } from '../lib/camila/camilaPersistence';
