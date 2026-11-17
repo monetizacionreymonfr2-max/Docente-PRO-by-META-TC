@@ -64,7 +64,7 @@ test('Word vivo: el resultado se aplica sin aprobaciones repetidas, pero guardad
   const engine = readFileSync(new URL('../src/lib/camilaFormato/camilaFormatoEngine.ts', import.meta.url), 'utf8');
   const version = readFileSync(new URL('../src/lib/camilaFormato/versionesPpa.ts', import.meta.url), 'utf8');
   assert.match(page, /await aplicarResultadoAlDocumento\(texto, resultado\)/);
-  assert.match(page, /await aplicarResultadoAlDocumento\(texto, propuesta, true, false\)/);
+  assert.match(page, /await aplicarResultadoAlDocumento\(texto, propuesta, 'PPA_Borrador_Docente', false\)/);
   assert.match(page, /setTabActiva\('documento'\)/);
   assert.match(page, /prepararDeshacerSeguro\(blobDocx, anterior\.xml\)/);
   assert.match(page, /VersionesPpa\.listar\(teacherId, id\)/);
