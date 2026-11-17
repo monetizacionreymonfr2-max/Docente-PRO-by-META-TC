@@ -6,6 +6,32 @@ import { verificarAdministradorCamila } from '../server/camilaAdmin.js';
 export const maxDuration = 60;
 const MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
+
+const sinControles = text => typeof text === 'string' && text.length <= 5000 && !/[\u0000-\u001f\u007f]/.test(text);
+const idsParrafo = /^p(0|[1-9]\d{0,4})$/;
+const idsCelda = /^t(0|[1-9]\d{0,4})\.r(0|[1-9]\d{0,4})\.c(0|[1-9]\d{0,4})$/;
+
+/** Exactamente las tres operaciones que acepta el worker. */
+export function operacionWordValida(op) {
+  if (!op || typeof op !== 'object' || Array.isArray(op)) return false;
+  const keys = Object.keys(op).sort().join(',');
+  if (op.tipo === 'reemplazar_texto') {
+    return keys === 'buscar,reemplazar,tipo' &&
+      sinControles(op.buscar) && op.buscar.length > 0 && op.buscar.length <= 500 &&
+      sinControles(op.reemplazar);
+  }
+  if (op.tipo === 'set_parrafo') {
+    return keys === 'esperado,id,texto,tipo' && idsParrafo.test(op.id) &&
+      sinControles(op.esperado) && sinControles(op.texto);
+  }
+  if (op.tipo === 'set_celda') {
+    return keys === 'esperado,id,lineas,tipo' && idsCelda.test(op.id) &&
+      sinControles(op.esperado) && Array.isArray(op.lineas) && op.lineas.length === 1 &&
+      sinControles(op.lineas[0]);
+  }
+  return false;
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'private, no-store');
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -24,11 +50,7 @@ export default async function handler(req, res) {
   if (typeof archivoBase64 !== 'string' || archivoBase64.length < 40 ||
       archivoBase64.length > 2_020_000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(archivoBase64) ||
       !Array.isArray(operaciones) || operaciones.length < 1 || operaciones.length > 20 ||
-      !operaciones.every(op => op && typeof op === 'object' && !Array.isArray(op) &&
-        Object.keys(op).sort().join(',') === 'buscar,reemplazar,tipo' &&
-        op.tipo === 'reemplazar_texto' &&
-        typeof op.buscar === 'string' && op.buscar.length >= 1 && op.buscar.length <= 500 &&
-        typeof op.reemplazar === 'string' && op.reemplazar.length <= 5000)) {
+      !operaciones.every(operacionWordValida)) {
     return res.status(400).json({ error: 'Documento u operaciones inválidos' });
   }
   const decoded = Buffer.from(archivoBase64, 'base64');
