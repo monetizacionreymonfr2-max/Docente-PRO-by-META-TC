@@ -1,0 +1,44 @@
+name: Mi Formato - worker documentos (pruebas sin despliegue)
+
+on:
+  push:
+    branches:
+      - feature/mi-formato-worker-documentos-20261116
+  pull_request:
+    paths:
+      - 'workers/libreoffice/**'
+      - 'api/camila-edit-docx.js'
+      - 'tests/test_word_edit_worker.py'
+      - '.github/workflows/mi-formato-worker-documentos.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Instalar herramientas documentales
+        run: python -m pip install python-docx==1.2.0 lxml==6.0.2
+      - name: Verificar Word y HMAC sin datos reales
+        run: |
+          python -m unittest discover -s tests -p 'test_word_edit_worker.py' -v
+          python -m unittest discover -s tests -p 'test_libreoffice_worker.py' -v
+
+  pruebas-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node --check api/camila-edit-docx.js
+      - run: npm run lint
+      - run: npm run build
