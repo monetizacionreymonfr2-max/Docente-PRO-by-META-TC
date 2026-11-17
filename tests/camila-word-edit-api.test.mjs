@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import handler from '../api/camila-edit-docx.js';
 
 const SECRET = 'secret-for-tests-longer-than-thirty-two-bytes';
-const DOCX = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from('WORD FICTICIO PARA TEST')]).toString('base64');
+const DOCX = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from('WORD FICTICIO PARA TEST DE AUTENTICACION Y RESPUESTA DE SERVICIO')]).toString('base64');
 const operation = { tipo: 'reemplazar_texto', buscar: 'Segundo', reemplazar: 'Quinto' };
 const fields = ['VERCEL_ENV', 'CAMILA_DOCX_EDIT_PREVIEW_ENABLED', 'SUPABASE_URL',
   'SUPABASE_ANON_KEY', 'CAMILA_PDF_WORKER_URL', 'CAMILA_PDF_WORKER_SECRET'];
