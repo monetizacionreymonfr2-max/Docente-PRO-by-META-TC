@@ -9,6 +9,7 @@ import zipfile
 
 from docx import Document
 from lxml import etree
+from word_structural import apply_structural, validate_structural
 
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 XML_SPACE = "{http://www.w3.org/XML/1998/namespace}space"
@@ -61,8 +62,27 @@ def _validar_operaciones(operations):
             if not isinstance(operation["lineas"], list) or len(operation["lineas"]) != 1:
                 raise ValueError("Solo una línea por celda en la edición experimental")
             _texto_seguro(operation["lineas"][0])
+        elif kind in ("agregar_filas", "reemplazar_filas", "set_seccion"):
+            validate_structural(operation)
         else:
             raise ValueError("Tipo de operación no permitido")
+    # Un cambio estructural renumera las filas: nunca mezclarlo con cambios
+    # individuales de las mismas celdas, ni reestructurar dos veces la tabla.
+    tablas_estructurales = set()
+    secciones_editadas = set()
+    for operation in operations:
+        if operation["tipo"] in ("agregar_filas", "reemplazar_filas"):
+            key = operation["tablaId"]
+            if key in tablas_estructurales:
+                raise ValueError("Una sola edición estructural por tabla")
+            tablas_estructurales.add(key)
+        elif operation["tipo"] == "set_seccion":
+            if operation["tituloId"] in secciones_editadas:
+                raise ValueError("Sección repetida")
+            secciones_editadas.add(operation["tituloId"])
+    for operation in operations:
+        if operation["tipo"] == "set_celda" and operation["id"].split(".")[0] in tablas_estructurales:
+            raise ValueError("La edición por celda no debe mezclarse con el cambio de filas")
 
 
 def _nodo_para_id(root, operation):
@@ -174,6 +194,10 @@ def editar_word(original: bytes, operations: list) -> tuple[bytes, int]:
             raise ValueError("Documento demasiado complejo")
 
         for operation in operations:
+            if operation["tipo"] in ("agregar_filas", "reemplazar_filas", "set_seccion"):
+                apply_structural(root, operation, lambda p: _texto_parrafo(p)[1],
+                                 _actualizar_parrafo)
+                continue
             if operation["tipo"] in ("set_parrafo", "set_celda"):
                 paragraph = _nodo_para_id(root, operation)
                 replacement = (operation["texto"] if operation["tipo"] == "set_parrafo"
