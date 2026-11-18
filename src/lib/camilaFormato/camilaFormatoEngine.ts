@@ -48,6 +48,7 @@ export interface OperacionDocx {
     | 'eliminar_ficha'
     | 'clonar_ficha'
     | 'set_titulo'
+    | 'set_seccion'
     | 'vaciar_todo';
   id?: string;
   lineas?: string[];
@@ -58,6 +59,8 @@ export interface OperacionDocx {
   despuesDeFilaId?: string;
   despuesDeTablaId?: string;
   filas?: string[][];
+  tituloId?: string;
+  parrafos?: Array<{ id: string; texto: string }>;
   ids?: string[];
   contenido?: string;
 }
@@ -662,10 +665,26 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
   try {
     parsed = JSON.parse(responseText);
   } catch (parseErr) {
-    console.error('[CamilaFormato] Error al parsear JSON de respuesta:', responseText);
+    console.error('[CamilaFormato] Error al parsear JSON de respuesta.');
     parsed = {
       respuesta: 'Disculpa, procesé tu solicitud pero ocurrió un detalle al estructurar las operaciones. Por favor intenta de nuevo.',
       operaciones: [],
+    };
+  }
+
+  // Fase Gemini + Python: el modelo SOLO propone operaciones. El editor
+  // heredado no modifica siquiera la copia: el worker valida precondiciones,
+  // elementos complejos e integridad antes de reemplazar el estado activo.
+  // Es esencial para no presentar un borrador engañoso si el plan incluye
+  // cambios estructurales que el editor de navegador interpreta diferente.
+  if (usarGeminiPreview) {
+    return {
+      respuestaCamila: parsed.respuesta || 'Propuesta de cambios preparada.',
+      operacionesEjecutadas: Array.isArray(parsed.operaciones) ? parsed.operaciones : [],
+      operacionesOmitidas: [],
+      nuevoBlob: await guardarDocx(zipVivo, docVivo),
+      nuevoMapa: mapaActual,
+      revision: revisionPrevia,
     };
   }
 
