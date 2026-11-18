@@ -18,14 +18,14 @@ const map = {
     id:'t0',
     filas:[{
       id:'t0.r0', isHeader:false,
-      celdas:[{ id:'t0.r0.c0',rawText:'Grado' },
-        { id:'t0.r0.c1',rawText:'Segundo',domNode:cell }],
+      celdas:[{ id:'t0.r0.c0',rawText:'Grado',gridSpan:1 },
+        { id:'t0.r0.c1',rawText:'Segundo',gridSpan:1,domNode:cell }],
     }],
   }],
 };
 const plantilla = {
   encabezados:[],
-  tablas:[{ id:'t0', celdasEtiquetaIds:['t0.r0.c0'], celdasContenidoIds:['t0.r0.c1'] }],
+  tablas:[{ id:'t0', tipo:'cronograma', filasEncabezadoIds:[], celdasEtiquetaIds:['t0.r0.c0'], celdasContenidoIds:['t0.r0.c1'] }],
   bloquesRepetidos:[], celdasTextoLibre:[],
 };
 
