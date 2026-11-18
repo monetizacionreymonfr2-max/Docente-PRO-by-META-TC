@@ -66,3 +66,19 @@ El chat **Camila Formato** permite, bajo `VITE_CAMILA_DOCX_EDIT_TOOLS=true`, act
 Vercel (API/servidor): `CAMILA_DOCX_EDIT_PREVIEW_ENABLED=true`, `CAMILA_GEMINI_FORMATO_PREVIEW_ENABLED=true`, `CAMILA_PDF_WORKER_URL=https://TU_HOST/convert`, `CAMILA_PDF_WORKER_SECRET=<secreto fuerte>`, `GEMINI_API_KEY=<clave privada>`. Vercel (compilación cliente): `VITE_CAMILA_DOCX_EDIT_TOOLS=true`. Configurar solo tras el despliegue y la revisión del worker en DigitalOcean. Nunca crear variables `VITE_` con secretos. Ningún cambio de estas variables fue realizado automáticamente por este PR.
 
 **Pendiente para uso real:** despliegue controlado del contenedor, pruebas extremo a extremo con documentos ficticios de varios formatos, control de costos y migración del flujo completo de PPA/planificaciones. El chat general y las rutas de producción no se modifican.
+
+## Fase 3 — operaciones estructurales del Word (solo pruebas)
+
+Las operaciones de edición de tablas y bloques de texto están aisladas en `word_structural.py`.
+El motor acepta únicamente acciones declarativas, revisa que el texto original y las filas coincidan con el documento y rechaza cualquier lote incompatible antes de entregar una versión. Nunca ejecuta comandos Python suministrados por un modelo.
+
+- `agregar_filas`: clona una fila simple existente identificada por `despuesDeFilaId` y conserva su formato.
+- `reemplazar_filas`: sustituye todo el bloque de datos a partir de `filaInicioId` con precondiciones sobre las filas originales; conserva el encabezado.
+- `set_seccion`: modifica un grupo de párrafos consecutivos después de un título comprobado, sin atravesar tablas.
+- Límites: 24 filas, 12 columnas, 1000 caracteres por celda, 16 párrafos por bloque, 20 operaciones por solicitud. No admite filas con celdas combinadas, imágenes incrustadas, campos dinámicos o estructuras especiales.
+- El puente de DOCENTY PRO limita los cambios estructurales a tablas reconocidas como cronogramas, planificaciones diarias, planes de evaluación o construcción de estrategias.
+- La vista de la aplicación valida cantidades de filas, textos de cabeceras y archivos multimedia intactos; conserva Deshacer. Aun así, la paginación y el diseño requieren revisión visual antes de entregar documentos.
+
+Pruebas: `tests/test_word_edit_worker.py`, `tests/camila-puente-python.test.mjs`, `tests/camila-gemini-formato.test.mjs` y `tests/camila-word-edit-api.test.mjs`. La integración CI instala LibreOffice para comprobar la conversión real a PDF de un DOCX ficticio editado.
+
+**No apto todavía para documentos reales de docentes o estudiantes.** Falta desplegar el worker en un entorno aislado, configurar solo Preview, ejecutar el flujo completo con Gemini y revisar visualmente sus resultados. El PR no se fusiona a `main` sin aprobación.
