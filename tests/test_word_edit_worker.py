@@ -300,6 +300,29 @@ class EditorWordTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 editar_word(original, cambios)
 
+    @unittest.skipUnless(__import__("os").path.isfile("/usr/bin/soffice"),
+                         "LibreOffice no instalado en este entorno")
+    def test_word_con_semanas_y_secciones_convertible_a_pdf_real(self):
+        from server import convert_docx
+        original = word_cronograma_ficticio()
+        result, count = editar_word(original, [
+            {"tipo":"reemplazar_filas","tablaId":"t0","filaInicioId":"t0.r1",
+             "esperadas":[["1","Lenguaje","Lectura"],["2","Matemática","Juego lógico"]],
+             "filas":[["1","Lenguaje","Cuentos"],["2","Matemática","Series"],
+                      ["3","Ciencias","Observación"]]},
+            {"tipo":"set_seccion","tituloId":"p2","tituloEsperado":"Diagnóstico",
+             "parrafos":[
+                 {"id":"p3","esperado":"Los estudiantes identifican letras.",
+                  "texto":"Se estudian cuentos breves."},
+                 {"id":"p4","esperado":"La estrategia prioriza lectura.",
+                  "texto":"Se priorizan los cuentos colectivos."},
+             ]},
+        ])
+        self.assertEqual(count, 2)
+        pdf = convert_docx(result)
+        self.assertTrue(pdf.startswith(b"%PDF-"))
+        self.assertGreater(len(pdf), 600)
+
     def test_descarta_json_malformado_y_base64_falso(self):
         for invalid in (b"not-json", b"{}", b'{"archivoBase64":"??","operaciones":[]}'):
             with self.assertRaises(ValueError):
