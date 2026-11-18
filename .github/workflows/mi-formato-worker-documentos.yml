@@ -42,6 +42,32 @@ jobs:
           python -m unittest discover -s tests -p 'test_word_edit_worker.py' -v
           python -m unittest discover -s tests -p 'test_libreoffice_worker.py' -v
 
+  validar-contenedor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compilar worker real con módulos de edición Word
+        run: docker build --pull -t docenty-worker-mi-formato:qa ./workers/libreoffice
+      - name: Verificar imports y salud de contenedor sin datos reales
+        run: |
+          set -eu
+          docker run --rm docenty-worker-mi-formato:qa python -B -c \
+            'from server import editar_word, process_edit_request; import word_structural; print("Imports correctos")'
+          docker run -d --name docenty-mi-formato-smoke \
+            -p 127.0.0.1:18787:8787 \
+            -e CAMILA_PDF_WORKER_SECRET=secreto-ficticio-con-mas-de-32-caracteres \
+            docenty-worker-mi-formato:qa
+          trap 'docker rm -f docenty-mi-formato-smoke >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:18787/health >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            http://127.0.0.1:18787/health)" = "200"
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' -d '{}' \
+            http://127.0.0.1:18787/edit)" = "403"
+
   pruebas-api:
     runs-on: ubuntu-latest
     steps:
