@@ -35,6 +35,29 @@ def word_ficticio():
     return saved.getvalue()
 
 
+def word_cronograma_ficticio():
+    doc = Document()
+    doc.sections[0].header.paragraphs[0].text = "Logo institucional de prueba"
+    doc.add_heading("PPA Ficticio", 0)
+    doc.add_paragraph("Contexto de aula ficticio.")
+    tabla = doc.add_table(rows=3, cols=3)
+    tabla.style = "Table Grid"
+    for i, texts in enumerate([
+        ["Semana", "Área", "Actividad"],
+        ["1", "Lenguaje", "Lectura"],
+        ["2", "Matemática", "Juego lógico"],
+    ]):
+        for j, text in enumerate(texts):
+            tabla.cell(i, j).text = text
+    tabla.cell(1, 2).paragraphs[0].runs[0].bold = True
+    doc.add_heading("Diagnóstico", level=1)
+    doc.add_paragraph("Los estudiantes identifican letras.")
+    doc.add_paragraph("La estrategia prioriza lectura.")
+    saved = BytesIO()
+    doc.save(saved)
+    return saved.getvalue()
+
+
 def replace(old, new):
     return {"tipo": "reemplazar_texto", "buscar": old, "reemplazar": new}
 
@@ -138,6 +161,122 @@ class EditorWordTests(unittest.TestCase):
                  "texto": "No publicar"},
             ])
         self.assertEqual(Document(BytesIO(original)).tables[0].cell(0, 1).text, "Segundo")
+
+    def test_agregar_semanas_en_cronograma_preserva_formato_y_encabezado(self):
+        original = word_cronograma_ficticio()
+        result, count = editar_word(original, [
+            {"tipo": "agregar_filas", "tablaId": "t0", "despuesDeFilaId": "t0.r2",
+             "esperadoModelo": ["2", "Matemática", "Juego lógico"],
+             "filas": [["3", "Lenguaje", "Dictado"], ["4", "Ciencias", "Experimento"]]},
+        ])
+        self.assertEqual(count, 1)
+        before = Document(BytesIO(original))
+        after = Document(BytesIO(result))
+        self.assertEqual(len(before.tables[0].rows), 3)
+        self.assertEqual(len(after.tables[0].rows), 5)
+        self.assertEqual(after.tables[0].cell(0, 0).text, "Semana")
+        self.assertEqual(after.tables[0].cell(3, 2).text, "Dictado")
+        self.assertEqual(after.tables[0].cell(4, 1).text, "Ciencias")
+        self.assertEqual(after.tables[0].style.name, before.tables[0].style.name)
+        self.assertEqual(after.sections[0].header.paragraphs[0].text,
+                         before.sections[0].header.paragraphs[0].text)
+        with zipfile.ZipFile(BytesIO(original)) as prev, zipfile.ZipFile(BytesIO(result)) as new:
+            self.assertEqual(set(prev.namelist()), set(new.namelist()))
+            for name in prev.namelist():
+                if name != "word/document.xml":
+                    self.assertEqual(prev.read(name), new.read(name), name)
+        validate_docx(result)
+
+    def test_reemplazar_todas_las_semanas_sin_borrar_cabecera(self):
+        original = word_cronograma_ficticio()
+        new, count = editar_word(original, [
+            {"tipo": "reemplazar_filas", "tablaId": "t0", "filaInicioId": "t0.r1",
+             "esperadas": [["1", "Lenguaje", "Lectura"], ["2", "Matemática", "Juego lógico"]],
+             "filas": [["1", "Lenguaje", "Sílabas"], ["2", "Matemática", "Series"],
+                       ["3", "Ciencias", "Observación"]]},
+        ])
+        self.assertEqual(count, 1)
+        doc = Document(BytesIO(new))
+        self.assertEqual(len(doc.tables[0].rows), 4)
+        self.assertEqual(doc.tables[0].cell(0, 0).text, "Semana")
+        self.assertEqual(doc.tables[0].cell(1, 2).text, "Sílabas")
+        self.assertTrue(doc.tables[0].cell(1, 2).paragraphs[0].runs[0].bold)
+        self.assertEqual(doc.tables[0].cell(3, 2).text, "Observación")
+        self.assertEqual(Document(BytesIO(original)).tables[0].cell(1, 2).text, "Lectura")
+
+    def test_rechaza_filas_incompatibles_y_encabezados_sin_salida_parcial(self):
+        original = word_cronograma_ficticio()
+        casos = [
+            {"tipo": "agregar_filas", "tablaId": "t0", "despuesDeFilaId": "t0.r0",
+             "esperadoModelo": ["Semana", "Área", "Actividad"], "filas": [["3","a","b"]]},
+            {"tipo": "agregar_filas", "tablaId": "t0", "despuesDeFilaId": "t0.r2",
+             "esperadoModelo": ["2", "Matemática", "Antiguo"], "filas": [["3","a","b"]]},
+            {"tipo": "reemplazar_filas", "tablaId": "t0", "filaInicioId": "t0.r1",
+             "esperadas": [["1", "Lenguaje", "Lectura"]],
+             "filas": [["2","a","b"]]},
+            {"tipo": "reemplazar_filas", "tablaId": "t0", "filaInicioId": "t0.r1",
+             "esperadas": [["1", "Lenguaje", "Lectura"], ["2","Matemática","Juego lógico"]],
+             "filas": [["2","a"]]},
+        ]
+        for caso in casos:
+            with self.subTest(caso=caso["tipo"]):
+                with self.assertRaises(ValueError):
+                    editar_word(original, [caso])
+                self.assertEqual(Document(BytesIO(original)).tables[0].cell(1,2).text, "Lectura")
+
+    def test_rechaza_celdas_combinadas_antes_de_reemplazar_filas(self):
+        source = Document(BytesIO(word_cronograma_ficticio()))
+        source.tables[0].cell(1, 0).merge(source.tables[0].cell(1, 1))
+        buffer = BytesIO()
+        source.save(buffer)
+        with self.assertRaises(ValueError):
+            editar_word(buffer.getvalue(), [
+                {"tipo":"reemplazar_filas", "tablaId":"t0", "filaInicioId":"t0.r1",
+                 "esperadas":[["1", "Lenguaje", "Lectura"], ["2","Matemática","Juego lógico"]],
+                 "filas":[["3","A","B"]]},
+            ])
+
+    def test_editar_seccion_completa_sin_modificar_titulo(self):
+        original = word_cronograma_ficticio()
+        edited, count = editar_word(original, [
+            {"tipo": "set_seccion", "tituloId": "p2", "tituloEsperado": "Diagnóstico",
+             "parrafos": [
+                 {"id":"p3", "esperado":"Los estudiantes identifican letras.",
+                  "texto":"El grupo reconoce vocales y palabras."},
+                 {"id":"p4", "esperado":"La estrategia prioriza lectura.",
+                  "texto":"Se prioriza la lectura compartida."},
+             ]},
+        ])
+        self.assertEqual(count, 1)
+        doc = Document(BytesIO(edited))
+        self.assertEqual(doc.paragraphs[2].text, "Diagnóstico")
+        self.assertEqual(doc.paragraphs[3].text, "El grupo reconoce vocales y palabras.")
+        self.assertEqual(doc.paragraphs[4].text, "Se prioriza la lectura compartida.")
+        self.assertEqual(len(doc.tables[0].rows), 3)
+        with self.assertRaises(ValueError):
+            editar_word(original, [
+                {"tipo": "set_seccion", "tituloId": "p2", "tituloEsperado": "Otro título",
+                 "parrafos": [{"id":"p3", "esperado":"Los estudiantes identifican letras.",
+                                "texto":"No escribir"}]},
+            ])
+
+    def test_nunca_acepta_codigo_ni_operaciones_sobre_la_misma_tabla_ambigua(self):
+        original = word_cronograma_ficticio()
+        insertar = {"tipo": "agregar_filas", "tablaId":"t0", "despuesDeFilaId":"t0.r2",
+                    "esperadoModelo":["2","Matemática","Juego lógico"],
+                    "filas":[["3","Ciencias","Exploración"]]}
+        for cambios in (
+            [insertar, insertar],
+            [insertar, {"tipo":"set_celda","id":"t0.r1.c1",
+                        "esperado":"Lenguaje","lineas":["Ciencias"]}],
+            [{"tipo":"set_seccion","tituloId":"p2","tituloEsperado":"Diagnóstico",
+              "parrafos":[{"id":"p5","esperado":"A","texto":"B"}]}],
+            [{"tipo":"agregar_filas","tablaId":"t0","despuesDeFilaId":"t0.r2",
+              "esperadoModelo":["2","Matemática","Juego lógico"],
+              "filas":[["3","A","B"]]*25}],
+        ):
+            with self.assertRaises(ValueError):
+                editar_word(original, cambios)
 
     def test_descarta_json_malformado_y_base64_falso(self):
         for invalid in (b"not-json", b"{}", b'{"archivoBase64":"??","operaciones":[]}'):
