@@ -13,7 +13,15 @@ const idsCelda = /^t(0|[1-9]\d{0,4})\.r(0|[1-9]\d{0,4})\.c(0|[1-9]\d{0,4})$/;
 const idsTabla = /^t(0|[1-9]\d{0,4})$/;
 const idFilaDeTabla = (id, tabla) =>
   typeof id === 'string' && idsTabla.test(tabla) &&
-  new RegExp('^' + tabla + '\\.r(0|[1-9]\\d{0,4})
+  new RegExp('^' + tabla + '\\.r(0|[1-9]\\d{0,4})$').test(id);
+const filasValidas = (filas) => {
+  if (!Array.isArray(filas) || filas.length < 1 || filas.length > 24) return false;
+  const cols = Array.isArray(filas[0]) ? filas[0].length : 0;
+  return cols > 0 && cols <= 12 && filas.every(fila =>
+    Array.isArray(fila) && fila.length === cols &&
+    fila.every(text => sinControles(text) && text.length <= 1000)
+  ) && filas.flat().reduce((n, str) => n + str.length, 0) <= 40000;
+};
 
 /** Solo operaciones declarativas compatibles con el worker Python. */
 export function operacionWordValida(op) {
