@@ -923,9 +923,8 @@ export default function CamilaFormato() {
       if (resultado.libroHechosExtraidos) setLibroHechosTemporal(resultado.libroHechosExtraidos);
 
       if (resultado.operacionesEjecutadas.length > 0) {
-        // Fase experimental: en Preview, un administrador puede habilitar el
-        // modo Word FICTICIO una sola vez por archivo. Si el plan tiene acciones
-        // complejas, se mantiene el flujo tradicional sin enviar el Word al worker.
+        // Fase experimental: el plan estructurado Gemini se ejecuta
+        // exclusivamente si pasa todas las validaciones de Python.
         const planPython = editorPythonVisible && modoFicticioPython && adjuntosEnviados.length === 0
           ? prepararOperacionesPython(resultado.operacionesEjecutadas, mapaAntes, plantillaActual)
           : null;
@@ -952,12 +951,39 @@ export default function CamilaFormato() {
             type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
           });
           const zipOriginal = await cargarDocx(blobDocx);
-          const integridad = await validarDocxClonado(zipOriginal.zip, editado);
+          const conteoEsperadoFilas: Record<string, number> = Object.fromEntries(
+            mapaAntes.tablas.map(tabla => [tabla.id, tabla.filas.length])
+          );
+          for (const operacion of planPython) {
+            if (operacion.tipo === 'agregar_filas') {
+              conteoEsperadoFilas[operacion.tablaId] += operacion.filas.length;
+            } else if (operacion.tipo === 'reemplazar_filas') {
+              const inicio = Number(operacion.filaInicioId.split('.r')[1]);
+              conteoEsperadoFilas[operacion.tablaId] = inicio + operacion.filas.length;
+            }
+          }
+          const integridad = await validarDocxClonado(zipOriginal.zip, editado, { conteoEsperadoFilas });
           if (!integridad.valido) {
             throw new Error('El Word no superó la revisión de integridad. Se conserva la versión anterior.');
           }
           const documentoEditado = await cargarDocx(editado);
           const mapaEditado = construirMapa(documentoEditado.doc);
+          if (mapaEditado.tablas.length !== mapaAntes.tablas.length) {
+            throw new Error('Cambió el número de tablas. Se conserva el Word anterior.');
+          }
+          for (const tabla of mapaAntes.tablas) {
+            const actualizado = mapaEditado.tablas.find(t => t.id === tabla.id);
+            const info = plantillaActual?.tablas.find(t => t.id === tabla.id);
+            if (!actualizado || (info?.filasEncabezadoIds || []).some(id => {
+              const anterior = tabla.filas.find(f => f.id === id);
+              const nuevo = actualizado.filas.find(f => f.id === id);
+              return !anterior || !nuevo ||
+                anterior.celdas.map(c => c.rawText).join('\u0001') !==
+                nuevo.celdas.map(c => c.rawText).join('\u0001');
+            })) {
+              throw new Error('Una etiqueta o fila de encabezado cambió. Edición descartada.');
+            }
+          }
           const revision = revisarDocumentoVivo(docOrig, documentoEditado.doc, plantillaActual);
           setDocVivo(documentoEditado.doc);
           setZipVivo(documentoEditado.zip);
@@ -977,6 +1003,14 @@ export default function CamilaFormato() {
             texto: 'Apliqué ' + planPython.length + ' cambio(s) en la copia Word de prueba. Puede revisar el resultado y usar Deshacer si es necesario.',
             operacionesEjecutadas: resultado.operacionesEjecutadas,
             fecha: new Date(), revision,
+          }]);
+          return;
+        }
+        if (editorPythonVisible && modoFicticioPython) {
+          setMensajes(prev => [...prev, {
+            id: 'msg-' + Date.now(), emisor: 'camila',
+            texto: 'La propuesta contiene una tabla o sección que no puedo modificar de forma segura en este Word de prueba. No cambié el documento. Puede describir un cambio más específico o desactivar el modo experimental.',
+            fecha: new Date(),
           }]);
           return;
         }
