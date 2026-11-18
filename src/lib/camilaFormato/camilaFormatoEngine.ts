@@ -48,6 +48,7 @@ export interface OperacionDocx {
     | 'eliminar_ficha'
     | 'clonar_ficha'
     | 'set_titulo'
+    | 'set_seccion'
     | 'vaciar_todo';
   id?: string;
   lineas?: string[];
@@ -58,6 +59,8 @@ export interface OperacionDocx {
   despuesDeFilaId?: string;
   despuesDeTablaId?: string;
   filas?: string[][];
+  tituloId?: string;
+  parrafos?: Array<{ id: string; texto: string }>;
   ids?: string[];
   contenido?: string;
 }
@@ -558,6 +561,7 @@ export async function enviarMensajeACamilaFormato(params: {
   adjuntosMemoria?: AdjuntoSesion[];
   archivoOriginalData?: File | Blob | ArrayBuffer | null;
   onProgresoVaciarTodo?: (paso: string) => void;
+  usarGeminiPreview?: boolean;
 }): Promise<{
   respuestaCamila: string;
   operacionesEjecutadas: OperacionDocx[];
@@ -584,14 +588,41 @@ export async function enviarMensajeACamilaFormato(params: {
     adjuntosMemoria,
     archivoOriginalData,
     onProgresoVaciarTodo,
+    usarGeminiPreview = false,
   } = params;
 
   // 1. Preparar contexto actual para el prompt
   const revisionPrevia = revisarDocumentoVivo(docOrig, docVivo, plantilla);
+  // La fase Gemini/Python solo automatiza operaciones localizadas; nunca
+  // intenta convertir un PPA integral en una colección de parches parciales.
+  if (usarGeminiPreview && solicitaPpaIntegral(mensajeDocente)) {
+    return {
+      respuestaCamila: 'La prueba Gemini/Python todavía no admite reconstruir un PPA completo. Su Word no fue modificado. Puede desactivar el modo experimental para usar el flujo actual.',
+      operacionesEjecutadas: [], operacionesOmitidas: ['PPA integral aún no implementado en worker Python.'],
+      nuevoBlob: await guardarDocx(zipVivo, docVivo), nuevoMapa: mapaActual,
+      revision: revisionPrevia,
+    };
+  }
 
   let contextoDoc = `--- MAPA ESTRUCTURAL COMPACTO DEL DOCUMENTO WORD ACTUAL ---
 (Cada ID representa un párrafo pN o celda tX.rY.cZ del documento que puedes modificar con las operaciones exactas)
 ${mapaActual.resumenCompacto.slice(0, 7000)}`;
+
+  if (usarGeminiPreview && plantilla?.tablas.length) {
+    const resumenTablas = plantilla.tablas.slice(0, 15).map(tabla => ({
+      id: tabla.id, tipo: tabla.tipo, nombre: tabla.titulo,
+      filasEncabezado: tabla.filasEncabezadoIds,
+      filasContenido: mapaActual.tablas.find(t => t.id === tabla.id)?.filas
+        .filter(f => !tabla.filasEncabezadoIds.includes(f.id))
+        .map(f => f.id).slice(0, 24),
+    }));
+    contextoDoc += '\n\n--- TABLAS RECONOCIDAS PARA LA PRUEBA GEMINI/PYTHON ---\n' +
+      JSON.stringify(resumenTablas);
+    contextoDoc += '\nUse agregar_filas o reemplazar_filas SOLO en tablas identificadas como ' +
+      'cronograma, planificacion_diaria, plan_evaluacion o construccion_estrategias. ' +
+      'Nunca altere cabeceras ni celdas combinadas. Para set_seccion use el título y ' +
+      'la lista completa y consecutiva de párrafos existentes; no invente IDs.';
+  }
 
   if (proyectoActivo) {
     contextoDoc += `\n\n--- DATOS DEL PROYECTO O PLANIFICACIÓN ACTIVA DEL DOCENTE ---
@@ -630,7 +661,7 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
     const adjuntosVisuales = (adjuntosMemoria || [])
       .filter((adj) => adj.mimeType.startsWith('image/') || adj.mimeType === 'application/pdf')
       .map(({ mimeType, base64 }) => ({ mimeType, base64 }));
-    responseText = (await askCamilaFormatoClaude(promptFinal, historialTurnos, adjuntosVisuales)).trim();
+    responseText = (await askCamilaFormatoClaude(promptFinal, historialTurnos, adjuntosVisuales, usarGeminiPreview)).trim();
   } catch (err: any) {
     const msg = err?.message || String(err);
     if (msg.includes('503') || msg.includes('429')) {
@@ -650,10 +681,26 @@ ${revisionPrevia.detalles.length > 0 ? `• Observaciones pendientes: ${revision
   try {
     parsed = JSON.parse(responseText);
   } catch (parseErr) {
-    console.error('[CamilaFormato] Error al parsear JSON de respuesta:', responseText);
+    console.error('[CamilaFormato] Error al parsear JSON de respuesta.');
     parsed = {
       respuesta: 'Disculpa, procesé tu solicitud pero ocurrió un detalle al estructurar las operaciones. Por favor intenta de nuevo.',
       operaciones: [],
+    };
+  }
+
+  // Fase Gemini + Python: el modelo SOLO propone operaciones. El editor
+  // heredado no modifica siquiera la copia: el worker valida precondiciones,
+  // elementos complejos e integridad antes de reemplazar el estado activo.
+  // Es esencial para no presentar un borrador engañoso si el plan incluye
+  // cambios estructurales que el editor de navegador interpreta diferente.
+  if (usarGeminiPreview) {
+    return {
+      respuestaCamila: parsed.respuesta || 'Propuesta de cambios preparada.',
+      operacionesEjecutadas: Array.isArray(parsed.operaciones) ? parsed.operaciones : [],
+      operacionesOmitidas: [],
+      nuevoBlob: await guardarDocx(zipVivo, docVivo),
+      nuevoMapa: mapaActual,
+      revision: revisionPrevia,
     };
   }
 

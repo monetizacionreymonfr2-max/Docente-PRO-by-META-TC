@@ -1,0 +1,86 @@
+name: Mi Formato - worker documentos (pruebas sin despliegue)
+
+on:
+  push:
+    branches:
+      - feature/mi-formato-worker-documentos-20261116
+  pull_request:
+    paths:
+      - 'workers/libreoffice/**'
+      - 'api/camila-edit-docx.js'
+      - 'tests/test_word_edit_worker.py'
+      - 'tests/camila-word-edit-api.test.mjs'
+      - 'tests/camila-puente-python.test.mjs'
+      - 'tests/camila-gemini-formato.test.mjs'
+      - 'api/camila-gemini-formato.js'
+      - 'src/lib/camila/claudeClient.ts'
+      - 'src/lib/camilaFormato/camilaFormatoEngine.ts'
+      - 'src/lib/camilaFormato/operacionesPython.ts'
+      - 'src/pages/CamilaFormato.tsx'
+      - '.github/workflows/mi-formato-worker-documentos.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas-python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Instalar herramientas documentales
+        run: python -m pip install python-docx==1.2.0 lxml==6.0.2
+      - name: Instalar LibreOffice para pruebas de impresión PDF
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libreoffice-writer fonts-dejavu-core
+      - name: Verificar Word y HMAC sin datos reales
+        run: |
+          python -m unittest discover -s tests -p 'test_word_edit_worker.py' -v
+          python -m unittest discover -s tests -p 'test_libreoffice_worker.py' -v
+
+  validar-contenedor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compilar worker real con módulos de edición Word
+        run: docker build --pull -t docenty-worker-mi-formato:qa ./workers/libreoffice
+      - name: Verificar imports y salud de contenedor sin datos reales
+        run: |
+          set -eu
+          docker run --rm docenty-worker-mi-formato:qa python -B -c \
+            'from server import editar_word, process_edit_request; import word_structural; print("Imports correctos")'
+          docker run -d --name docenty-mi-formato-smoke \
+            -p 127.0.0.1:18787:8787 \
+            -e CAMILA_PDF_WORKER_SECRET=secreto-ficticio-con-mas-de-32-caracteres \
+            docenty-worker-mi-formato:qa
+          trap 'docker rm -f docenty-mi-formato-smoke >/dev/null 2>&1 || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:18787/health >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            http://127.0.0.1:18787/health)" = "200"
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            -X POST -H 'Content-Type: application/json' -d '{"x":1}' \
+            http://127.0.0.1:18787/edit)" = "403"
+
+  pruebas-api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: node --check api/camila-edit-docx.js
+      - run: node --check api/camila-gemini-formato.js
+      - run: node --test tests/camila-word-edit-api.test.mjs
+      - run: node --test tests/camila-gemini-formato.test.mjs
+      - run: node --import tsx --test tests/camila-puente-python.test.mjs
+      - run: npm run lint
+      - run: npm run build
