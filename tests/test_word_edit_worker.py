@@ -260,6 +260,28 @@ class EditorWordTests(unittest.TestCase):
                                 "texto":"No escribir"}]},
             ])
 
+    def test_seccion_rechaza_saltar_una_tabla_intermedia(self):
+        doc = Document()
+        doc.add_heading("Diagnóstico", level=1)
+        doc.add_paragraph("Primer texto.")
+        tabla = doc.add_table(rows=2, cols=2)
+        tabla.cell(0,0).text = "Campo"
+        tabla.cell(1,0).text = "Dato"
+        doc.add_paragraph("Segundo texto.")
+        stream = BytesIO()
+        doc.save(stream)
+        with self.assertRaises(ValueError):
+            editar_word(stream.getvalue(), [{
+                "tipo": "set_seccion", "tituloId": "p0",
+                "tituloEsperado": "Diagnóstico",
+                "parrafos": [
+                    {"id":"p1", "esperado":"Primer texto.", "texto":"Nuevo primero."},
+                    {"id":"p2", "esperado":"Segundo texto.", "texto":"Nuevo segundo."},
+                ],
+            }])
+        self.assertEqual(Document(BytesIO(stream.getvalue())).paragraphs[1].text,
+                         "Primer texto.")
+
     def test_nunca_acepta_codigo_ni_operaciones_sobre_la_misma_tabla_ambigua(self):
         original = word_cronograma_ficticio()
         insertar = {"tipo": "agregar_filas", "tablaId":"t0", "despuesDeFilaId":"t0.r2",
