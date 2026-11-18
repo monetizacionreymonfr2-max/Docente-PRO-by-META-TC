@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import handler from '../api/camila-edit-docx.js';
+import handler, { loteWordValido, operacionWordValida } from '../api/camila-edit-docx.js';
 
 const SECRET = 'secret-for-tests-longer-than-thirty-two-bytes';
 const DOCX = Buffer.concat([Buffer.from([0x50, 0x4b, 0x03, 0x04]), Buffer.from('WORD FICTICIO PARA TEST DE AUTENTICACION Y RESPUESTA DE SERVICIO')]).toString('base64');
@@ -99,4 +99,35 @@ test('el editor experimental aparece solo bajo una bandera de administrador', ()
   assert.match(page, /editorPythonVisible = isAdmin === true && opcionesEntorno\?\.VITE_CAMILA_DOCX_EDIT_TOOLS === 'true'/);
   assert.match(page, /onClick=\{solicitarEdicionWordPythonFicticio\}/);
   assert.match(page, /consentimiento: true, soloFicticio: true/);
+});
+
+
+test('proxy acepta filas y secciones validadas sin permitir cambios de código', () => {
+  const add = {
+    tipo:'agregar_filas',tablaId:'t0',despuesDeFilaId:'t0.r2',
+    esperadoModelo:['2','Lectura'],
+    filas:[['3','Ciencias'],['4','Lenguaje']],
+  };
+  const replace = {
+    tipo:'reemplazar_filas',tablaId:'t1',filaInicioId:'t1.r1',
+    esperadas:[['1','Lenguaje'],['2','Matemática']],
+    filas:[['1','Arte'],['2','Ciencias']],
+  };
+  const sec = {
+    tipo:'set_seccion',tituloId:'p4',tituloEsperado:'Diagnóstico',
+    parrafos:[{id:'p5',esperado:'Contexto',texto:'Contexto corregido'}],
+  };
+  assert.equal(loteWordValido([add,replace,sec]),true);
+  assert.equal(operacionWordValida({...add,filas:[['3']]}),true);
+  // El ancho antiguo se confirma en el worker, no en esta validación superficial.
+  assert.equal(loteWordValido([add,add]),false);
+  assert.equal(loteWordValido([add,{
+    tipo:'set_celda',id:'t0.r2.c1',esperado:'Lectura',lineas:['Cambiar'],
+  }]),false);
+  assert.equal(operacionWordValida({...sec,parrafos:[{id:'p7',esperado:'X',texto:'Y'}]}),false);
+  assert.equal(operacionWordValida({
+    tipo:'agregar_filas',tablaId:'t0',despuesDeFilaId:'t0.r2',
+    esperadoModelo:['2','Lenguaje'],filas:Array.from({length:25},()=>['A','B']),
+  }),false);
+  assert.equal(operacionWordValida({tipo:'python',codigo:'import os'}),false);
 });
