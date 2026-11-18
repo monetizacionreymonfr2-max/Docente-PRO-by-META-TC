@@ -608,6 +608,22 @@ export async function enviarMensajeACamilaFormato(params: {
 (Cada ID representa un párrafo pN o celda tX.rY.cZ del documento que puedes modificar con las operaciones exactas)
 ${mapaActual.resumenCompacto.slice(0, 7000)}`;
 
+  if (usarGeminiPreview && plantilla?.tablas.length) {
+    const resumenTablas = plantilla.tablas.slice(0, 15).map(tabla => ({
+      id: tabla.id, tipo: tabla.tipo, nombre: tabla.titulo,
+      filasEncabezado: tabla.filasEncabezadoIds,
+      filasContenido: mapaActual.tablas.find(t => t.id === tabla.id)?.filas
+        .filter(f => !tabla.filasEncabezadoIds.includes(f.id))
+        .map(f => f.id).slice(0, 24),
+    }));
+    contextoDoc += '\n\n--- TABLAS RECONOCIDAS PARA LA PRUEBA GEMINI/PYTHON ---\n' +
+      JSON.stringify(resumenTablas);
+    contextoDoc += '\nUse agregar_filas o reemplazar_filas SOLO en tablas identificadas como ' +
+      'cronograma, planificacion_diaria, plan_evaluacion o construccion_estrategias. ' +
+      'Nunca altere cabeceras ni celdas combinadas. Para set_seccion use el título y ' +
+      'la lista completa y consecutiva de párrafos existentes; no invente IDs.';
+  }
+
   if (proyectoActivo) {
     contextoDoc += `\n\n--- DATOS DEL PROYECTO O PLANIFICACIÓN ACTIVA DEL DOCENTE ---
 • Título/Tema: ${proyectoActivo.titulo}
