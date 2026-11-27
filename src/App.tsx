@@ -19,6 +19,7 @@ import MiFormato from './pages/MiFormato';
 import CamilaFormato from './pages/CamilaFormato';
 import { puedeVerMiFormato } from './config/features';
 import ActivationModal from './components/ActivationModal';
+import { isExpiredPro, isReactivationCampaignOpen } from './lib/reactivation';
 import ResetPasswordModal from './components/ResetPasswordModal';
 import LegalPage from './pages/LegalPage';
 import LegalConsentGate from './components/LegalConsentGate';
@@ -290,7 +291,7 @@ export default function App() {
       <LegalConsentGate userId={user.id}>
       <BrowserRouter>
         <Routes>
-          <Route path="*" element={<ActivationModal userId={user.id} email={user.email} />} />
+          <Route path="*" element={<ActivationModal userId={user.id} email={user.email} showReactivationOffer={isExpiredPro(profile) && isReactivationCampaignOpen()} />} />
         </Routes>
       </BrowserRouter>
       </LegalConsentGate>
