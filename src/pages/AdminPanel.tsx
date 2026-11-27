@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { SupabaseService } from '../lib/supabaseService';
 import TimeAdjustmentModal, { TargetSubscription } from '../components/TimeAdjustmentModal';
+import RetentionPanel from '../components/RetentionPanel';
 import { getWhatsAppNumber, setWhatsAppNumber } from '../lib/whatsapp';
 import { 
   Ticket, 
@@ -724,6 +725,8 @@ export default function AdminPanel() {
           </div>
         </div>
       )}
+
+      {activeTab === 'licencias' && <RetentionPanel users={users} loading={usersLoading} loaded={hasLoadedUsers} />}
 
       {/* VIEW 1: CODES */}
       {activeTab === 'licencias' && (
